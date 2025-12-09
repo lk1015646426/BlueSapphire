@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "BlueSapphire (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "BlueSapphire (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}
