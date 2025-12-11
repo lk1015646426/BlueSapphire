@@ -7,6 +7,13 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
+    <Page.Resources>
+        <local:BoolToVisibleConverter x:Key="BoolToVisibleConverter"/>
+        <local:InverseBoolToVisibleConverter x:Key="InverseBoolToVisibleConverter"/>
+        <local:BoolToKeepTextConverter x:Key="BoolToKeepTextConverter"/>
+        <local:DateConverter x:Key="DateConverter"/>
+    </Page.Resources>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -46,7 +53,8 @@
                               CornerRadius="4"
                               VerticalAlignment="Center" Padding="10,6" 
                               ToolTipService.ToolTip="切换升序/降序">
-                    <FontIcon x:Name="SortDirectionIcon" Glyph="&#xE74B;" FontSize="12"/>
+                    <FontIcon x:Name="SortDirectionIcon" Glyph="&#xE74B;"
+                              FontSize="12"/>
                 </ToggleButton>
 
                 <AppBarSeparator Foreground="#30FFFFFF" Margin="5,0"/>
@@ -100,11 +108,19 @@
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
-                            <Image Grid.Row="0" 
-                                   Source="{x:Bind ImageSource, Mode=OneWay}" 
-                                   Stretch="UniformToFill" 
-                                   Margin="6"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <Grid Grid.Row="0">
+                                <Rectangle Fill="#2000FFFF" 
+                                           HorizontalAlignment="Stretch" VerticalAlignment="Stretch" 
+                                           Margin="6"/>
+
+                                <ProgressRing IsActive="{x:Bind IsImageLoading, Mode=OneWay}" 
+                                              Width="30" Height="30" Foreground="#00FFFF"/>
+
+                                <Image Source="{x:Bind ImageSource, Mode=OneWay}" 
+                                       Stretch="UniformToFill" 
+                                       Margin="6"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Grid>
 
                             <Grid Grid.Row="1" Background="#80000000" Padding="8" CornerRadius="0,0,6,6">
                                 <StackPanel>
@@ -113,11 +129,11 @@
                                                TextTrimming="CharacterEllipsis" 
                                                HorizontalAlignment="Center"
                                                ToolTipService.ToolTip="{x:Bind FileName}"/>
-                                    
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8" Margin="0,2,0,0">
                                         <TextBlock Text="{x:Bind DateCreatedString}" 
                                                    Foreground="#80FFFFFF" FontSize="10"/>
-                                        <TextBlock Text="|" Foreground="#40FFFFFF" FontSize="10"/>
+                                        <TextBlock Text="|"
+                                                   Foreground="#40FFFFFF" FontSize="10"/>
                                         <TextBlock Text="{x:Bind FileSizeString}" 
                                                    Foreground="#00FFFF" FontSize="10" FontWeight="SemiBold"/>
                                     </StackPanel>
@@ -155,19 +171,19 @@
                   Background="#CC000000" 
                   Visibility="Collapsed"
                   HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-                
+
                 <StackPanel Orientation="Vertical" Spacing="15" 
-                            HorizontalAlignment="Center" VerticalAlignment="Center">
+                            HorizontalAlignment="Center" 
+                            VerticalAlignment="Center">
                     <ProgressRing IsActive="True" Width="50" Height="50" Foreground="#00FFFF"/>
                     <TextBlock x:Name="LoadingStatusText" Text="正在处理..." FontSize="16" Foreground="#00FFFF" HorizontalAlignment="Center"/>
-                    
+
                     <ProgressBar x:Name="ScanningProgressBar" 
                                  Background="#2000FFFF" 
                                  Foreground="#00FFFF" 
                                  Height="4" 
                                  Width="200"
                                  IsIndeterminate="False"
-                                 CornerRadius="2"
                                  Visibility="Collapsed"/>
                 </StackPanel>
             </Grid>

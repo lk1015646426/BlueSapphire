@@ -1,17 +1,58 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using BlueSapphire.Helpers; // 【必须引用】引用 Helpers
-
-// 注意：移除了 Windows.Storage
+using BlueSapphire.Helpers;
+using System.Reflection; // 【新增引用】
+using System;
+using System.Diagnostics; // 【新增引用】
+using System.IO;
 
 namespace BlueSapphire
 {
     public sealed partial class SettingsPage : Page
     {
+        // 【新增属性 1】用于 XAML 绑定显示的版本号
+        public string AppDisplayVersion { get; private set; } = "v?.?.? (Beta)";
+
+        // 【新增属性 2】用于 XAML 绑定的构建日期
+        public string AppBuildDate { get; private set; } = "Unknown Date";
+
         public SettingsPage()
         {
             this.InitializeComponent();
+            LoadVersionInfo(); // 【调用新增方法】
             InitializeSettingsSafe();
+        }
+
+        // --- 新增：加载版本信息逻辑 (实现动态同步) ---
+        private void LoadVersionInfo()
+        {
+            try
+            {
+                var assembly = Assembly.GetExecutingAssembly();
+                var version = assembly.GetName().Version;
+
+                // 1. 获取版本号 (vMajor.Minor.Build)
+                if (version != null)
+                {
+                    this.AppDisplayVersion = $"v{version.Major}.{version.Minor}.{version.Build} (Beta)";
+                }
+
+                // 2. 获取构建日期 (使用文件写入时间作为近似构建日期)
+                if (!string.IsNullOrEmpty(assembly.Location))
+                {
+                    var buildDate = File.GetLastWriteTime(assembly.Location);
+                    this.AppBuildDate = $"构建日期: {buildDate:yyyy-MM-dd HH:mm}";
+                }
+                else
+                {
+                    this.AppBuildDate = "构建日期: N/A";
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error loading version info: {ex.Message}");
+                this.AppBuildDate = "构建日期: 无法读取";
+            }
         }
 
         // --- 安全初始化逻辑 ---
