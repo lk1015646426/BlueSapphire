@@ -1,10 +1,7 @@
 ﻿using BlueSapphire.Helpers;
 using BlueSapphire.Interfaces;
-using Microsoft.UI;
-using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Markup;
 using Microsoft.UI.Xaml.Media;
@@ -17,6 +14,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using Windows.Storage;
 using Windows.Storage.FileProperties;
@@ -25,20 +23,16 @@ using Windows.Storage.Search;
 using Windows.Storage.Streams;
 using Windows.UI;
 
-// 注意：IValueConverter 转换器类已移至 Helpers/Converters.cs 文件
-
 namespace BlueSapphire
 {
     // ==========================================
-    // 1. 数据模型类: ImageItem 
+    // 1. 数据模型: ImageItem (主界面图片)
     // ==========================================
     public class ImageItem : INotifyPropertyChanged
     {
         public event PropertyChangedEventHandler? PropertyChanged;
-        protected void OnPropertyChanged([CallerMemberName] string? name = null)
-        {
+        protected void OnPropertyChanged([CallerMemberName] string? name = null) =>
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
-        }
 
         public string? FileName { get; set; }
         public string? ImagePath { get; set; }
@@ -65,105 +59,74 @@ namespace BlueSapphire
         public BitmapImage? ImageSource
         {
             get => _imageSource;
-            set
-            {
-                if (_imageSource != value)
-                {
-                    _imageSource = value;
-                    OnPropertyChanged();
-                }
-            }
+            set { if (_imageSource != value) { _imageSource = value; OnPropertyChanged(); } }
         }
 
-        private bool _isLoaded = false;
         private bool _isImageLoading = false;
         public bool IsImageLoading
         {
             get => _isImageLoading;
-            set
-            {
-                if (_isImageLoading != value)
-                {
-                    _isImageLoading = value;
-                    OnPropertyChanged();
-                }
-            }
+            set { if (_isImageLoading != value) { _isImageLoading = value; OnPropertyChanged(); } }
         }
 
-        public async Task LoadImageAsync(DispatcherQueue dispatcherQueue)
+        private bool _isLoaded = false;
+
+        public async Task LoadImageAsync(Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
         {
             if (_isLoaded || string.IsNullOrEmpty(ImagePath)) return;
             _isLoaded = true;
-            this.IsImageLoading = true;
+            IsImageLoading = true;
 
             try
             {
-                var file = await StorageFile.GetFileFromPathAsync(this.ImagePath);
-
-                using (var thumb = await file.GetThumbnailAsync(ThumbnailMode.PicturesView, 200))
+                var file = await StorageFile.GetFileFromPathAsync(ImagePath);
+                using var thumb = await file.GetThumbnailAsync(Windows.Storage.FileProperties.ThumbnailMode.PicturesView, 200);
+                if (thumb != null)
                 {
-                    if (thumb != null)
-                    {
-                        var memoryStream = new InMemoryRandomAccessStream();
-                        await RandomAccessStream.CopyAsync(thumb, memoryStream);
-                        memoryStream.Seek(0);
+                    var memoryStream = new InMemoryRandomAccessStream();
+                    await RandomAccessStream.CopyAsync(thumb, memoryStream);
+                    memoryStream.Seek(0);
 
-                        dispatcherQueue.TryEnqueue(() =>
-                        {
-                            var bitmap = new BitmapImage();
-                            bitmap.SetSource(memoryStream);
-                            bitmap.DecodePixelWidth = 200;
-                            this.ImageSource = bitmap;
-                        });
-                    }
+                    dispatcherQueue.TryEnqueue(() =>
+                    {
+                        var bitmap = new BitmapImage();
+                        bitmap.SetSource(memoryStream);
+                        bitmap.DecodePixelWidth = 200;
+                        ImageSource = bitmap;
+                    });
                 }
             }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error loading thumbnail for {FileName}: {ex.Message}");
-                _isLoaded = false;
-            }
-            finally
-            {
-                this.IsImageLoading = false;
-            }
+            catch { _isLoaded = false; }
+            finally { IsImageLoading = false; }
         }
     }
 
     // ==========================================
-    // 2. 数据模型类: DuplicateItem (去重弹窗专用)
+    // 2. 数据模型: DuplicateItem (去重弹窗专用)
     // ==========================================
     public class DuplicateItem : INotifyPropertyChanged
     {
         public event PropertyChangedEventHandler? PropertyChanged;
-        protected void OnPropertyChanged([CallerMemberName] string? name = null)
-        {
+        protected void OnPropertyChanged([CallerMemberName] string? name = null) =>
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
-        }
 
         public StorageFile? File { get; }
         public bool IsGroupSeparator { get; }
         public string DisplayName => File?.Name ?? "重复组";
         public bool IsKeepSuggestion { get; }
 
+        // --- UI 绑定属性 (自包含逻辑，无需依赖外部转换器) ---
+        public Visibility SeparatorVisibility => IsGroupSeparator ? Visibility.Visible : Visibility.Collapsed;
+        public Visibility CheckBoxVisibility => !IsGroupSeparator ? Visibility.Visible : Visibility.Collapsed;
+        public Visibility SuggestionVisibility => IsKeepSuggestion ? Visibility.Visible : Visibility.Collapsed;
+        public string DateString => File?.DateCreated.ToString("yyyy-MM-dd HH:mm") ?? "";
+
         private bool _isChecked;
         public bool IsChecked
         {
             get => _isChecked;
-            set
-            {
-                if (_isChecked != value)
-                {
-                    _isChecked = value;
-                    OnPropertyChanged();
-                }
-            }
+            set { if (_isChecked != value) { _isChecked = value; OnPropertyChanged(); } }
         }
-
-        public SolidColorBrush ForegroundBrush =>
-            IsKeepSuggestion ? new SolidColorBrush(Colors.LightGreen) : new SolidColorBrush(Colors.White);
-
-        public double OpacityValue => IsGroupSeparator ? 0.7 : (IsKeepSuggestion ? 0.8 : 1.0);
 
         public DuplicateItem(StorageFile file, bool isKeepSuggestion)
         {
@@ -181,15 +144,11 @@ namespace BlueSapphire
             IsChecked = false;
         }
 
-        public static DuplicateItem CreateSeparator()
-        {
-            return new DuplicateItem(true);
-        }
+        public static DuplicateItem CreateSeparator() => new DuplicateItem(true);
     }
 
-
     // ==========================================
-    // 3. 页面逻辑类: MediaManagerPage 
+    // 3. 页面逻辑: MediaManagerPage
     // ==========================================
     public sealed partial class MediaManagerPage : Page, ITool, INotifyPropertyChanged
     {
@@ -199,30 +158,21 @@ namespace BlueSapphire
         public Type ContentPage => typeof(MediaManagerPage);
 
         public event PropertyChangedEventHandler? PropertyChanged;
-        private void OnPropertyChanged([CallerMemberName] string? name = null)
-        {
+        private void OnPropertyChanged([CallerMemberName] string? name = null) =>
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
-        }
 
         private IncrementalLoadingCollection<ImageItem>? _images;
         public IncrementalLoadingCollection<ImageItem>? Images
         {
             get => _images;
-            set
-            {
-                if (_images != value)
-                {
-                    _images = value;
-                    OnPropertyChanged();
-                }
-            }
+            set { if (_images != value) { _images = value; OnPropertyChanged(); } }
         }
 
         private List<ImageItem> _cachedAllItems = new List<ImageItem>();
-
         private StorageFolder? _currentFolder;
         private bool _isDialogActive = false;
         private string CurrentSortTag { get; set; } = "Name";
+        private CancellationTokenSource? _globalCts;
 
         public MediaManagerPage()
         {
@@ -232,45 +182,32 @@ namespace BlueSapphire
 
         public void Initialize() { }
 
-        private void ImageGrid_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
+        // --- UI 状态控制 ---
+        private void SetBusyState(string statusText, bool isProgress = false, int max = 100)
         {
-            if (args.Item is ImageItem item)
+            StatusOverlay.Visibility = Visibility.Visible;
+            LoadingStatusText.Text = statusText;
+
+            if (isProgress)
             {
-                if (args.InRecycleQueue) return;
-                _ = item.LoadImageAsync(this.DispatcherQueue);
+                ScanningProgressBar.Visibility = Visibility.Visible;
+                ScanningProgressBar.IsIndeterminate = false;
+                ScanningProgressBar.Minimum = 0;
+                ScanningProgressBar.Maximum = max;
+                ScanningProgressBar.Value = 0;
             }
-        }
-
-        // --- UI 状态控制 (保持不变) ---
-        private void SetBusyState(string statusText)
-        {
-            ScanningProgressBar.Visibility = Visibility.Collapsed;
-            LoadingStatusText.Text = statusText;
-            StatusOverlay.Visibility = Visibility.Visible;
-        }
-
-        private void StartProgressState(string statusText, int totalItems)
-        {
-            ScanningProgressBar.Visibility = Visibility.Visible;
-            ScanningProgressBar.IsIndeterminate = false;
-            ScanningProgressBar.Minimum = 0;
-            ScanningProgressBar.Maximum = totalItems;
-            ScanningProgressBar.Value = 0;
-
-            LoadingStatusText.Text = statusText;
-            StatusOverlay.Visibility = Visibility.Visible;
-        }
-
-        private void UpdateProgressValue(int currentValue)
-        {
-            ScanningProgressBar.Value = currentValue;
+            else
+            {
+                ScanningProgressBar.Visibility = Visibility.Collapsed;
+            }
         }
 
         private void RestoreUI(bool hasContent = true)
         {
-            ScanningProgressBar.Visibility = Visibility.Collapsed;
             StatusOverlay.Visibility = Visibility.Collapsed;
             StatusBlock.Text = "STATUS: READY";
+            ScanningProgressBar.Visibility = Visibility.Collapsed;
+
             if (hasContent)
             {
                 ImageGrid.Visibility = Visibility.Visible;
@@ -289,7 +226,7 @@ namespace BlueSapphire
             _isDialogActive = true;
             try
             {
-                ContentDialog dialog = new ContentDialog
+                var dialog = new ContentDialog
                 {
                     Title = "提示",
                     Content = message,
@@ -298,96 +235,18 @@ namespace BlueSapphire
                 };
                 await dialog.ShowAsync();
             }
-            finally
+            catch { }
+            finally { _isDialogActive = false; }
+        }
+
+        // --- 加载与显示 ---
+        private void ImageGrid_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
+        {
+            if (args.Item is ImageItem item && !args.InRecycleQueue)
             {
-                _isDialogActive = false;
+                _ = item.LoadImageAsync(this.DispatcherQueue);
             }
         }
-
-        private void HandleError(string message)
-        {
-            RestoreUI(Images?.Any() == true);
-            _isDialogActive = false;
-            ShowTipDialog(message);
-        }
-
-        // --- 排序逻辑 (保持不变) ---
-        private void UpdateSortDirectionIcon()
-        {
-            bool isDescending = SortDirectionToggle.IsChecked ?? false;
-            if (!isDescending)
-            {
-                SortDirectionIcon.Glyph = "\uE74B"; // 升序图标
-                ToolTipService.SetToolTip(SortDirectionToggle, "当前: 升序");
-            }
-            else
-            {
-                SortDirectionIcon.Glyph = "\uE74A"; // 降序图标
-                ToolTipService.SetToolTip(SortDirectionToggle, "当前: 降序");
-            }
-        }
-
-        private void OnSortFieldMenuItemClicked(object sender, RoutedEventArgs e)
-        {
-            if (sender is MenuFlyoutItem item && item.Tag is string tag)
-            {
-                CurrentSortTag = tag;
-                SortFieldButton.Content = item.Text;
-                RefreshViewFromCache();
-            }
-        }
-
-        private void OnSortDirectionChanged(object sender, RoutedEventArgs e)
-        {
-            UpdateSortDirectionIcon();
-            RefreshViewFromCache();
-        }
-
-        private void RefreshViewFromCache()
-        {
-            if (_cachedAllItems == null || _cachedAllItems.Count == 0) return;
-
-            SetBusyState("正在排序...");
-
-            bool isDescending = SortDirectionToggle.IsChecked ?? false;
-            IEnumerable<ImageItem> sortedEnumerable;
-
-            switch (CurrentSortTag)
-            {
-                case "Date":
-                    sortedEnumerable = isDescending
-                        ? _cachedAllItems.OrderByDescending(x => x.DateCreated)
-                        : _cachedAllItems.OrderBy(x => x.DateCreated);
-                    break;
-                case "Size":
-                    sortedEnumerable = isDescending
-                        ? _cachedAllItems.OrderByDescending(x => x.FileSize)
-                        : _cachedAllItems.OrderBy(x => x.FileSize);
-                    break;
-                case "Name":
-                default:
-                    sortedEnumerable = isDescending
-                        ? _cachedAllItems.OrderByDescending(x => x.FileName)
-                        : _cachedAllItems.OrderBy(x => x.FileName);
-                    break;
-            }
-
-            var sortedList = sortedEnumerable.ToList();
-
-            // 重建 IncrementalLoadingCollection
-            Images = new IncrementalLoadingCollection<ImageItem>(async (token, count) =>
-            {
-                return await Task.Run(() =>
-                {
-                    var currentLen = Images?.Count ?? 0;
-                    return sortedList.Skip(currentLen).Take((int)count);
-                });
-            });
-
-            RestoreUI(true);
-        }
-
-        // --- 打开文件夹 (保持不变) ---
 
         public async void OnOpenFolderClicked(object sender, RoutedEventArgs e)
         {
@@ -395,8 +254,10 @@ namespace BlueSapphire
             _isDialogActive = true;
             try
             {
-                var openPicker = new FolderPicker();
-                openPicker.SuggestedStartLocation = PickerLocationId.PicturesLibrary;
+                var openPicker = new FolderPicker
+                {
+                    SuggestedStartLocation = PickerLocationId.PicturesLibrary
+                };
                 openPicker.FileTypeFilter.Add("*");
 
                 if (MainWindow.Instance != null)
@@ -413,38 +274,30 @@ namespace BlueSapphire
             }
             catch (Exception ex)
             {
-                HandleError(ex.Message);
+                ShowTipDialog($"无法打开文件夹: {ex.Message}");
             }
-            finally
-            {
-                _isDialogActive = false;
-            }
+            finally { _isDialogActive = false; }
         }
-
-        // --- 核心：加载逻辑 (I/O 鲁棒性修复) ---
 
         private async Task LoadFolderContent(StorageFolder folder)
         {
-            if (folder == null) return;
+            SetBusyState("正在扫描文件...");
+            Images = null;
+            _cachedAllItems.Clear();
+            PathBlock.Text = $"PATH: {folder.Path}";
+
             try
             {
-                SetBusyState("正在索引元数据...");
-                EmptyStatePanel.Visibility = Visibility.Collapsed;
-                ImageGrid.Visibility = Visibility.Collapsed;
-                Images = null;
-                _cachedAllItems.Clear(); // 清空缓存
-                PathBlock.Text = $"PATH: {folder.Path}";
-
-                // 扩展文件类型列表，加入常见视频格式
                 var fileExtensions = new List<string> {
                     ".jpg", ".png", ".jpeg", ".bmp", ".gif", ".webp",
-                    ".mp4", ".mov", ".avi", ".wmv", ".mkv", ".webm", ".3gp" // 视频扩展名
+                    ".mp4", ".mov", ".avi", ".wmv", ".mkv", ".webm", ".3gp"
                 };
 
                 var queryOptions = new QueryOptions(CommonFileQuery.DefaultQuery, fileExtensions)
                 {
                     FolderDepth = FolderDepth.Deep
                 };
+
                 var files = await folder.CreateFileQueryWithOptions(queryOptions).GetFilesAsync();
 
                 if (files.Count == 0)
@@ -454,12 +307,8 @@ namespace BlueSapphire
                     return;
                 }
 
-                int failedCount = 0;
-
-                // 构建缓存列表
                 foreach (var file in files)
                 {
-                    // 增加 I/O 鲁棒性：尝试安全地获取文件属性
                     try
                     {
                         var props = await file.GetBasicPropertiesAsync();
@@ -471,167 +320,110 @@ namespace BlueSapphire
                             FileSize = props.Size
                         });
                     }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Failed to load properties for {file.Name}: {ex.Message}");
-                        failedCount++;
-                    }
+                    catch { }
                 }
 
-                int successfulCount = _cachedAllItems.Count;
-                CountBlock.Text = $"ITEMS: {successfulCount}";
-
-                if (failedCount > 0)
-                {
-                    ShowTipDialog($"警告: 成功加载 {successfulCount} 个文件，有 {failedCount} 个文件因权限或 I/O 错误被跳过。");
-                }
-
-                // 首次填充完毕，调用统一的刷新方法进行排序和显示
+                CountBlock.Text = $"ITEMS: {_cachedAllItems.Count}";
                 RefreshViewFromCache();
             }
             catch (Exception ex)
             {
-                HandleError($"加载失败: {ex.Message}");
+                ShowTipDialog($"读取失败: {ex.Message}");
+                RestoreUI(false);
             }
         }
 
-        // --- 删除逻辑 (保持不变) ---
-
-        private async void OnDeleteClicked(object sender, RoutedEventArgs e)
+        // --- 排序逻辑 ---
+        private void OnSortFieldMenuItemClicked(object sender, RoutedEventArgs e)
         {
-            if (_isDialogActive) return;
-            _isDialogActive = true;
-
-            var selectedItems = ImageGrid.SelectedItems.Cast<ImageItem>().ToList();
-            if (selectedItems.Count == 0)
+            if (sender is MenuFlyoutItem item && item.Tag is string tag)
             {
-                _isDialogActive = false;
-                ShowTipDialog("请先选择文件");
-                return;
-            }
-
-            try
-            {
-                ContentDialog deleteDialog = new ContentDialog
-                {
-                    Title = "确认删除",
-                    Content = $"确定要彻底删除这 {selectedItems.Count} 个文件吗？此操作不可恢复。",
-                    PrimaryButtonText = "执行删除",
-                    CloseButtonText = "取消",
-                    DefaultButton = ContentDialogButton.Close,
-                    XamlRoot = this.XamlRoot
-                };
-
-                if (await deleteDialog.ShowAsync() != ContentDialogResult.Primary) return;
-
-                // 批量删除，并显示进度
-                await PerformDeleteLoop(selectedItems);
-            }
-            finally
-            {
-                _isDialogActive = false;
+                CurrentSortTag = tag;
+                SortFieldButton.Content = item.Text;
+                RefreshViewFromCache();
             }
         }
 
-        // 批量删除核心逻辑，接受 ImageItem 列表
-        private async Task PerformDeleteLoop(List<ImageItem> itemsToDelete)
+        private void OnSortDirectionChanged(object sender, RoutedEventArgs e)
         {
-            StartProgressState($"正在删除... (0/{itemsToDelete.Count})", itemsToDelete.Count);
+            UpdateSortDirectionIcon();
+            RefreshViewFromCache();
+        }
 
-            int deletedCount = 0;
-            int processedCount = 0;
-            const int batchSize = 50; // 每处理 50 个文件更新一次进度条
+        private void UpdateSortDirectionIcon()
+        {
+            bool isDescending = SortDirectionToggle.IsChecked ?? false;
+            SortDirectionIcon.Glyph = isDescending ? "\uE74A" : "\uE74B";
+        }
 
-            // 1. 在后台执行删除
-            await Task.Run(async () =>
+        private void RefreshViewFromCache()
+        {
+            if (_cachedAllItems.Count == 0) return;
+            SetBusyState("正在排序...");
+
+            bool isDescending = SortDirectionToggle.IsChecked ?? false;
+            IEnumerable<ImageItem> query = _cachedAllItems;
+
+            query = CurrentSortTag switch
             {
-                foreach (var item in itemsToDelete)
+                "Date" => isDescending ? query.OrderByDescending(x => x.DateCreated) : query.OrderBy(x => x.DateCreated),
+                "Size" => isDescending ? query.OrderByDescending(x => x.FileSize) : query.OrderBy(x => x.FileSize),
+                _ => isDescending ? query.OrderByDescending(x => x.FileName) : query.OrderBy(x => x.FileName),
+            };
+
+            var sortedList = query.ToList();
+
+            Images = new IncrementalLoadingCollection<ImageItem>(async (token, count) =>
+            {
+                return await Task.Run(() =>
                 {
-                    processedCount++;
-
-                    try
-                    {
-                        if (item.ImagePath != null)
-                        {
-                            var file = await StorageFile.GetFileFromPathAsync(item.ImagePath);
-                            await file.DeleteAsync(StorageDeleteOption.Default);
-
-                            // 仅从后台缓存中移除，不操作 UI 集合
-                            var itemToRemove = _cachedAllItems.FirstOrDefault(x => x.ImagePath == file.Path);
-                            if (itemToRemove != null)
-                            {
-                                _cachedAllItems.Remove(itemToRemove);
-                            }
-
-                            deletedCount++;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Deletion failed for {item.FileName}: {ex.Message}");
-                    }
-
-                    // 批量更新 UI 进度条
-                    if (processedCount % batchSize == 0 || processedCount == itemsToDelete.Count)
-                    {
-                        DispatcherQueue.TryEnqueue(() =>
-                        {
-                            UpdateProgressValue(processedCount);
-                            LoadingStatusText.Text = $"正在删除... ({processedCount}/{itemsToDelete.Count})";
-                        });
-                    }
-                }
+                    var currentLen = Images?.Count ?? 0;
+                    return sortedList.Skip(currentLen).Take((int)count);
+                });
             });
 
-            // 2. 删除完成后，一次性刷新 UI 集合
-            RefreshViewFromCache();
-
-            CountBlock.Text = $"ITEMS: {_cachedAllItems.Count}";
             RestoreUI(true);
-
-            ShowTipDialog($"操作完成。成功删除 {deletedCount} 个文件。");
         }
 
-
-        // --- 去重逻辑 (保持不变) ---
+        // =========================================================
+        // 核心修复: 去重功能 (单线程安全版)
+        // =========================================================
 
         private async void OnScanDuplicatesClicked(object sender, RoutedEventArgs e)
         {
             if (_currentFolder == null) { ShowTipDialog("请先导入文件夹"); return; }
             if (_isDialogActive) return;
             _isDialogActive = true;
+
+            _globalCts?.Cancel();
+            _globalCts = new CancellationTokenSource();
+            var token = _globalCts.Token;
+
             try
             {
                 SetBusyState("正在初筛 (按大小)...");
+
                 var fileExtensions = new List<string> {
                     ".jpg", ".png", ".jpeg", ".bmp", ".gif", ".webp",
-                    ".mp4", ".mov", ".avi", ".wmv", ".mkv", ".webm", ".3gp" // 视频扩展名
+                    ".mp4", ".mov", ".avi", ".wmv", ".mkv", ".webm", ".3gp"
                 };
                 var queryOptions = new QueryOptions(CommonFileQuery.DefaultQuery, fileExtensions);
                 queryOptions.SetPropertyPrefetch(PropertyPrefetchOptions.BasicProperties, new[] { "System.Size" });
+
                 var files = await _currentFolder.CreateFileQueryWithOptions(queryOptions).GetFilesAsync();
 
                 if (files.Count < 2)
                 {
                     RestoreUI(true);
                     _isDialogActive = false;
-                    ShowTipDialog("文件太少，无需扫描");
+                    ShowTipDialog("文件不足，无需扫描");
                     return;
                 }
 
-                // 1. 初筛：按文件大小分组
                 var fileInfos = new List<(StorageFile f, ulong s)>();
                 foreach (var f in files)
                 {
-                    try
-                    {
-                        var p = await f.GetBasicPropertiesAsync();
-                        fileInfos.Add((f, p.Size));
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Skipping file due to I/O error: {f.Name}. Error: {ex.Message}");
-                    }
+                    try { var p = await f.GetBasicPropertiesAsync(); fileInfos.Add((f, p.Size)); } catch { }
                 }
 
                 var groups = fileInfos.GroupBy(x => x.s).Where(g => g.Count() > 1).ToList();
@@ -639,132 +431,140 @@ namespace BlueSapphire
                 {
                     RestoreUI(true);
                     _isDialogActive = false;
-                    ShowTipDialog("恭喜，当前文件夹没有发现重复文件！");
+                    ShowTipDialog("未发现重复文件 (按大小)");
                     return;
                 }
 
-                StartProgressState($"正在进行深度校验 (MD5)... 共 {groups.Count} 组疑似重复", groups.Count);
+                // 2. 深度扫描 (MD5) - 单线程安全模式
+                SetBusyState($"正在校验 MD5... (0/{groups.Count})", true, groups.Count);
 
-                // 2. 复筛：并发计算 MD5
-                var dupes = new ConcurrentBag<List<StorageFile>>();
-                int groupsProcessed = 0;
+                var dupes = new List<List<StorageFile>>();
+                int processedCount = 0;
+                int totalGroups = groups.Count;
 
+                // 启动 UI 监控线程 (避免高频刷新)
+                var uiMonitorTask = Task.Run(async () =>
+                {
+                    while (processedCount < totalGroups && !token.IsCancellationRequested)
+                    {
+                        await Task.Delay(200);
+                        DispatcherQueue.TryEnqueue(() =>
+                        {
+                            ScanningProgressBar.Value = processedCount;
+                            LoadingStatusText.Text = $"正在校验 MD5... ({processedCount}/{totalGroups})";
+                        });
+                    }
+                });
+
+                // 启动后台计算 (使用普通 foreach，不用 Parallel)
                 await Task.Run(async () =>
                 {
-                    await Parallel.ForEachAsync(groups, async (g, ct) =>
+                    foreach (var group in groups)
                     {
+                        if (token.IsCancellationRequested) break;
+
                         var hashes = new Dictionary<string, List<StorageFile>>();
-                        foreach (var item in g)
+
+                        foreach (var item in group)
                         {
-                            var h = await FileHelper.ComputeMD5Async(item.f);
-                            if (!string.IsNullOrEmpty(h))
+                            try
                             {
-                                if (!hashes.ContainsKey(h)) hashes[h] = new List<StorageFile>();
-                                hashes[h].Add(item.f);
+                                // 单线程顺序执行，绝不崩溃
+                                string hash = await FileHelper.ComputeMD5Async(item.f);
+                                if (!string.IsNullOrEmpty(hash))
+                                {
+                                    if (!hashes.ContainsKey(hash)) hashes[hash] = new List<StorageFile>();
+                                    hashes[hash].Add(item.f);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Debug.WriteLine($"跳过损坏文件: {ex.Message}");
                             }
                         }
 
-                        foreach (var hg in hashes.Values)
+                        foreach (var hList in hashes.Values)
                         {
-                            if (hg.Count > 1) dupes.Add(hg);
+                            if (hList.Count > 1) dupes.Add(hList);
                         }
 
-                        // 实时更新进度条
-                        groupsProcessed++;
-                        DispatcherQueue.TryEnqueue(() =>
-                        {
-                            UpdateProgressValue(groupsProcessed);
-                            LoadingStatusText.Text = $"正在进行深度校验... ({groupsProcessed}/{groups.Count})";
-                        });
-                    });
+                        Interlocked.Increment(ref processedCount);
+                    }
                 });
+
+                await uiMonitorTask; // 等待 UI 监控结束
 
                 RestoreUI(true);
                 _isDialogActive = false;
 
-                var finalDupes = dupes.ToList();
-                if (finalDupes.Any())
+                if (dupes.Any())
                 {
-                    await ShowDuplicateResultsDialog(finalDupes);
+                    await ShowDuplicateResultsDialog(dupes);
                 }
                 else
                 {
-                    ShowTipDialog("恭喜，当前文件夹没有发现重复文件！");
+                    ShowTipDialog("恭喜，没有发现内容完全一致的重复文件。");
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                RestoreUI(true);
+                _isDialogActive = false;
             }
             catch (Exception ex)
             {
-                HandleError(ex.Message);
-            }
-            finally
-            {
+                ShowTipDialog($"扫描出错: {ex.Message}");
+                RestoreUI(true);
                 _isDialogActive = false;
             }
         }
 
-        // --- 核心：去重结果对话框 (使用预编译资源) ---
+        // --- 结果弹窗与删除 ---
+
         private async Task ShowDuplicateResultsDialog(List<List<StorageFile>> dupes)
         {
             var flatList = new ObservableCollection<DuplicateItem>();
-
-            // 1. 构造扁平化数据源
             foreach (var g in dupes)
             {
                 flatList.Add(DuplicateItem.CreateSeparator());
-
                 var sorted = g.OrderByDescending(f => f.DateCreated).ToList();
                 for (int i = 0; i < sorted.Count; i++)
                 {
-                    var f = sorted[i];
-                    bool keep = (i == 0); // 建议保留最新创建的文件
-                    var item = new DuplicateItem(f, keep);
-                    flatList.Add(item);
+                    flatList.Add(new DuplicateItem(sorted[i], i == 0)); // 默认保留最新的一个
                 }
             }
+            if (flatList.Any()) flatList.RemoveAt(0);
 
-            // 移除第一个不必要的组分隔符 (如果存在)
-            if (flatList.Any() && flatList.First().IsGroupSeparator) flatList.RemoveAt(0);
-
-            // 2. 构造 ListView 和 DataTemplate (实现虚拟化)
             var listView = new ListView
             {
                 ItemsSource = flatList,
                 SelectionMode = ListViewSelectionMode.None,
-                MaxHeight = 400,
-                Margin = new Thickness(0, 0, 10, 0)
+                MaxHeight = 400
             };
 
-            // XAML 字符串引用 Page.Resources 中已预编译的 StaticResource
             string xaml = @"
-                <DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'
-                              xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>
-                    <Grid x:Name='ItemGrid' Margin='0,0,0,0' Padding='0'>
-                        
-                        <TextBlock Text='重复组' Margin='0,10,0,0' 
-                                   FontWeight='SemiBold' FontSize='16'
-                                   Foreground='#00FFFF' Opacity='0.7'
-                                   VerticalAlignment='Top'
-                                   Visibility='{Binding IsGroupSeparator, Converter={StaticResource BoolToVisibleConverter}}'/>
-
-                        <CheckBox x:Name='FileCheckBox'
-                                  IsChecked='{Binding IsChecked, Mode=TwoWay}'
-                                  Foreground='{Binding ForegroundBrush}'
-                                  Opacity='{Binding OpacityValue}'
-                                  Margin='0,5,0,5'
-                                  Visibility='{Binding IsGroupSeparator, Converter={StaticResource InverseBoolToVisibleConverter}}'>
-                            <TextBlock>
-                                <Run Text='{Binding DisplayName}' FontWeight='SemiBold'/>
-                                <Run Text=' ({Binding File.DateCreated, Converter={StaticResource DateConverter}})' FontSize='12' Foreground='#80FFFFFF'/>
-                                <Run Text='{Binding IsKeepSuggestion, Converter={StaticResource BoolToKeepTextConverter}}' Foreground='LightGreen' FontSize='12'/>
-                            </TextBlock>
+                <DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>
+                    <Grid>
+                        <TextBlock Text='重复组' FontWeight='Bold' Foreground='#00FFFF' Opacity='0.6' Margin='0,10,0,0'
+                                   Visibility='{Binding SeparatorVisibility}'/>
+                                   
+                        <CheckBox IsChecked='{Binding IsChecked, Mode=TwoWay}' Margin='0,2,0,2'
+                                  Visibility='{Binding CheckBoxVisibility}'>
+                            <StackPanel Orientation='Horizontal'>
+                                <TextBlock Text='{Binding DisplayName}' FontWeight='SemiBold' />
+                                <TextBlock Text=' (' Foreground='#80FFFFFF' FontSize='12'/>
+                                <TextBlock Text='{Binding DateString}' Foreground='#80FFFFFF' FontSize='12'/>
+                                <TextBlock Text=')' Foreground='#80FFFFFF' FontSize='12'/>
+                                <TextBlock Text=' [推荐保留]' Foreground='LightGreen' Margin='10,0,0,0' FontSize='12'
+                                           Visibility='{Binding SuggestionVisibility}'/>
+                            </StackPanel>
                         </CheckBox>
                     </Grid>
                 </DataTemplate>";
 
-            // 注入 XAML 并解析为 DataTemplate
-            listView.ItemTemplate = XamlReader.Load(xaml) as DataTemplate;
+            listView.ItemTemplate = (DataTemplate)XamlReader.Load(xaml);
 
-            var dlg = new ContentDialog
+            var dialog = new ContentDialog
             {
                 Title = $"发现 {dupes.Count} 组重复文件",
                 Content = listView,
@@ -774,25 +574,84 @@ namespace BlueSapphire
                 XamlRoot = this.XamlRoot
             };
 
-            if (await dlg.ShowAsync() == ContentDialogResult.Primary)
+            if (await dialog.ShowAsync() == ContentDialogResult.Primary)
             {
-                var toDelFilePaths = flatList
-                    .Where(i => i.File != null && i.IsChecked)
-                    .Select(i => i.File!.Path)
+                var filesToDelete = flatList
+                    .Where(x => x.File != null && x.IsChecked)
+                    .Select(x => x.File!)
                     .ToList();
 
-                if (toDelFilePaths.Any())
+                if (filesToDelete.Any())
                 {
-                    var itemsToDelete = _cachedAllItems
-                        .Where(item => item.ImagePath != null && toDelFilePaths.Contains(item.ImagePath))
-                        .ToList();
+                    await PerformDeleteFiles(filesToDelete);
+                }
+            }
+        }
 
-                    await PerformDeleteLoop(itemsToDelete);
-                }
-                else
+        private async Task PerformDeleteFiles(List<StorageFile> files)
+        {
+            SetBusyState($"正在删除... (0/{files.Count})", true, files.Count);
+
+            int deletedCount = 0;
+            int total = files.Count;
+
+            var uiTask = Task.Run(async () =>
+            {
+                while (deletedCount < total)
                 {
-                    ShowTipDialog("未选择任何文件进行删除。");
+                    await Task.Delay(100);
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        ScanningProgressBar.Value = deletedCount;
+                        LoadingStatusText.Text = $"正在删除... ({deletedCount}/{total})";
+                    });
                 }
+            });
+
+            await Task.Run(async () =>
+            {
+                foreach (var file in files)
+                {
+                    try
+                    {
+                        await file.DeleteAsync();
+                        var cacheItem = _cachedAllItems.FirstOrDefault(x => x.ImagePath == file.Path);
+                        if (cacheItem != null) _cachedAllItems.Remove(cacheItem);
+                    }
+                    catch { }
+                    Interlocked.Increment(ref deletedCount);
+                }
+            });
+
+            await uiTask;
+
+            RefreshViewFromCache();
+            ShowTipDialog($"删除完成，共清理 {deletedCount} 个文件。");
+        }
+
+        private async void OnDeleteClicked(object sender, RoutedEventArgs e)
+        {
+            var selectedItems = ImageGrid.SelectedItems.Cast<ImageItem>().ToList();
+            if (!selectedItems.Any()) { ShowTipDialog("请先选择文件"); return; }
+
+            var dialog = new ContentDialog
+            {
+                Title = "确认删除",
+                Content = $"确定要删除选中的 {selectedItems.Count} 个文件吗？",
+                PrimaryButtonText = "删除",
+                CloseButtonText = "取消",
+                DefaultButton = ContentDialogButton.Close,
+                XamlRoot = this.XamlRoot
+            };
+
+            if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+            {
+                var files = new List<StorageFile>();
+                foreach (var item in selectedItems)
+                {
+                    try { files.Add(await StorageFile.GetFileFromPathAsync(item.ImagePath)); } catch { }
+                }
+                await PerformDeleteFiles(files);
             }
         }
 
@@ -800,7 +659,7 @@ namespace BlueSapphire
         {
             if (ImageGrid.SelectedItem is ImageItem item)
             {
-                ShowTipDialog($"已选择: {item.FileName}");
+                ShowTipDialog($"文件名: {item.FileName}\n路径: {item.ImagePath}\n大小: {item.FileSizeString}");
             }
         }
     }
