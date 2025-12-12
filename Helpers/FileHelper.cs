@@ -1,38 +1,35 @@
-﻿using ImageMagick; // 必须安装 NuGet 包: Magick.NET-Q8-AnyCPU
+﻿using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 using System;
 using System.IO;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
 using Windows.Storage;
+using Windows.Storage.FileProperties;
 
 namespace BlueSapphire.Helpers
 {
-    // 定义结果类
-    public class ImageAnalysisResult
+    // 简化的结果类
+    public class MediaAnalysisResult
     {
-        public ulong Hash { get; set; }
-        public int Width { get; set; }
-        public int Height { get; set; }
+        public ulong? VisualHash { get; set; }
         public bool IsSuccess { get; set; }
     }
 
     public static class FileHelper
     {
-        // 1. 计算 MD5 (用于视频/非图片)
+        // 1. 计算 MD5 (用于精确去重)
         public static async Task<string> ComputeMD5Async(StorageFile file)
         {
             return await Task.Run(async () =>
             {
                 try
                 {
-                    using (var stream = await file.OpenStreamForReadAsync())
-                    {
-                        using (var md5 = MD5.Create())
-                        {
-                            var hash = md5.ComputeHash(stream);
-                            return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
-                        }
-                    }
+                    using var stream = await file.OpenStreamForReadAsync();
+                    using var md5 = MD5.Create();
+                    var hash = md5.ComputeHash(stream);
+                    return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
                 }
                 catch
                 {
@@ -41,35 +38,51 @@ namespace BlueSapphire.Helpers
             });
         }
 
-        // 2. 单独计算 dHash (视觉指纹)
-        public static async Task<ulong?> ComputeDHashAsync(StorageFile file)
+        // 2. 计算视觉哈希 (内置 dHash 算法，无需外部库)
+        public static async Task<ulong?> ComputeVisualHashAsync(StorageFile file)
         {
-            return await Task.Run(async () =>
+            // 【关键修复】显式指定 Task.Run 的泛型类型为 <ulong?>，避免推断错误
+            return await Task.Run<ulong?>(async () =>
             {
                 try
                 {
-                    using (var stream = await file.OpenStreamForReadAsync())
-                    using (var image = new MagickImage(stream))
+                    // 1. 获取缩略图流 (WinUI 原生支持视频/图片)
+                    // 使用 32px 尺寸，足够计算 9x8 的 dHash
+                    using var thumbnail = await file.GetThumbnailAsync(ThumbnailMode.SingleItem, 32);
+
+                    if (thumbnail == null) return null;
+
+                    using var stream = thumbnail.AsStreamForRead();
+
+                    // 2. 加载图片 (L8 = 8位灰度图，省去转灰度步骤)
+                    using var image = await Image.LoadAsync<L8>(stream);
+
+                    // 3. 预处理：强制缩放到 9x8 像素
+                    image.Mutate(x => x.Resize(9, 8));
+
+                    // 4. dHash 核心算法：比较相邻像素亮度
+                    ulong hash = 0;
+                    int bitIndex = 0;
+
+                    // 遍历每一行
+                    for (int y = 0; y < 8; y++)
                     {
-                        var size = new MagickGeometry(9, 8) { IgnoreAspectRatio = true };
-                        image.Resize(size);
-                        byte[] pixels = image.ToByteArray(MagickFormat.Gray);
-
-                        ulong hash = 0;
-                        int bitIndex = 0;
-
-                        for (int y = 0; y < 8; y++)
+                        for (int x = 0; x < 8; x++)
                         {
-                            for (int x = 0; x < 8; x++)
+                            var leftPixel = image[x, y];
+                            var rightPixel = image[x + 1, y];
+
+                            // 如果左边比右边亮，该位设为 1
+                            if (leftPixel.PackedValue > rightPixel.PackedValue)
                             {
-                                var left = pixels[y * 9 + x];
-                                var right = pixels[y * 9 + x + 1];
-                                if (left > right) hash |= (1UL << bitIndex);
-                                bitIndex++;
+                                hash |= (1UL << bitIndex);
                             }
+                            bitIndex++;
                         }
-                        return (ulong?)hash;
                     }
+
+                    // 【关键修复】明确转换为 nullable ulong
+                    return (ulong?)hash;
                 }
                 catch
                 {
@@ -78,50 +91,7 @@ namespace BlueSapphire.Helpers
             });
         }
 
-        // 3. 综合分析 (同时获取分辨率和哈希)
-        public static async Task<ImageAnalysisResult> AnalyzeImageAsync(StorageFile file)
-        {
-            return await Task.Run(async () =>
-            {
-                var result = new ImageAnalysisResult { IsSuccess = false };
-                try
-                {
-                    using (var stream = await file.OpenStreamForReadAsync())
-                    using (var image = new MagickImage(stream))
-                    {
-                        // 【修复】强制转换为 int
-                        result.Width = (int)image.Width;
-                        result.Height = (int)image.Height;
-
-                        var size = new MagickGeometry(9, 8) { IgnoreAspectRatio = true };
-                        image.Resize(size);
-
-                        byte[] pixels = image.ToByteArray(MagickFormat.Gray);
-                        ulong hash = 0;
-                        int bitIndex = 0;
-
-                        for (int y = 0; y < 8; y++)
-                        {
-                            for (int x = 0; x < 8; x++)
-                            {
-                                if (pixels[y * 9 + x] > pixels[y * 9 + x + 1])
-                                    hash |= (1UL << bitIndex);
-                                bitIndex++;
-                            }
-                        }
-                        result.Hash = hash;
-                        result.IsSuccess = true;
-                    }
-                }
-                catch
-                {
-                    result.IsSuccess = false;
-                }
-                return result;
-            });
-        }
-
-        // 4. 计算汉明距离
+        // 3. 计算汉明距离 (比较两个哈希有多少位不同)
         public static int CalculateHammingDistance(ulong hash1, ulong hash2)
         {
             ulong xor = hash1 ^ hash2;

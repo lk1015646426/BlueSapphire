@@ -1,9 +1,9 @@
-﻿#pragma warning disable CA1416 // 忽略 "仅在 Windows xxx 上受支持" 的平台兼容性警告
-#pragma warning disable IDE0060 // 忽略 "移除未使用的参数" 建议
+﻿#pragma warning disable CA1416
+#pragma warning disable IDE0060
 
 using BlueSapphire.Helpers;
 using BlueSapphire.Interfaces;
-using BlueSapphire.Models; // 【新增】引用分离的模型命名空间
+using BlueSapphire.Models;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -19,10 +19,19 @@ using Windows.Storage;
 using Windows.Storage.FileProperties;
 using Windows.Storage.Search;
 
-// 确保项目引用了 Magick.NET-Q8-AnyCPU (用于 HEIC 识别)
-
 namespace BlueSapphire
 {
+    // ---------------------------------------------------------
+    // 辅助类：扫描项信息 (放在外面，防止粘贴到方法内部)
+    // ---------------------------------------------------------
+    internal class ScannedItemInfo
+    {
+        public StorageFile File { get; set; } = null!;
+        public ulong? VisualHash { get; set; }
+        public ulong FileSize { get; set; }
+        public bool IsProcessed { get; set; } = false;
+    }
+
     // ==========================================
     // 页面逻辑: MediaManagerPage
     // ==========================================
@@ -56,19 +65,6 @@ namespace BlueSapphire
         private bool _isDialogActive = false;
         private string CurrentSortTag { get; set; } = "Name";
         private CancellationTokenSource? _globalCts;
-
-        // 内部类：用于扫描过程中的临时数据 (无需拆分，因为只在此处使用)
-        private class ScannedItemInfo
-        {
-            public StorageFile File { get; set; } = null!;
-            public ulong? VisualHash { get; set; }
-            public int Width { get; set; }
-            public int Height { get; set; }
-            public long FileSize { get; set; }
-            public DateTimeOffset CreationTime { get; set; }
-            public bool IsImage { get; set; }
-            public bool IsProcessed { get; set; } = false;
-        }
 
         public MediaManagerPage()
         {
@@ -174,7 +170,6 @@ namespace BlueSapphire
                 };
                 openPicker.FileTypeFilter.Add("*");
 
-                // WinUI 3 需要窗口句柄
                 if (MainWindow.Instance != null)
                 {
                     WinRT.Interop.InitializeWithWindow.Initialize(openPicker, WinRT.Interop.WindowNative.GetWindowHandle(MainWindow.Instance));
@@ -293,7 +288,6 @@ namespace BlueSapphire
                 return await Task.Run(() =>
                 {
                     var currentLen = Images?.Count ?? 0;
-                    // 确保 count 被显式转换为 int
                     return sortedList.Skip(currentLen).Take((int)count);
                 });
             });
@@ -302,9 +296,8 @@ namespace BlueSapphire
         }
 
         // =========================================================
-        // 核心修复: 智能混合去重 (视觉 dHash + 精确 MD5)
+        // 核心重构: 统一视觉去重 (支持 图片 + 视频)
         // =========================================================
-
         private async void OnScanDuplicatesClicked(object sender, RoutedEventArgs e)
         {
             if (_currentFolder == null) { ShowTipDialog("请先导入文件夹"); return; }
@@ -317,7 +310,7 @@ namespace BlueSapphire
 
             try
             {
-                SetBusyState("正在索引文件...");
+                SetBusyState("正在提取媒体指纹...");
 
                 var fileExtensions = new List<string> {
                     ".jpg", ".png", ".jpeg", ".bmp", ".gif", ".webp", ".heic",
@@ -337,20 +330,7 @@ namespace BlueSapphire
                     return;
                 }
 
-                var imageFiles = new List<StorageFile>();
-                var otherFiles = new List<StorageFile>();
-                var imgExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    ".jpg", ".png", ".jpeg", ".bmp", ".gif", ".webp", ".heic"
-                };
-
-                foreach (var f in allFiles)
-                {
-                    if (imgExts.Contains(f.FileType)) imageFiles.Add(f);
-                    else otherFiles.Add(f);
-                }
-
-                int totalCount = imageFiles.Count + otherFiles.Count;
+                int totalCount = allFiles.Count;
                 int processedCount = 0;
                 var finalDuplicateGroups = new List<List<StorageFile>>();
 
@@ -359,113 +339,66 @@ namespace BlueSapphire
                     while (processedCount < totalCount && !token.IsCancellationRequested)
                     {
                         await Task.Delay(200);
-                        DispatcherQueue.TryEnqueue(() =>
-                        {
-                            ScanningProgressBar.Value = processedCount;
-                            LoadingStatusText.Text = $"正在深度分析... ({processedCount}/{totalCount})";
-                        });
+                        UpdateProgress(processedCount, $"正在分析... ({processedCount}/{totalCount})");
                     }
                 });
 
-                // --- 策略 A: 视频/其他文件 (先按大小分组，再算 MD5) ---
-                if (otherFiles.Count > 0)
+                await Task.Run(async () =>
                 {
-                    await Task.Run(async () =>
+                    var scannedItems = new List<ScannedItemInfo>();
+
+                    foreach (var file in allFiles)
                     {
-                        var fileSizes = new List<(StorageFile f, ulong size)>();
-                        foreach (var f in otherFiles)
+                        if (token.IsCancellationRequested) break;
+
+                        var info = new ScannedItemInfo { File = file };
+
+                        try
                         {
-                            try
-                            {
-                                var props = await f.GetBasicPropertiesAsync();
-                                fileSizes.Add((f, props.Size));
-                            }
-                            catch { }
-                            if (token.IsCancellationRequested) break;
+                            var props = await file.GetBasicPropertiesAsync();
+                            info.FileSize = props.Size;
+
+                            // 无论视频还是图片，都计算视觉哈希
+                            info.VisualHash = await FileHelper.ComputeVisualHashAsync(file);
+                        }
+                        catch { }
+
+                        if (info.VisualHash.HasValue)
+                        {
+                            scannedItems.Add(info);
                         }
 
-                        var sizeGroups = fileSizes.GroupBy(x => x.size).Where(g => g.Count() > 1).ToList();
-                        int skippedCount = otherFiles.Count - sizeGroups.Sum(g => g.Count());
-                        Interlocked.Add(ref processedCount, skippedCount);
+                        Interlocked.Increment(ref processedCount);
+                    }
 
-                        foreach (var group in sizeGroups)
-                        {
-                            if (token.IsCancellationRequested) break;
-
-                            var md5Map = new Dictionary<string, List<StorageFile>>();
-                            foreach (var item in group)
-                            {
-                                try
-                                {
-                                    string hash = await FileHelper.ComputeMD5Async(item.f);
-                                    if (!string.IsNullOrEmpty(hash))
-                                    {
-                                        if (!md5Map.ContainsKey(hash)) md5Map[hash] = new List<StorageFile>();
-                                        md5Map[hash].Add(item.f);
-                                    }
-                                }
-                                catch { }
-                                Interlocked.Increment(ref processedCount);
-                            }
-
-                            finalDuplicateGroups.AddRange(md5Map.Values.Where(g => g.Count > 1));
-                        }
-                    });
-                }
-
-                // --- 策略 B: 图片文件 (忽略大小，全量计算 dHash) ---
-                if (imageFiles.Count > 0)
-                {
-                    var fileHashes = new List<(StorageFile file, ulong hash)>();
-
-                    await Task.Run(async () =>
+                    var items = scannedItems.ToArray();
+                    for (int i = 0; i < items.Length; i++)
                     {
-                        foreach (var file in imageFiles)
+                        if (token.IsCancellationRequested) break;
+                        if (items[i].IsProcessed) continue;
+
+                        var currentGroup = new List<StorageFile> { items[i].File };
+                        items[i].IsProcessed = true;
+
+                        for (int j = i + 1; j < items.Length; j++)
                         {
-                            if (token.IsCancellationRequested) break;
+                            if (items[j].IsProcessed) continue;
 
-                            var hash = await FileHelper.ComputeDHashAsync(file);
+                            int distance = FileHelper.CalculateHammingDistance(items[i].VisualHash!.Value, items[j].VisualHash!.Value);
 
-                            if (hash.HasValue)
+                            if (distance <= 3)
                             {
-                                fileHashes.Add((file, hash.Value));
-                            }
-                            Interlocked.Increment(ref processedCount);
-                        }
-                    });
-
-                    await Task.Run(() =>
-                    {
-                        var processedIndices = new bool[fileHashes.Count];
-
-                        for (int i = 0; i < fileHashes.Count; i++)
-                        {
-                            if (token.IsCancellationRequested) break;
-                            if (processedIndices[i]) continue;
-
-                            var currentGroup = new List<StorageFile> { fileHashes[i].file };
-                            processedIndices[i] = true;
-
-                            for (int j = i + 1; j < fileHashes.Count; j++)
-                            {
-                                if (processedIndices[j]) continue;
-
-                                int distance = FileHelper.CalculateHammingDistance(fileHashes[i].hash, fileHashes[j].hash);
-
-                                if (distance <= 3)
-                                {
-                                    currentGroup.Add(fileHashes[j].file);
-                                    processedIndices[j] = true;
-                                }
-                            }
-
-                            if (currentGroup.Count > 1)
-                            {
-                                finalDuplicateGroups.Add(currentGroup);
+                                currentGroup.Add(items[j].File);
+                                items[j].IsProcessed = true;
                             }
                         }
-                    });
-                }
+
+                        if (currentGroup.Count > 1)
+                        {
+                            finalDuplicateGroups.Add(currentGroup);
+                        }
+                    }
+                });
 
                 await uiMonitorTask;
 
@@ -478,33 +411,25 @@ namespace BlueSapphire
                 }
                 else
                 {
-                    ShowTipDialog("未发现重复文件。\n(图片使用了视觉相似度检查，视频使用了MD5检查)");
+                    ShowTipDialog("未发现相似的媒体文件。");
                 }
-            }
-            catch (OperationCanceledException)
-            {
-                RestoreUI(true);
-                _isDialogActive = false;
             }
             catch (Exception ex)
             {
-                ShowTipDialog($"扫描出错: {ex.Message}");
                 RestoreUI(true);
                 _isDialogActive = false;
+                ShowTipDialog($"扫描中断: {ex.Message}");
             }
         }
 
         // --- 结果弹窗与删除 ---
-
         private async Task ShowDuplicateResultsDialog(List<List<StorageFile>> dupes)
         {
             var flatList = new ObservableCollection<DuplicateItem>();
             foreach (var g in dupes)
             {
                 flatList.Add(DuplicateItem.CreateSeparator());
-
                 var sorted = g.OrderByDescending(f => f.DateCreated).ToList();
-
                 for (int i = 0; i < sorted.Count; i++)
                 {
                     flatList.Add(new DuplicateItem(sorted[i], i == 0));
@@ -607,20 +532,6 @@ namespace BlueSapphire
 
             RefreshViewFromCache();
             ShowTipDialog($"删除完成，共清理 {deletedCount} 个文件。");
-        }
-
-        // 静态方法优化
-        private static string FormatSize(long bytes)
-        {
-            string[] suffixes = { "B", "KB", "MB", "GB" };
-            int counter = 0;
-            double number = bytes;
-            while (Math.Round(number / 1024) >= 1)
-            {
-                number /= 1024;
-                counter++;
-            }
-            return string.Format("{0:n1}{1}", number, suffixes[counter]);
         }
 
         private async void OnDeleteClicked(object sender, RoutedEventArgs e)
