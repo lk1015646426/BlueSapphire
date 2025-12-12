@@ -174,8 +174,18 @@
                 <StackPanel Orientation="Vertical" Spacing="15" 
                             HorizontalAlignment="Center" 
                             VerticalAlignment="Center">
+
                     <ProgressRing IsActive="True" Width="50" Height="50" Foreground="#00FFFF"/>
-                    <TextBlock x:Name="LoadingStatusText" Text="正在处理..." FontSize="16" Foreground="#00FFFF" HorizontalAlignment="Center"/>
+
+                    <TextBlock x:Name="LoadingStatusText" Text="正在处理..." 
+                               FontSize="16" Foreground="#00FFFF" HorizontalAlignment="Center"/>
+
+                    <TextBlock x:Name="StatusDetailText" 
+                               Text="0 / 0" 
+                               FontSize="14" 
+                               Foreground="#80FFFFFF" 
+                               HorizontalAlignment="Center"
+                               Margin="0,-5,0,0"/>
 
                     <ProgressBar x:Name="ScanningProgressBar" 
                                  Background="#2000FFFF" 
