@@ -4,10 +4,8 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Markup;
-using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -18,10 +16,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using Windows.Storage;
 using Windows.Storage.FileProperties;
-using Windows.Storage.Pickers;
+using Windows.Storage.Pickers; // 【已修复】添加此引用以解决 FolderPicker 报错
 using Windows.Storage.Search;
 using Windows.Storage.Streams;
-using Windows.UI;
 
 namespace BlueSapphire
 {
@@ -115,7 +112,7 @@ namespace BlueSapphire
         public string DisplayName => File?.Name ?? "重复组";
         public bool IsKeepSuggestion { get; }
 
-        // --- UI 绑定属性 (自包含逻辑，无需依赖外部转换器) ---
+        // --- UI 绑定属性 ---
         public Visibility SeparatorVisibility => IsGroupSeparator ? Visibility.Visible : Visibility.Collapsed;
         public Visibility CheckBoxVisibility => !IsGroupSeparator ? Visibility.Visible : Visibility.Collapsed;
         public Visibility SuggestionVisibility => IsKeepSuggestion ? Visibility.Visible : Visibility.Collapsed;
@@ -290,7 +287,7 @@ namespace BlueSapphire
             {
                 var fileExtensions = new List<string> {
                     ".jpg", ".png", ".jpeg", ".bmp", ".gif", ".webp",
-                    ".mp4", ".mov", ".avi", ".wmv", ".mkv", ".webm", ".3gp"
+                    ".mp4", ".mov", ".avi", ".wmv", ".mkv", ".webm", ".3gp", ".heic"
                 };
 
                 var queryOptions = new QueryOptions(CommonFileQuery.DefaultQuery, fileExtensions)
@@ -386,7 +383,7 @@ namespace BlueSapphire
         }
 
         // =========================================================
-        // 核心修复: 去重功能 (单线程安全版)
+        // 核心修复: 智能混合去重 (视觉 dHash + 精确 MD5)
         // =========================================================
 
         private async void OnScanDuplicatesClicked(object sender, RoutedEventArgs e)
@@ -401,18 +398,20 @@ namespace BlueSapphire
 
             try
             {
-                SetBusyState("正在初筛 (按大小)...");
+                SetBusyState("正在索引文件...");
 
                 var fileExtensions = new List<string> {
-                    ".jpg", ".png", ".jpeg", ".bmp", ".gif", ".webp",
+                    ".jpg", ".png", ".jpeg", ".bmp", ".gif", ".webp", ".heic",
                     ".mp4", ".mov", ".avi", ".wmv", ".mkv", ".webm", ".3gp"
                 };
+
+                // 为了兼容视频 MD5 去重，这里预取 System.Size
                 var queryOptions = new QueryOptions(CommonFileQuery.DefaultQuery, fileExtensions);
                 queryOptions.SetPropertyPrefetch(PropertyPrefetchOptions.BasicProperties, new[] { "System.Size" });
 
-                var files = await _currentFolder.CreateFileQueryWithOptions(queryOptions).GetFilesAsync();
+                var allFiles = await _currentFolder.CreateFileQueryWithOptions(queryOptions).GetFilesAsync();
 
-                if (files.Count < 2)
+                if (allFiles.Count < 2)
                 {
                     RestoreUI(true);
                     _isDialogActive = false;
@@ -420,90 +419,160 @@ namespace BlueSapphire
                     return;
                 }
 
-                var fileInfos = new List<(StorageFile f, ulong s)>();
-                foreach (var f in files)
+                // 2. 分离图片和其他文件
+                var imageFiles = new List<StorageFile>();
+                var otherFiles = new List<StorageFile>();
+                var imgExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
                 {
-                    try { var p = await f.GetBasicPropertiesAsync(); fileInfos.Add((f, p.Size)); } catch { }
+                    ".jpg", ".png", ".jpeg", ".bmp", ".gif", ".webp", ".heic"
+                };
+
+                foreach (var f in allFiles)
+                {
+                    if (imgExts.Contains(f.FileType)) imageFiles.Add(f);
+                    else otherFiles.Add(f);
                 }
 
-                var groups = fileInfos.GroupBy(x => x.s).Where(g => g.Count() > 1).ToList();
-                if (!groups.Any())
-                {
-                    RestoreUI(true);
-                    _isDialogActive = false;
-                    ShowTipDialog("未发现重复文件 (按大小)");
-                    return;
-                }
-
-                // 2. 深度扫描 (MD5) - 单线程安全模式
-                SetBusyState($"正在校验 MD5... (0/{groups.Count})", true, groups.Count);
-
-                var dupes = new List<List<StorageFile>>();
+                // 准备进度条
+                int totalCount = imageFiles.Count + otherFiles.Count;
                 int processedCount = 0;
-                int totalGroups = groups.Count;
+                var finalDuplicateGroups = new List<List<StorageFile>>();
 
-                // 启动 UI 监控线程 (避免高频刷新)
+                // UI 监控线程
                 var uiMonitorTask = Task.Run(async () =>
                 {
-                    while (processedCount < totalGroups && !token.IsCancellationRequested)
+                    while (processedCount < totalCount && !token.IsCancellationRequested)
                     {
                         await Task.Delay(200);
                         DispatcherQueue.TryEnqueue(() =>
                         {
                             ScanningProgressBar.Value = processedCount;
-                            LoadingStatusText.Text = $"正在校验 MD5... ({processedCount}/{totalGroups})";
+                            LoadingStatusText.Text = $"正在深度分析... ({processedCount}/{totalCount})";
                         });
                     }
                 });
 
-                // 启动后台计算 (使用普通 foreach，不用 Parallel)
-                await Task.Run(async () =>
+                // --- 策略 A: 视频/其他文件 (先按大小分组，再算 MD5) ---
+                // 这样可以避免对所有视频都算 MD5，保证性能
+                if (otherFiles.Count > 0)
                 {
-                    foreach (var group in groups)
+                    await Task.Run(async () =>
                     {
-                        if (token.IsCancellationRequested) break;
-
-                        var hashes = new Dictionary<string, List<StorageFile>>();
-
-                        foreach (var item in group)
+                        var fileSizes = new List<(StorageFile f, ulong size)>();
+                        foreach (var f in otherFiles)
                         {
                             try
                             {
-                                // 单线程顺序执行，绝不崩溃
-                                string hash = await FileHelper.ComputeMD5Async(item.f);
-                                if (!string.IsNullOrEmpty(hash))
+                                var props = await f.GetBasicPropertiesAsync();
+                                fileSizes.Add((f, props.Size));
+                            }
+                            catch { }
+                            if (token.IsCancellationRequested) break;
+                        }
+
+                        // 按大小分组
+                        var sizeGroups = fileSizes.GroupBy(x => x.size).Where(g => g.Count() > 1).ToList();
+
+                        // 更新一下跳过的文件进度
+                        int skippedCount = otherFiles.Count - sizeGroups.Sum(g => g.Count());
+                        Interlocked.Add(ref processedCount, skippedCount);
+
+                        foreach (var group in sizeGroups)
+                        {
+                            if (token.IsCancellationRequested) break;
+
+                            var md5Map = new Dictionary<string, List<StorageFile>>();
+                            foreach (var item in group)
+                            {
+                                try
                                 {
-                                    if (!hashes.ContainsKey(hash)) hashes[hash] = new List<StorageFile>();
-                                    hashes[hash].Add(item.f);
+                                    string hash = await FileHelper.ComputeMD5Async(item.f);
+                                    if (!string.IsNullOrEmpty(hash))
+                                    {
+                                        if (!md5Map.ContainsKey(hash)) md5Map[hash] = new List<StorageFile>();
+                                        md5Map[hash].Add(item.f);
+                                    }
+                                }
+                                catch { }
+                                Interlocked.Increment(ref processedCount);
+                            }
+
+                            finalDuplicateGroups.AddRange(md5Map.Values.Where(g => g.Count > 1));
+                        }
+                    });
+                }
+
+                // --- 策略 B: 图片文件 (忽略大小，全量计算 dHash) ---
+                // 解决元数据差异、格式差异导致的查重失败问题
+                if (imageFiles.Count > 0)
+                {
+                    var fileHashes = new List<(StorageFile file, ulong hash)>();
+
+                    // B1. 并行计算指纹
+                    await Task.Run(async () =>
+                    {
+                        foreach (var file in imageFiles)
+                        {
+                            if (token.IsCancellationRequested) break;
+
+                            // 即使文件很大，dHash 也会先读缩略图/缩放，所以速度很快
+                            var hash = await FileHelper.ComputeDHashAsync(file);
+
+                            if (hash.HasValue)
+                            {
+                                fileHashes.Add((file, hash.Value));
+                            }
+                            Interlocked.Increment(ref processedCount);
+                        }
+                    });
+
+                    // B2. 相似度聚类 (汉明距离 <= 3)
+                    await Task.Run(() =>
+                    {
+                        var processedIndices = new bool[fileHashes.Count];
+
+                        for (int i = 0; i < fileHashes.Count; i++)
+                        {
+                            if (token.IsCancellationRequested) break;
+                            if (processedIndices[i]) continue;
+
+                            var currentGroup = new List<StorageFile> { fileHashes[i].file };
+                            processedIndices[i] = true;
+
+                            for (int j = i + 1; j < fileHashes.Count; j++)
+                            {
+                                if (processedIndices[j]) continue;
+
+                                int distance = FileHelper.CalculateHammingDistance(fileHashes[i].hash, fileHashes[j].hash);
+
+                                // 容差值设为 3，可容忍轻微的压缩噪点或格式差异
+                                if (distance <= 3)
+                                {
+                                    currentGroup.Add(fileHashes[j].file);
+                                    processedIndices[j] = true;
                                 }
                             }
-                            catch (Exception ex)
+
+                            if (currentGroup.Count > 1)
                             {
-                                Debug.WriteLine($"跳过损坏文件: {ex.Message}");
+                                finalDuplicateGroups.Add(currentGroup);
                             }
                         }
+                    });
+                }
 
-                        foreach (var hList in hashes.Values)
-                        {
-                            if (hList.Count > 1) dupes.Add(hList);
-                        }
-
-                        Interlocked.Increment(ref processedCount);
-                    }
-                });
-
-                await uiMonitorTask; // 等待 UI 监控结束
+                await uiMonitorTask; // 等待UI更新
 
                 RestoreUI(true);
                 _isDialogActive = false;
 
-                if (dupes.Any())
+                if (finalDuplicateGroups.Any())
                 {
-                    await ShowDuplicateResultsDialog(dupes);
+                    await ShowDuplicateResultsDialog(finalDuplicateGroups);
                 }
                 else
                 {
-                    ShowTipDialog("恭喜，没有发现内容完全一致的重复文件。");
+                    ShowTipDialog("未发现重复文件。\n(图片使用了视觉相似度检查，视频使用了MD5检查)");
                 }
             }
             catch (OperationCanceledException)
@@ -527,7 +596,11 @@ namespace BlueSapphire
             foreach (var g in dupes)
             {
                 flatList.Add(DuplicateItem.CreateSeparator());
+
+                // 按文件大小降序排，通常保留最大的可能是原图
+                // 或者按日期排序
                 var sorted = g.OrderByDescending(f => f.DateCreated).ToList();
+
                 for (int i = 0; i < sorted.Count; i++)
                 {
                     flatList.Add(new DuplicateItem(sorted[i], i == 0)); // 默认保留最新的一个
