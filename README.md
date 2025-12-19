@@ -1,12 +1,5 @@
 
 # 💎 Blue Sapphire (蓝宝石工具箱)
-没问题！既然我们要将项目推进到 **v0.5.1**，GitHub 的 `README.md` 也需要同步更新，以体现架构的专业化和性能的提升。
-
-这是为你优化后的 `README.md` 完整内容。我不仅更新了版本号，还重点突出了 **MVVM 架构**、**网格分区算法**以及**视觉降噪**等核心升级点。
-
----
-
-# 💎 Blue Sapphire (蓝宝石工具箱)
 
 > **版本**: v0.5.1 Beta (Architecture & Performance Evolution)
 > **状态**: ✅ 开发中 / 架构专业化 / 性能质跃
