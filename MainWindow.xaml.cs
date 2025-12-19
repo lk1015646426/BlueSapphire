@@ -12,31 +12,36 @@ using BlueSapphire.Interfaces;
 using BlueSapphire.Helpers;
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
+// 必须保留这个引用，用于 AOT 兼容性
+using System.Diagnostics.CodeAnalysis;
 
 namespace BlueSapphire
 {
     public sealed partial class MainWindow : Window
     {
+        // [核心修复] 补回 Instance，供 MediaManagerPage 调用
         public static MainWindow Instance { get; private set; } = null!;
         public bool IsParticleEffectEnabled { get; private set; } = true;
 
+        // [核心修复] 补回 _tools 定义
         private List<ITool> _tools = new List<ITool>();
         private List<Particle> _particles = new List<Particle>();
         private Random _random = new Random();
 
-        // 【核心修改】将默认鼠标位置移出屏幕，防止左上角粒子被排斥
+        // 将默认鼠标位置移出屏幕，防止左上角粒子被排斥
         private Vector2 _mousePosition = new Vector2(-1000, -1000);
 
         private const int ParticleCount = 100;
         private const float ConnectionDistance = 150f;
 
-        // 优化：网格分区数据结构
+        // 网格分区数据结构
         private Dictionary<long, List<Particle>> _grid = new Dictionary<long, List<Particle>>();
         private int _gridCellSize = (int)ConnectionDistance;
 
         public MainWindow()
         {
             this.InitializeComponent();
+            // [核心修复] 在构造函数中赋值 Instance
             Instance = this;
             LoadSettingsFromDisk();
 
@@ -75,11 +80,15 @@ namespace BlueSapphire
             }
         }
 
+        // [AOT 适配] 防止插件类被裁剪
+        [DynamicDependency(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor, typeof(HomePage))]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor, typeof(MediaManagerPage))]
         private void LoadTools()
         {
             try
             {
                 var interfaceType = typeof(ITool);
+                // .NET 10 下的反射加载
                 var types = Assembly.GetExecutingAssembly().GetTypes()
                     .Where(t => interfaceType.IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
 
@@ -88,7 +97,7 @@ namespace BlueSapphire
                     if (Activator.CreateInstance(type) is ITool tool)
                     {
                         tool.Initialize();
-                        _tools.Add(tool);
+                        _tools.Add(tool); // 这里现在能找到 _tools 了
                         var navItem = new NavigationViewItem
                         {
                             Content = tool.Title,
@@ -99,7 +108,10 @@ namespace BlueSapphire
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"插件加载失败: {ex.Message}");
+            }
         }
 
         private void NavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
@@ -120,8 +132,6 @@ namespace BlueSapphire
                 _particles.Add(new Particle((float)sender.ActualWidth, (float)sender.ActualHeight, _random));
             }
         }
-
-        // 注意：OnPointerMoved 方法已被移除，因为 Canvas 设为穿透后不再响应
 
         private void OnDraw(CanvasControl sender, CanvasDrawEventArgs args)
         {
@@ -147,7 +157,7 @@ namespace BlueSapphire
                 _grid[key].Add(p);
             }
 
-            // 2. 绘制连线
+            // 2. 绘制连线 (高性能网格分区算法)
             foreach (var kvp in _grid)
             {
                 long key = kvp.Key;
@@ -155,6 +165,7 @@ namespace BlueSapphire
                 int cellY = (int)(key & 0xFFFFFFFF);
                 var cellParticles = kvp.Value;
 
+                // 检查周围九宫格
                 for (int dx = -1; dx <= 1; dx++)
                 {
                     for (int dy = -1; dy <= 1; dy++)

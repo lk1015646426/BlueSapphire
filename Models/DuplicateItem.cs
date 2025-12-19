@@ -1,59 +1,51 @@
-﻿using System.ComponentModel;
-using System.Runtime.CompilerServices;
+﻿using Windows.Storage;
 using Microsoft.UI.Xaml;
-using Windows.Storage;
+using CommunityToolkit.Mvvm.ComponentModel;
+using System;
 
 namespace BlueSapphire.Models
 {
-    // ==========================================
-    // 2. 数据模型: DuplicateItem (去重弹窗专用)
-    // ==========================================
-    public partial class DuplicateItem : INotifyPropertyChanged
+    /// <summary>
+    /// 用于去重结果展示的列表项模型
+    /// </summary>
+    public partial class DuplicateItem : ObservableObject
     {
-        public event PropertyChangedEventHandler? PropertyChanged;
-        protected void OnPropertyChanged([CallerMemberName] string? name = null) =>
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+        // [核心修复] 使用 required 修饰符，解决编译器警告
+        // 或者是 'StorageFile?' (可空)
+        public StorageFile? File { get; init; }
 
-        public StorageFile? File { get; }
-        public bool IsGroupSeparator { get; }
+        public bool IsSeparator { get; init; }
+        public bool IsKeepSuggestion { get; init; }
 
-        // 使用 ?. 操作符安全访问
-        public string DisplayName => File?.Name ?? "重复组";
-        public bool IsKeepSuggestion { get; }
+        [ObservableProperty]
+        private bool _isChecked;
 
-        // --- UI 绑定属性 ---
-        public Visibility SeparatorVisibility => IsGroupSeparator ? Visibility.Visible : Visibility.Collapsed;
-        public Visibility CheckBoxVisibility => !IsGroupSeparator ? Visibility.Visible : Visibility.Collapsed;
+        public string DisplayName => File?.Name ?? "Group Separator";
+        public string DateString => File != null ? File.DateCreated.ToString("g") : "";
+
+        // 控制 UI 显示的属性
+        public Visibility SeparatorVisibility => IsSeparator ? Visibility.Visible : Visibility.Collapsed;
+        public Visibility CheckBoxVisibility => IsSeparator ? Visibility.Collapsed : Visibility.Visible;
         public Visibility SuggestionVisibility => IsKeepSuggestion ? Visibility.Visible : Visibility.Collapsed;
 
-        // 安全访问 DateCreated
-        public string DateString => File?.DateCreated.ToString("yyyy-MM-dd HH:mm") ?? "";
-
-        private bool _isChecked;
-        public bool IsChecked
-        {
-            get => _isChecked;
-            set { if (_isChecked != value) { _isChecked = value; OnPropertyChanged(); } }
-        }
-
-        // 构造函数：用于文件项
-        public DuplicateItem(StorageFile file, bool isKeepSuggestion)
+        public DuplicateItem(StorageFile? file, bool isKeepSuggestion = false)
         {
             File = file;
+            IsSeparator = false;
             IsKeepSuggestion = isKeepSuggestion;
-            IsGroupSeparator = false;
+            // 建议保留的不勾选删除，不保留的默认勾选删除
             IsChecked = !isKeepSuggestion;
         }
 
-        // 构造函数：用于分隔符
-        private DuplicateItem(bool isGroupSeparator)
+        // 私有构造函数，用于创建分隔符
+        private DuplicateItem()
         {
-            File = null;
-            IsKeepSuggestion = false;
-            IsGroupSeparator = isGroupSeparator;
-            IsChecked = false;
+            IsSeparator = true;
         }
 
-        public static DuplicateItem CreateSeparator() => new DuplicateItem(true);
+        public static DuplicateItem CreateSeparator()
+        {
+            return new DuplicateItem();
+        }
     }
 }
