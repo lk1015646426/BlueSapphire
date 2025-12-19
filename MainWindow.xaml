@@ -14,16 +14,14 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- 1. 动态粒子背景层 -->
         <canvas:CanvasControl x:Name="BackgroundCanvas"
                               Grid.Row="0" Grid.RowSpan="2"
                               Draw="OnDraw"
                               CreateResources="OnCreateResources"
-                              PointerMoved="OnPointerMoved"
+                              IsHitTestVisible="False"
                               ClearColor="Black"/>
 
 
-        <!-- 3. 自定义标题栏 -->
         <Grid x:Name="AppTitleBar" Grid.Row="0" Background="Transparent">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
                 <TextBlock Text="BLUE SAPPHIRE" 
@@ -34,8 +32,6 @@
             </StackPanel>
         </Grid>
 
-        <!-- 4. 导航视图 -->
-        <!-- 注意：MenuItems 里面现在是空的，全靠后台动态生成 -->
         <NavigationView x:Name="NavView"
                         Grid.Row="1"
                         SelectionChanged="NavView_SelectionChanged"
@@ -46,7 +42,6 @@
                         OpenPaneLength="160">
 
             <NavigationView.MenuItems>
-                <!-- 动态内容将由 C# 注入 -->
             </NavigationView.MenuItems>
 
             <Frame x:Name="ContentFrame"/>

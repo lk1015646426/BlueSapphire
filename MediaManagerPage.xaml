@@ -11,11 +11,9 @@
     <Page.Resources>
         <local:BoolToVisibleConverter x:Key="BoolToVisibleConverter"/>
         <local:InverseBoolToVisibleConverter x:Key="InverseBoolToVisibleConverter"/>
-        <local:BoolToKeepTextConverter x:Key="BoolToKeepTextConverter"/>
-        <local:DateConverter x:Key="DateConverter"/>
     </Page.Resources>
 
-    <Grid>
+    <Grid Background="#CC000000">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -36,44 +34,38 @@
             </StackPanel>
 
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12">
-                <DropDownButton x:Name="SortFieldButton"
-                                Content="按名称" 
-                                CornerRadius="4"
-                                VerticalAlignment="Center"
-                                ToolTipService.ToolTip="选择排序字段">
+                <DropDownButton Content="{x:Bind ViewModel.CurrentSortField, Mode=OneWay}" 
+                                CornerRadius="4" VerticalAlignment="Center">
                     <DropDownButton.Flyout>
                         <MenuFlyout Placement="Bottom">
-                            <MenuFlyoutItem Text="按名称" Tag="Name" Click="OnSortFieldMenuItemClicked"/>
-                            <MenuFlyoutItem Text="按日期" Tag="Date" Click="OnSortFieldMenuItemClicked"/>
-                            <MenuFlyoutItem Text="按大小" Tag="Size" Click="OnSortFieldMenuItemClicked"/>
+                            <MenuFlyoutItem Text="按名称" Command="{x:Bind ViewModel.ChangeSortCommand}" CommandParameter="Name"/>
+                            <MenuFlyoutItem Text="按日期" Command="{x:Bind ViewModel.ChangeSortCommand}" CommandParameter="Date"/>
+                            <MenuFlyoutItem Text="按大小" Command="{x:Bind ViewModel.ChangeSortCommand}" CommandParameter="Size"/>
                         </MenuFlyout>
                     </DropDownButton.Flyout>
                 </DropDownButton>
 
-                <ToggleButton x:Name="SortDirectionToggle" Click="OnSortDirectionChanged" 
-                              CornerRadius="4"
-                              VerticalAlignment="Center" Padding="10,6" 
-                              ToolTipService.ToolTip="切换升序/降序">
-                    <FontIcon x:Name="SortDirectionIcon" Glyph="&#xE74B;" FontSize="12"/>
+                <ToggleButton IsChecked="{x:Bind ViewModel.IsSortDescending, Mode=OneWay}" 
+                              Command="{x:Bind ViewModel.ToggleSortDirectionCommand}"
+                              CornerRadius="4" VerticalAlignment="Center" Padding="10,6">
+                    <FontIcon Glyph="&#xE74B;" FontSize="12"/>
                 </ToggleButton>
 
                 <AppBarSeparator Foreground="#30FFFFFF" Margin="5,0"/>
 
-                <Button Click="OnScanDuplicatesClicked" 
+                <Button Command="{x:Bind ViewModel.ScanDuplicatesCommand}" 
                         Background="#20FFD700" BorderBrush="#40FFD700" BorderThickness="1"
-                        Padding="12,8" CornerRadius="4"
-                        ToolTipService.ToolTip="扫描重复文件">
+                        Padding="12,8" CornerRadius="4" ToolTipService.ToolTip="扫描重复文件">
                     <SymbolIcon Symbol="Filter" Foreground="#FFD700"/>
                 </Button>
 
                 <Button Click="OnDeleteClicked" 
                         Background="#20FF0000" BorderBrush="#40FF0000" BorderThickness="1"
-                        Padding="12,8" CornerRadius="4"
-                        ToolTipService.ToolTip="删除选中项">
+                        Padding="12,8" CornerRadius="4" ToolTipService.ToolTip="删除选中项">
                     <SymbolIcon Symbol="Delete" Foreground="#FF4444"/>
                 </Button>
 
-                <Button Click="OnOpenFolderClicked" 
+                <Button Command="{x:Bind ViewModel.OpenFolderCommand}" 
                         Background="#1000FFFF" BorderBrush="#3000FFFF" BorderThickness="1"
                         Padding="15,8" CornerRadius="4">
                     <StackPanel Orientation="Horizontal" Spacing="8">
@@ -85,60 +77,35 @@
         </Grid>
 
         <Grid Grid.Row="1">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="*"/>
-            </Grid.RowDefinitions>
-
             <GridView x:Name="ImageGrid" 
-                      ItemsSource="{x:Bind Images, Mode=OneWay}"
+                      ItemsSource="{x:Bind ViewModel.Images, Mode=OneWay}"
                       ContainerContentChanging="ImageGrid_ContainerContentChanging"
                       Padding="20,0,20,20"
                       SelectionMode="Multiple"
-                      DoubleTapped="ImageGrid_DoubleTapped" 
+                      DoubleTapped="ImageGrid_DoubleTapped"
                       IsDoubleTapEnabled="True">
                 <GridView.ItemTemplate>
                     <DataTemplate x:DataType="models:ImageItem">
-                        <Grid Width="180" Height="230" Margin="6" 
-                              Background="#08FFFFFF" 
-                              CornerRadius="6" 
-                              BorderBrush="#15FFFFFF" 
-                              BorderThickness="1">
+                        <Grid Width="180" Height="230" Margin="6" Background="#08FFFFFF" CornerRadius="6" BorderBrush="#15FFFFFF" BorderThickness="1">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="*"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
-
                             <Grid Grid.Row="0">
-                                <Rectangle Fill="#2000FFFF" 
-                                           HorizontalAlignment="Stretch" VerticalAlignment="Stretch" 
-                                           Margin="6"/>
-
-                                <ProgressRing IsActive="{x:Bind IsImageLoading, Mode=OneWay}" 
-                                              Width="30" Height="30" Foreground="#00FFFF"/>
-
-                                <Image Source="{x:Bind ImageSource, Mode=OneWay}" 
-                                       Stretch="UniformToFill" 
-                                       Margin="6"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <Rectangle Fill="#2000FFFF" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="6"/>
+                                <ProgressRing IsActive="{x:Bind IsImageLoading, Mode=OneWay}" Width="30" Height="30" Foreground="#00FFFF"/>
+                                <Image Source="{x:Bind ImageSource, Mode=OneWay}" Stretch="UniformToFill" Margin="6" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Grid>
-
                             <Grid Grid.Row="1" Background="#80000000" Padding="8" CornerRadius="0,0,6,6">
                                 <StackPanel>
-                                    <TextBlock Text="{x:Bind FileName}" 
-                                               Foreground="#CCFFFFFF" FontSize="12" 
-                                               TextTrimming="CharacterEllipsis" 
-                                               HorizontalAlignment="Center"
-                                               ToolTipService.ToolTip="{x:Bind FileName}"/>
+                                    <TextBlock Text="{x:Bind FileName}" Foreground="#CCFFFFFF" FontSize="12" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind FileName}"/>
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8" Margin="0,2,0,0">
-                                        <TextBlock Text="{x:Bind DateCreatedString}" 
-                                                   Foreground="#80FFFFFF" FontSize="10"/>
+                                        <TextBlock Text="{x:Bind DateCreatedString}" Foreground="#80FFFFFF" FontSize="10"/>
                                         <TextBlock Text="|" Foreground="#40FFFFFF" FontSize="10"/>
-                                        <TextBlock Text="{x:Bind FileSizeString}" 
-                                                   Foreground="#00FFFF" FontSize="10" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{x:Bind FileSizeString}" Foreground="#00FFFF" FontSize="10" FontWeight="SemiBold"/>
                                     </StackPanel>
                                 </StackPanel>
                             </Grid>
-
                             <VisualStateManager.VisualStateGroups>
                                 <VisualStateGroup x:Name="CommonStates">
                                     <VisualState x:Name="Selected">
@@ -155,10 +122,8 @@
                 </GridView.ItemTemplate>
             </GridView>
 
-            <StackPanel x:Name="EmptyStatePanel" 
-                        HorizontalAlignment="Center" VerticalAlignment="Center" 
-                        Spacing="20" Opacity="0.4"
-                        Visibility="Visible">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="20" Opacity="0.4"
+                        Visibility="{x:Bind ViewModel.IsEmptyStateVisible, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
                 <Viewbox Width="120" Height="120">
                     <SymbolIcon Symbol="Pictures" Foreground="#40FFFFFF"/>
                 </Viewbox>
@@ -166,34 +131,17 @@
                 <TextBlock Text="点击右上角按钮开始扫描" FontSize="14" HorizontalAlignment="Center" Opacity="0.5" Foreground="#80FFFFFF"/>
             </StackPanel>
 
-            <Grid x:Name="StatusOverlay" 
-                  Background="#CC000000" 
-                  Visibility="Collapsed"
+            <Grid Background="#CC000000" 
+                  Visibility="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
                   HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-
-                <StackPanel Orientation="Vertical" Spacing="15" 
-                            HorizontalAlignment="Center" 
-                            VerticalAlignment="Center">
-
+                <StackPanel Orientation="Vertical" Spacing="15" HorizontalAlignment="Center" VerticalAlignment="Center">
                     <ProgressRing IsActive="True" Width="50" Height="50" Foreground="#00FFFF"/>
-
-                    <TextBlock x:Name="LoadingStatusText" Text="正在处理..." 
-                               FontSize="16" Foreground="#00FFFF" HorizontalAlignment="Center"/>
-
-                    <TextBlock x:Name="StatusDetailText" 
-                               Text="0 / 0" 
-                               FontSize="14" 
-                               Foreground="#80FFFFFF" 
-                               HorizontalAlignment="Center"
-                               Margin="0,-5,0,0"/>
-
-                    <ProgressBar x:Name="ScanningProgressBar" 
-                                 Background="#2000FFFF" 
-                                 Foreground="#00FFFF" 
-                                 Height="4" 
-                                 Width="200"
-                                 IsIndeterminate="False"
-                                 Visibility="Collapsed"/>
+                    <TextBlock Text="{x:Bind ViewModel.StatusMainText, Mode=OneWay}" FontSize="16" Foreground="#00FFFF" HorizontalAlignment="Center"/>
+                    <TextBlock Text="{x:Bind ViewModel.StatusDetailText, Mode=OneWay}" FontSize="14" Foreground="#80FFFFFF" HorizontalAlignment="Center"/>
+                    <ProgressBar Value="{x:Bind ViewModel.ProgressValue, Mode=OneWay}" 
+                                 Maximum="{x:Bind ViewModel.ProgressMax, Mode=OneWay}"
+                                 Visibility="{x:Bind ViewModel.IsProgressVisible, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
+                                 Background="#2000FFFF" Foreground="#00FFFF" Height="4" Width="200"/>
                 </StackPanel>
             </Grid>
         </Grid>
@@ -204,17 +152,13 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-
             <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="15">
-                <TextBlock x:Name="StatusBlock" Text="STATUS: IDLE" FontSize="10" Foreground="#00FF00" VerticalAlignment="Center"/>
+                <TextBlock Text="STATUS: OK" FontSize="10" Foreground="#00FF00" VerticalAlignment="Center"/>
                 <AppBarSeparator Foreground="#40FFFFFF"/>
-                <TextBlock x:Name="CountBlock" Text="ITEMS: 0" FontSize="12" Opacity="0.7" Foreground="#E0FFFFFF" VerticalAlignment="Center"/>
+                <TextBlock Text="{x:Bind ViewModel.CountText, Mode=OneWay}" FontSize="12" Opacity="0.7" Foreground="#E0FFFFFF" VerticalAlignment="Center"/>
             </StackPanel>
-
-            <TextBlock x:Name="PathBlock" Grid.Column="1" 
-                       Text="PATH: NULL" 
-                       FontSize="12" Opacity="0.5" Foreground="#E0FFFFFF"
-                       HorizontalAlignment="Right" VerticalAlignment="Center" 
+            <TextBlock Grid.Column="1" Text="{x:Bind ViewModel.PathText, Mode=OneWay}" 
+                       FontSize="12" Opacity="0.5" Foreground="#E0FFFFFF" HorizontalAlignment="Right" VerticalAlignment="Center" 
                        TextTrimming="CharacterEllipsis" Margin="20,0,0,0"/>
         </Grid>
     </Grid>
