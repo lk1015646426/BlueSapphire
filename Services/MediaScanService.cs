@@ -19,10 +19,12 @@ namespace BlueSapphire.Services
         // 扫描结果的数据结构
         public class MediaFile
         {
-            public StorageFile File { get; set; }
+            // 强制要求初始化时赋值，解决了 CS8618
+            public required StorageFile File { get; set; }
             public ulong FileSize { get; set; }
-            public string Md5Hash { get; set; }
-            public ulong? VisualHash { get; set; } // pHash值
+            // 同上
+            public required string Md5Hash { get; set; }
+            public ulong? VisualHash { get; set; }
         }
 
         /// <summary>
