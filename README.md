@@ -1,63 +1,76 @@
+
 # 💎 Blue Sapphire (蓝宝石工具箱)
 
-> **版本**: v0.5.1 (The Native AOT Evolution)
-> **状态**: ✅ 开发中 / 架构专业化 / 性能质跃
-> **风格**: Cyberpunk / HUD / Glassmorphism
+> **版本**: v0.6.0 (The Visual Revolution)
+> **状态**: ✅ 架构重构完成 / 视觉升级 / 零 GC 渲染
+> **风格**: Cyberpunk / Command Center / Glassmorphism 2.0
 
-**Blue Sapphire** 是一个基于 **Windows 11 (WinUI 3)** 构建的现代化系统工具箱。项目旨在融合 **赛博朋克 (Cyberpunk)** 视觉风格与 **HUD 科技感**，利用 **Win2D** 提供高性能的沉浸式用户体验。
+**Blue Sapphire** 是一个基于 **Windows 11 (WinUI 3)** 构建的现代化系统工具箱。项目旨在融合 **赛博朋克 (Cyberpunk)** 视觉风格与 **HUD 科技感**，打造极致性能的沉浸式体验。
 
-v0.5.1 版本标志着项目从 .NET 8 向 **.NET 10 (LTS)** 的全面迁移，并首次引入 **Native AOT (原生提前编译)** 技术，实现了应用启动速度与运行效率的质的飞跃。
+**v0.6.0 版本** 带来了革命性的视觉与底层更新：引入了 **“指挥中心”首页**，重写了粒子渲染引擎实现 **零内存分配 (Zero-Allocation)**，并通过 **消息总线 (Messenger)** 彻底解耦了架构，标志着项目从“可用”迈向“工业级精品”。
 
------
+---
 
 ## ✨ 核心亮点 (Key Features)
 
-### 1. 🏗️ 专业 MVVM 架构 (Architecture)
-* **逻辑解耦**: 引入 `CommunityToolkit.Mvvm` 框架，将业务逻辑从 UI 彻底剥离至 `ViewModel` 层，极大提升了代码的可维护性与扩展性。
-* **低耦合交互**: 通过 `IMediaViewInteraction` 接口实现了 ViewModel 对 View 层（如弹窗、文件夹选择）的无感知调用。
+### 1. 🎨 视觉革命 (Visual Revolution)
 
-### 2. ⚡ Native AOT 原生性能 (Performance)
-* **秒级启动**: 启用 `<PublishAot>true</PublishAot>`，应用不再依赖庞大的运行时，启动速度提升 50% 以上。
-* **零反射依赖**: 核心 JSON 配置模块改用 **Source Generator (源生成器)**，彻底解决了 AOT 环境下的序列化性能瓶颈。
+* **赛博指挥中心 (Command Center)**: 全新的 **HUD 风格首页**，采用非对称布局与科技感排版，提供沉浸式的启动体验。
+* **玻璃拟态 2.0 (Glassmorphism)**: 深度定制的亚克力 (Acrylic) 半透明材质，配合 **动态光效同步 (Sync Glow)**——鼠标悬停时边框与背景会产生呼吸般的光律响应。
+* **全动态交互**: 集成平滑的 **入场动画 (Entrance Storyboard)** 与光标闪烁特效，让界面“活”起来。
+* **深度汉化**: 全界面采用高格调的中文科技术语（如“安全协议：已激活”），营造浓厚的科幻氛围。
 
-### 3. 📂 媒体管家 (Media Manager)
-专为管理海量图片资源打造的高性能文件管理器：
+### 2. ⚡ 极致引擎 (Extreme Engine)
+
+* **零内存分配 (Zero-Allocation)**: 引入 **对象池 (Object Pooling)** 技术重构粒子系统，将高频渲染时的 GC (垃圾回收) 压力降至 **0**，彻底消除微卡顿。
+* **手动高性能循环**: 摒弃封装控件，基于 `CompositionTarget.Rendering` 手动构建 **60FPS+ 游戏级渲染循环**，结合 **空间分区算法 (Spatial Partitioning)**，在数千粒子下依然丝滑流畅。
+* **启动瞬开**: 移除反射 (Reflection) 扫描，采用 **手动依赖注入** 注册工具链，配合 ReadyToRun (R2R) 技术，实现毫秒级启动。
+
+### 3. 🏗️ 现代架构 (Modern Architecture)
+
+* **彻底解耦**: 移除所有 `Singleton` 强耦合，全面采用 `CommunityToolkit.Mvvm` 的 **WeakReferenceMessenger (弱引用消息总线)** 进行跨组件通信（如设置页控制主窗口特效）。
+* **AOT 就绪**: 代码结构全面适配 .NET Native AOT 标准，移除了动态特性依赖，为未来的原生编译铺平道路。
+* **稳健性**: 修复了 WinUI 3 中 `ThemeShadow` 和 `Triggers` 可能导致的渲染层崩溃问题，稳定性达到企业级标准。
+
+### 4. 📂 媒体管家 (Media Manager)
+
 * **极速虚拟化**: 支持数万张图片的秒级加载与无限滚动。
-* **全能排序**: 支持按 **名称 / 日期 / 大小** 进行双向排序。
-* **智能去重**:
-    * **MD5 深度校验**: 仅对大小一致的文件进行哈希比对，确保 100% 准确率。
-    * **视觉哈希储备**: 集成 **dHash (视觉哈希)** 算法，为 v0.6 的相似图识别奠定基础。
-* **可视化操作**: 具备删除确认机制及跨线程安全的实时进度条。
+* **智能去重**: 集成 **MD5 深度校验** 与 **dHash 视觉哈希** 算法基础。
+* **安全交互**: 具备跨线程安全的实时进度条与删除确认机制。
 
-### 4. 🎨 粒子视觉引擎 2.0 (Visuals)
-* **空间分区算法 (Spatial Partitioning)**: 引入网格算法，将粒子连线检测复杂度从 $O(N^2)$ 优化至 $O(N)$，确保高负载下依然保持 60FPS 丝滑帧率。
-* **交互降噪**: 背景画布支持 **点击穿透 (Hit-Test Disabled)**，彻底解决装饰背景干扰功能操作的问题。
-* **视觉增强**: 引入半透明黑色遮罩 (`#CC000000`)，在保留粒子动态氛围的同时，极大提升了前景文字的可读性。
-
------
+---
 
 ## 🛠️ 技术栈 (Tech Stack)
 
-* **IDE**: Visual Studio 2026
-* **框架**: .NET 10 (LTS) / Windows App SDK (WinUI 3)
-* **编译**: Native AOT (Ahead-of-Time)
-* **模式**: MVVM (CommunityToolkit.Mvvm)
-* **渲染**: Win2D (Microsoft.Graphics.Win2D)
-* **图像处理**: SixLabors.ImageSharp
+* **核心**: .NET 8 (LTS) / Windows App SDK (WinUI 3)
+* **架构**: MVVM (CommunityToolkit.Mvvm) / Dependency Injection (Manual)
+* **渲染**: Microsoft.Graphics.Win2D / CompositionTarget.Rendering
+* **特效**: Custom Particle Engine (Object Pooling + Spatial Partitioning)
+* **图像**: SixLabors.ImageSharp
 
------
+---
 
 ## 📂 项目结构 (Structure)
 
 ```text
 BlueSapphire/
-├── ViewModels/              # [v0.5.1] 核心业务大脑 (MVVM)
+├── ViewModels/              # 业务逻辑 (MVVM)
+├── Models/                  
+│   ├── AppMessages.cs       # [v0.6.0] 消息总线定义
+│   └── ...                  # 数据模型
 ├── Helpers/                 
-│   ├── FileHelper.cs              # MD5 与 dHash 核心算法
-│   ├── AppSettings.cs             # [v0.5.1] AOT 适配的 JSON 源生成器
-│   └── Converters.cs              # XAML 数据转换器
-├── Interfaces/              # 插件与交互标准接口
-├── Models/                  # 数据模型 (ImageItem, DuplicateItem)
-├── Pages/                   # UI 页面 (已全面适配半透明遮罩)
-├── MainWindow.xaml.cs       # [v0.5.1] 空间分区粒子引擎 + 动态依赖注入
-└── BlueSapphire.csproj      # [v0.5.1] .NET 10 + Native AOT 核心配置
+│   ├── AppSettings.cs       # 配置管理
+│   └── ...
+├── Services/                # 核心服务 (文件扫描/哈希计算)
+├── Pages/                   
+│   ├── HomePage.xaml        # [v0.6.0] 赛博朋克指挥中心首页
+│   ├── MediaManagerPage.xaml# 媒体管理功能页
+│   └── SettingsPage.xaml    # 设置页
+├── MainWindow.xaml.cs       # [v0.6.0] 零GC粒子引擎 + 手动渲染循环
+└── BlueSapphire.csproj      # .NET 8 + WinUI 3 配置
+
+```
+
+---
+
+> *"System Online. Protocol Activated."*
