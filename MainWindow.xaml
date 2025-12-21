@@ -18,11 +18,11 @@
                               Grid.Row="0" Grid.RowSpan="2"
                               Draw="OnDraw"
                               CreateResources="OnCreateResources"
-                              IsHitTestVisible="False"
+                              PointerMoved="BackgroundCanvas_PointerMoved"
+                              IsHitTestVisible="True"
                               ClearColor="Black"/>
 
-
-        <Grid x:Name="AppTitleBar" Grid.Row="0" Background="Transparent">
+        <Grid x:Name="AppTitleBar" Grid.Row="0" Background="Transparent" IsHitTestVisible="False">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
                 <TextBlock Text="BLUE SAPPHIRE" 
                            FontSize="12" 

@@ -1,18 +1,18 @@
 ; ==========================================================
-;   BlueSapphire 通用安装脚本模板 (本地汉化版)
+;   BlueSapphire 通用安装脚本模板 (v0.6.0 Pro)
 ; ==========================================================
 
 #ifndef MyAppName
-  #define MyAppName "UnknownApp"
+  #define MyAppName "BlueSapphire"
 #endif
 #ifndef MyAppVersion
-  #define MyAppVersion "0.0.0"
+  #define MyAppVersion "1.0.0"
 #endif
 #ifndef MyAppPublisher
-  #define MyAppPublisher "UnknownPublisher"
+  #define MyAppPublisher "BlueSapphire Team"
 #endif
 #ifndef MyAppId
-  #define MyAppId "{{00000000-0000-0000-0000-000000000000}"
+  #define MyAppId "{{8D43FBFA-A424-4FED-BDE6-6C586D7D13EE}"
 #endif
 #ifndef SourcePath
   #define SourcePath "."
@@ -26,25 +26,26 @@ AppPublisher={#MyAppPublisher}
 DefaultDirName={autopf}\{#MyAppName}
 DisableDirPage=no
 OutputBaseFilename={#MyAppName}_Setup_v{#MyAppVersion}
-Compression=lzma
+Compression=lzma2
 SolidCompression=yes
-ArchitecturesAllowed=x64
-ArchitecturesInstallIn64BitMode=x64
+
+; 🔥【修正1】使用新版架构标识符，消除 x64 警告
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+
+; 现代风格向导界面
+WizardStyle=modern
 
 [Languages]
-; === 重点修改在这里 ===
-; 我们直接引用当前文件夹下的 Chinese.isl
-; 这里的 Source: "Chinese.isl" 指的是 Inno Setup 编译器同级，
-; 但为了保险，我们通常只写文件名，只要它和 .iss 在一起，编译器一般能找到。
-; 如果报错，说明它没去当前目录找，我们下面会用 Source 路径修正。
-
+; ✅ 修改为：只写文件名，代表强制使用当前目录下的文件
 Name: "chinesesimplified"; MessagesFile: "Chinese.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "{#SourcePath}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; 忽略各种临时文件和垃圾文件
+Source: "{#SourcePath}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.pdb,*.xml,*.config"
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppName}.exe"

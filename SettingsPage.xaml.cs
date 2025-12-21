@@ -1,29 +1,27 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using BlueSapphire.Helpers;
-using System.Reflection; // 【新增引用】
+using BlueSapphire.Models; // 必须引用，用于使用 ToggleParticleMessage
+using CommunityToolkit.Mvvm.Messaging; // 必须引用，用于发送消息
+using System.Reflection;
 using System;
-using System.Diagnostics; // 【新增引用】
+using System.Diagnostics;
 using System.IO;
 
 namespace BlueSapphire
 {
     public sealed partial class SettingsPage : Page
     {
-        // 【新增属性 1】用于 XAML 绑定显示的版本号
         public string AppDisplayVersion { get; private set; } = "v?.?.? (Beta)";
-
-        // 【新增属性 2】用于 XAML 绑定的构建日期
         public string AppBuildDate { get; private set; } = "Unknown Date";
 
         public SettingsPage()
         {
             this.InitializeComponent();
-            LoadVersionInfo(); // 【调用新增方法】
+            LoadVersionInfo();
             InitializeSettingsSafe();
         }
 
-        // --- 新增：加载版本信息逻辑 (实现动态同步) ---
         private void LoadVersionInfo()
         {
             try
@@ -31,13 +29,11 @@ namespace BlueSapphire
                 var assembly = Assembly.GetExecutingAssembly();
                 var version = assembly.GetName().Version;
 
-                // 1. 获取版本号 (vMajor.Minor.Build)
                 if (version != null)
                 {
                     this.AppDisplayVersion = $"v{version.Major}.{version.Minor}.{version.Build} (Beta)";
                 }
 
-                // 2. 获取构建日期 (使用文件写入时间作为近似构建日期)
                 if (!string.IsNullOrEmpty(assembly.Location))
                 {
                     var buildDate = File.GetLastWriteTime(assembly.Location);
@@ -55,27 +51,21 @@ namespace BlueSapphire
             }
         }
 
-        // --- 安全初始化逻辑 ---
         private void InitializeSettingsSafe()
         {
-            // 1. 卸载事件
             ParticleSwitch.Toggled -= ParticleSwitch_Toggled;
 
-            // 2. 确定状态 (优先查本地文件，没有则查内存，默认为 true)
-            // AppSettings.Get 会处理所有判空逻辑
             bool targetState = AppSettings.Get<bool>("IsParticleEffectEnabled", true);
 
-            // 如果本地文件没有，但内存里有实例 (比如刚启动且没存过)，则同步内存状态
-            // 这一步是为了防止文件被误删后状态不同步
-            if (MainWindow.Instance != null && AppSettings.Get<bool?>("IsParticleEffectEnabled", null) == null)
+            // [修复] 使用 App.CurrentWindow 替代 MainWindow.Instance
+            // 安全地尝试将当前窗口转换为 MainWindow 类型
+            if (App.CurrentWindow is MainWindow mw && AppSettings.Get<bool?>("IsParticleEffectEnabled", null) == null)
             {
-                targetState = MainWindow.Instance.IsParticleEffectEnabled;
+                // 直接读取属性
+                targetState = mw.IsParticleEffectEnabled;
             }
 
-            // 3. 安全赋值
             ParticleSwitch.IsOn = targetState;
-
-            // 4. 重新挂载事件
             ParticleSwitch.Toggled += ParticleSwitch_Toggled;
         }
 
@@ -83,13 +73,10 @@ namespace BlueSapphire
         {
             bool isEnabled = ParticleSwitch.IsOn;
 
-            // 更新主窗口
-            if (MainWindow.Instance != null)
-            {
-                MainWindow.Instance.UpdateParticleSetting(isEnabled);
-            }
+            // [修复] 不再直接调用方法，而是发送解耦消息
+            // MainWindow 里的 Messenger 会接收到这个消息并处理
+            WeakReferenceMessenger.Default.Send(new ToggleParticleMessage(isEnabled));
 
-            // 更新本地存储 (写入 json 文件)
             AppSettings.Save("IsParticleEffectEnabled", isEnabled);
         }
     }

@@ -1,48 +1,44 @@
-using Microsoft.UI.Xaml;
+ï»¿using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Input;
 using Microsoft.Graphics.Canvas.UI.Xaml;
 using System.Numerics;
 using System;
 using System.Collections.Generic;
 using Windows.UI;
-using System.Reflection;
 using System.Linq;
 using BlueSapphire.Interfaces;
 using BlueSapphire.Helpers;
+using BlueSapphire.Models;
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
-// ±ØĞë±£ÁôÕâ¸öÒıÓÃ£¬ÓÃÓÚ AOT ¼æÈİĞÔ
+using CommunityToolkit.Mvvm.Messaging;
+using Microsoft.UI.Xaml.Media; // å¼•ç”¨ CompositionTarget
+// [AOT å…¼å®¹]
 using System.Diagnostics.CodeAnalysis;
 
 namespace BlueSapphire
 {
     public sealed partial class MainWindow : Window
     {
-        // [ºËĞÄĞŞ¸´] ²¹»Ø Instance£¬¹© MediaManagerPage µ÷ÓÃ
-        public static MainWindow Instance { get; private set; } = null!;
         public bool IsParticleEffectEnabled { get; private set; } = true;
 
-        // [ºËĞÄĞŞ¸´] ²¹»Ø _tools ¶¨Òå
         private List<ITool> _tools = new List<ITool>();
         private List<Particle> _particles = new List<Particle>();
         private Random _random = new Random();
-
-        // ½«Ä¬ÈÏÊó±êÎ»ÖÃÒÆ³öÆÁÄ»£¬·ÀÖ¹×óÉÏ½ÇÁ£×Ó±»ÅÅ³â
         private Vector2 _mousePosition = new Vector2(-1000, -1000);
 
-        private const int ParticleCount = 100;
+        // [ä¼˜åŒ–] é¢„è®¡ç®—
         private const float ConnectionDistance = 150f;
+        private const float ConnectionDistanceSq = ConnectionDistance * ConnectionDistance;
 
-        // Íø¸ñ·ÖÇøÊı¾İ½á¹¹
+        // [ä¼˜åŒ–] å¯¹è±¡æ±  (Zero-Allocation)
         private Dictionary<long, List<Particle>> _grid = new Dictionary<long, List<Particle>>();
+        private Stack<List<Particle>> _listPool = new Stack<List<Particle>>();
         private int _gridCellSize = (int)ConnectionDistance;
 
         public MainWindow()
         {
             this.InitializeComponent();
-            // [ºËĞÄĞŞ¸´] ÔÚ¹¹Ôìº¯ÊıÖĞ¸³Öµ Instance
-            Instance = this;
             LoadSettingsFromDisk();
 
             if (AppTitleBar != null)
@@ -52,18 +48,37 @@ namespace BlueSapphire
             }
             CustomizeTitleBar();
             LoadTools();
+
+            // æ³¨å†Œæ¶ˆæ¯
+            WeakReferenceMessenger.Default.Register<ToggleParticleMessage>(this, (r, m) =>
+            {
+                IsParticleEffectEnabled = m.Value;
+                // å¦‚æœç¦ç”¨ï¼Œå¯ä»¥æ‰‹åŠ¨é‡ç»˜ä¸€æ¬¡æ¸…ç©ºå±å¹•ï¼Œæˆ–è€…åœæ­¢ invalidation
+                if (IsParticleEffectEnabled) BackgroundCanvas?.Invalidate();
+            });
+
+            // å¯åŠ¨æ—¶é»˜è®¤é€‰ä¸­ç¬¬ä¸€ä¸ª (å³ HomePage)
             if (NavView.MenuItems.Count > 0) NavView.SelectedItem = NavView.MenuItems[0];
+
+            // [å…³é”®ä¿®å¤] æ‰‹åŠ¨æ³¨å†Œæ¸²æŸ“å¾ªç¯ï¼Œæ›¿ä»£ CanvasAnimatedControl
+            CompositionTarget.Rendering += OnRendering;
+        }
+
+        // [å…³é”®ä¿®å¤] æ‰‹åŠ¨æ¸¸æˆå¾ªç¯
+        private void OnRendering(object? sender, object e)
+        {
+            if (!IsParticleEffectEnabled || BackgroundCanvas == null) return;
+
+            // 1. åœ¨è¿™é‡Œæ‰§è¡Œé€»è¾‘æ›´æ–° (åŸæœ¬çš„ OnUpdate)
+            UpdateLogic();
+
+            // 2. è§¦å‘é‡ç»˜ (åŸæœ¬çš„ OnDraw ä¼šè¢«è°ƒç”¨)
+            BackgroundCanvas.Invalidate();
         }
 
         private void LoadSettingsFromDisk()
         {
             IsParticleEffectEnabled = AppSettings.Get<bool>("IsParticleEffectEnabled", true);
-        }
-
-        public void UpdateParticleSetting(bool isEnabled)
-        {
-            IsParticleEffectEnabled = isEnabled;
-            if (BackgroundCanvas != null) BackgroundCanvas.Invalidate();
         }
 
         private void CustomizeTitleBar()
@@ -80,38 +95,31 @@ namespace BlueSapphire
             }
         }
 
-        // [AOT ÊÊÅä] ·ÀÖ¹²å¼şÀà±»²Ã¼ô
+        // --- ğŸ‘‡ é‡ç‚¹ä¿®æ”¹äº†è¿™é‡Œ ğŸ‘‡ ---
+        // [AOT é€‚é…] æ˜¾å¼å‘Šè¯‰ç¼–è¯‘å™¨ä¿ç•™è¿™ä¸¤ä¸ªé¡µé¢çš„æ„é€ å‡½æ•°
         [DynamicDependency(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor, typeof(HomePage))]
         [DynamicDependency(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor, typeof(MediaManagerPage))]
         private void LoadTools()
         {
-            try
-            {
-                var interfaceType = typeof(ITool);
-                // .NET 10 ÏÂµÄ·´Éä¼ÓÔØ
-                var types = Assembly.GetExecutingAssembly().GetTypes()
-                    .Where(t => interfaceType.IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
+            // 1. æ³¨å†Œé¦–é¡µ (æ”¾åœ¨ç¬¬ä¸€ä¸ªï¼Œå¯åŠ¨æ—¶ä¼šé»˜è®¤é€‰ä¸­å¹¶æ˜¾ç¤ºå®ƒ)
+            RegisterTool(new HomePage());
 
-                foreach (var type in types)
-                {
-                    if (Activator.CreateInstance(type) is ITool tool)
-                    {
-                        tool.Initialize();
-                        _tools.Add(tool); // ÕâÀïÏÖÔÚÄÜÕÒµ½ _tools ÁË
-                        var navItem = new NavigationViewItem
-                        {
-                            Content = tool.Title,
-                            Icon = new SymbolIcon(tool.Icon),
-                            Tag = tool.Id
-                        };
-                        NavView.MenuItems.Add(navItem);
-                    }
-                }
-            }
-            catch (Exception ex)
+            // 2. æ³¨å†ŒåŠŸèƒ½é¡µ
+            RegisterTool(new MediaManagerPage());
+        }
+        // ---------------------------
+
+        private void RegisterTool(ITool tool)
+        {
+            tool.Initialize();
+            _tools.Add(tool);
+            var navItem = new NavigationViewItem
             {
-                System.Diagnostics.Debug.WriteLine($"²å¼ş¼ÓÔØÊ§°Ü: {ex.Message}");
-            }
+                Content = tool.Title,
+                Icon = new SymbolIcon(tool.Icon),
+                Tag = tool.Id
+            };
+            NavView.MenuItems.Add(navItem);
         }
 
         private void NavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
@@ -127,24 +135,32 @@ namespace BlueSapphire
         private void OnCreateResources(CanvasControl sender, Microsoft.Graphics.Canvas.UI.CanvasCreateResourcesEventArgs args)
         {
             _particles.Clear();
-            for (int i = 0; i < ParticleCount; i++)
+            for (int i = 0; i < 100; i++)
             {
                 _particles.Add(new Particle((float)sender.ActualWidth, (float)sender.ActualHeight, _random));
             }
         }
 
-        private void OnDraw(CanvasControl sender, CanvasDrawEventArgs args)
+        // é€»è¾‘æ›´æ–° (ç‹¬ç«‹å‡ºæ¥)
+        private void UpdateLogic()
         {
-            if (!sender.IsLoaded || !IsParticleEffectEnabled) return;
+            if (BackgroundCanvas == null) return;
 
-            var session = args.DrawingSession;
-            float width = (float)sender.ActualWidth;
-            float height = (float)sender.ActualHeight;
+            // [æ–°å¢] å®‰å…¨æ£€æŸ¥ï¼šå¦‚æœå®½é«˜æ— æ•ˆï¼Œç›´æ¥è·³è¿‡ï¼Œé˜²æ­¢å´©æºƒ
+            if (BackgroundCanvas.ActualWidth <= 0 || BackgroundCanvas.ActualHeight <= 0) return;
 
-            // 1. ¸üĞÂÁ£×Ó ²¢ ÖØ½¨Íø¸ñ
+            float width = (float)BackgroundCanvas.ActualWidth;
+            float height = (float)BackgroundCanvas.ActualHeight;
+
+            // å›æ”¶ List
+            foreach (var list in _grid.Values)
+            {
+                list.Clear();
+                _listPool.Push(list);
+            }
             _grid.Clear();
-            _gridCellSize = 150;
 
+            // æ›´æ–°ç²’å­ & é‡å»ºç½‘æ ¼
             foreach (var p in _particles)
             {
                 p.Update(width, height, _mousePosition);
@@ -153,11 +169,23 @@ namespace BlueSapphire
                 int cellY = (int)(p.Position.Y / _gridCellSize);
                 long key = ((long)cellX << 32) | (uint)cellY;
 
-                if (!_grid.ContainsKey(key)) _grid[key] = new List<Particle>();
-                _grid[key].Add(p);
+                if (!_grid.TryGetValue(key, out var cellList))
+                {
+                    cellList = _listPool.Count > 0 ? _listPool.Pop() : new List<Particle>(16);
+                    _grid[key] = cellList;
+                }
+                cellList.Add(p);
             }
+        }
 
-            // 2. »æÖÆÁ¬Ïß (¸ßĞÔÄÜÍø¸ñ·ÖÇøËã·¨)
+        // ç»˜åˆ¶æ–¹æ³• (ç”± Invalidate è§¦å‘)
+        private void OnDraw(CanvasControl sender, CanvasDrawEventArgs args)
+        {
+            if (!IsParticleEffectEnabled) return;
+
+            var session = args.DrawingSession;
+
+            // ç»˜åˆ¶è¿çº¿
             foreach (var kvp in _grid)
             {
                 long key = kvp.Key;
@@ -165,15 +193,12 @@ namespace BlueSapphire
                 int cellY = (int)(key & 0xFFFFFFFF);
                 var cellParticles = kvp.Value;
 
-                // ¼ì²éÖÜÎ§¾Å¹¬¸ñ
+                // æ£€æŸ¥å‘¨å›´ä¹å®«æ ¼
                 for (int dx = -1; dx <= 1; dx++)
                 {
                     for (int dy = -1; dy <= 1; dy++)
                     {
-                        int nx = cellX + dx;
-                        int ny = cellY + dy;
-                        long neighborKey = ((long)nx << 32) | (uint)ny;
-
+                        long neighborKey = ((long)(cellX + dx) << 32) | (uint)(cellY + dy);
                         if (_grid.TryGetValue(neighborKey, out var neighborParticles))
                         {
                             foreach (var p1 in cellParticles)
@@ -183,10 +208,9 @@ namespace BlueSapphire
                                     if (p1 == p2) continue;
 
                                     var distSq = Vector2.DistanceSquared(p1.Position, p2.Position);
-                                    if (distSq < ConnectionDistance * ConnectionDistance)
+                                    if (distSq < ConnectionDistanceSq)
                                     {
-                                        float dist = (float)Math.Sqrt(distSq);
-                                        float alpha = 1.0f - (dist / ConnectionDistance);
+                                        float alpha = 1.0f - (float)Math.Sqrt(distSq) / ConnectionDistance;
                                         session.DrawLine(p1.Position, p2.Position,
                                             Color.FromArgb((byte)(alpha * 100), 0, 255, 255), 1);
                                     }
@@ -197,13 +221,17 @@ namespace BlueSapphire
                 }
             }
 
-            // 3. »æÖÆÁ£×Óµã
+            // ç»˜åˆ¶ç²’å­
             foreach (var p in _particles)
             {
                 session.FillCircle(p.Position, 2, Colors.Cyan);
             }
+        }
 
-            sender.Invalidate();
+        private void BackgroundCanvas_PointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            var ptr = e.GetCurrentPoint((UIElement)sender);
+            _mousePosition = new Vector2((float)ptr.Position.X, (float)ptr.Position.Y);
         }
     }
 }

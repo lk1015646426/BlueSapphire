@@ -5,20 +5,24 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Markup;
-using System;
+using System; // 必须引用，解决 Task 和 GetAwaiter 问题
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
-using Windows.Storage;
+using System.Threading.Tasks; // 必须引用
+using Windows.Storage; // 必须引用，解决 StorageFolder 问题
+using Windows.Foundation; // 必须引用，解决 IAsyncOperation await 问题
 
 namespace BlueSapphire
 {
     public sealed partial class MediaManagerPage : Page, ITool, IMediaViewInteraction
     {
+        // --- ITool 接口实现 (之前报错是因为缺少了这些) ---
         public string Id => "MediaManager";
         public string Title => "媒体管家";
         public Symbol Icon => Symbol.Pictures;
         public Type ContentPage => typeof(MediaManagerPage);
+
+        public void Initialize() { }
 
         // 公开 ViewModel 供 x:Bind 使用
         public MediaManagerViewModel ViewModel { get; }
@@ -26,11 +30,8 @@ namespace BlueSapphire
         public MediaManagerPage()
         {
             this.InitializeComponent();
-            // 初始化 ViewModel，注入 View 接口和 Dispatcher
             ViewModel = new MediaManagerViewModel(this, this.DispatcherQueue);
         }
-
-        public void Initialize() { }
 
         // --- 事件处理 ---
         private void ImageGrid_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
@@ -51,13 +52,11 @@ namespace BlueSapphire
 
         private void OnDeleteClicked(object sender, RoutedEventArgs e)
         {
-            // 将选中的项传递给 ViewModel
-            // 注意：GridView.SelectedItems 是弱类型的，需要手动传递
             var items = ImageGrid.SelectedItems;
             ViewModel.DeleteSelectedCommand.Execute(items);
         }
 
-        // --- IMediaViewInteraction 接口实现 (UI 逻辑) ---
+        // --- IMediaViewInteraction 接口实现 ---
 
         public async Task ShowTipAsync(string message)
         {
@@ -97,31 +96,32 @@ namespace BlueSapphire
             };
             openPicker.FileTypeFilter.Add("*");
 
-            if (MainWindow.Instance != null)
+            // [优化] 使用 App.CurrentWindow 替代 MainWindow.Instance
+            if (App.CurrentWindow != null)
             {
-                WinRT.Interop.InitializeWithWindow.Initialize(openPicker, WinRT.Interop.WindowNative.GetWindowHandle(MainWindow.Instance));
+                // 获取窗口句柄
+                var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(App.CurrentWindow);
+                WinRT.Interop.InitializeWithWindow.Initialize(openPicker, hWnd);
             }
+
+            // 需要 using System; 和 using Windows.Foundation; 才能 await 这个调用
             return await openPicker.PickSingleFolderAsync();
         }
 
         public async Task<List<StorageFile>> ShowDuplicateResultsAsync(List<List<StorageFile>> dupes)
         {
-            // 构建 UI 数据源 (DuplicateItem)
             var flatList = new System.Collections.ObjectModel.ObservableCollection<DuplicateItem>();
             foreach (var g in dupes)
             {
                 flatList.Add(DuplicateItem.CreateSeparator());
-                // 按日期降序，保留最新的一个
                 var sorted = g.OrderByDescending(f => f.DateCreated).ToList();
                 for (int i = 0; i < sorted.Count; i++)
                 {
-                    // i==0 (最新的) 建议保留 (IsKeepSuggestion=true)
                     flatList.Add(new DuplicateItem(sorted[i], i == 0));
                 }
             }
             if (flatList.Any()) flatList.RemoveAt(0);
 
-            // 动态创建 ListView
             var listView = new ListView
             {
                 ItemsSource = flatList,
@@ -129,7 +129,6 @@ namespace BlueSapphire
                 MaxHeight = 400
             };
 
-            // 使用 XamlReader 加载 DataTemplate (保持原逻辑)
             string xaml = @"
                 <DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>
                     <Grid>

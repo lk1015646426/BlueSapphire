@@ -26,7 +26,11 @@ namespace BlueSapphire
     /// </summary>
     public partial class App : Application
     {
-        private Window? _window;
+        // [优化修改]
+        // 将原有的 private Window? _window; 替换为全局静态属性。
+        // 这样子页面(如 MediaManagerPage)可以通过 App.CurrentWindow 获取句柄，
+        // 而不需要依赖 MainWindow.Instance。
+        public static Window? CurrentWindow { get; private set; }
 
         /// <summary>
         /// Initializes the singleton application object.  This is the first line of authored code
@@ -43,8 +47,10 @@ namespace BlueSapphire
         /// <param name="args">Details about the launch request and process.</param>
         protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
         {
-            _window = new MainWindow();
-            _window.Activate();
+            // [优化修改]
+            // 实例化 MainWindow 并赋值给静态属性
+            CurrentWindow = new MainWindow();
+            CurrentWindow.Activate();
         }
     }
 }
