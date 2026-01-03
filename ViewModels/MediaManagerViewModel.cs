@@ -4,10 +4,11 @@ using BlueSapphire.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI.Dispatching;
-using Microsoft.UI.Xaml.Controls;
 using System;
+using System.Collections.Concurrent; // 用于线程安全集合
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions; // 用于文件名正则解析
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Storage;
@@ -95,6 +96,146 @@ namespace BlueSapphire.ViewModels
             RefreshViewFromCache();
         }
 
+        // [功能二] 批量重命名命令 (Exif > 文件名解析 > 跳过)
+        [RelayCommand]
+        private async Task RenameSelected(IList<object> selectedItems)
+        {
+            if (selectedItems == null || selectedItems.Count == 0)
+            {
+                await _view.ShowTipAsync("请先选择要重命名的图片");
+                return;
+            }
+
+            if (_currentFolder == null) return;
+
+            // 1. 准备阶段
+            SetBusy(true, "正在并发分析文件属性...");
+            var previewList = new ConcurrentBag<RenamePreviewItem>(); // 线程安全集合
+            int skippedCount = 0;
+
+            // 获取现有文件名用于冲突检测 (线程安全字典)
+            var existingFiles = await _currentFolder.GetFilesAsync();
+            var allFilenames = new ConcurrentDictionary<string, byte>(
+                existingFiles.Select(f => new KeyValuePair<string, byte>(f.Name.ToLower(), 0)));
+
+            try
+            {
+                var items = selectedItems.Cast<ImageItem>().ToList();
+                int total = items.Count;
+                int processed = 0;
+
+                // [性能优化] 使用 SemaphoreSlim 限制并发数为 50，平衡 IO 性能与系统稳定性
+                using var semaphore = new SemaphoreSlim(50);
+
+                var tasks = items.Select(async item =>
+                {
+                    await semaphore.WaitAsync();
+                    try
+                    {
+                        if (string.IsNullOrEmpty(item.ImagePath)) return;
+
+                        StorageFile file;
+                        try { file = await StorageFile.GetFileFromPathAsync(item.ImagePath); }
+                        catch { return; }
+
+                        // --- 核心逻辑开始 ---
+
+                        // A. 优先尝试读取 Exif 拍摄时间
+                        var props = await file.Properties.GetImagePropertiesAsync();
+                        DateTimeOffset targetTime = props.DateTaken;
+
+                        // B. [核心策略] 回退：如果 Exif 无效，尝试从文件名解析
+                        if (targetTime == DateTimeOffset.MinValue)
+                        {
+                            targetTime = TryParseDateFromFileName(file.Name);
+                        }
+
+                        // C. [核心策略] 最终判决：如果还是无效，坚决跳过，绝不使用创建时间
+                        if (targetTime == DateTimeOffset.MinValue)
+                        {
+                            Interlocked.Increment(ref skippedCount);
+                            return; // 跳过此文件
+                        }
+
+                        // --- 核心逻辑结束 ---
+
+                        string extension = file.FileType;
+                        string dateStr = targetTime.ToString("yyyyMMdd_HHmmss");
+                        string baseName = dateStr;
+                        string newName = baseName + extension;
+
+                        // 冲突解决 (确保唯一性)
+                        int counter = 1;
+                        while (true)
+                        {
+                            string lowerName = newName.ToLower();
+                            // TryAdd 返回 true 说明该名字可用 (未被占用)
+                            if (allFilenames.TryAdd(lowerName, 0))
+                            {
+                                break;
+                            }
+
+                            // 名字冲突，尝试添加序号 _01, _02
+                            newName = $"{baseName}_{counter:D2}{extension}";
+                            counter++;
+                        }
+
+                        previewList.Add(new RenamePreviewItem
+                        {
+                            File = file,
+                            OriginalName = file.Name,
+                            NewName = newName
+                        });
+
+                        // 进度反馈 (每处理 20 个更新一次 UI，防止界面卡顿)
+                        int current = Interlocked.Increment(ref processed);
+                        if (current % 20 == 0)
+                        {
+                            _dispatcherQueue.TryEnqueue(() =>
+                            {
+                                ProgressValue = current;
+                                ProgressMax = total;
+                                StatusMainText = $"正在分析... {current}/{total}";
+                            });
+                        }
+                    }
+                    finally
+                    {
+                        semaphore.Release();
+                    }
+                });
+
+                // 等待所有并发任务完成
+                await Task.WhenAll(tasks);
+
+                SetBusy(false);
+
+                // 排序预览列表 (因为并发处理导致顺序是乱的)
+                var sortedPreview = previewList.OrderBy(x => x.NewName).ToList();
+
+                if (sortedPreview.Count == 0)
+                {
+                    string msg = $"未找到包含有效时间信息的图片。\n已跳过 {skippedCount} 个文件。";
+                    if (skippedCount > 0) msg += "\n(原因：无 Exif 信息且文件名中无法提取日期)";
+                    await _view.ShowTipAsync(msg);
+                    return;
+                }
+
+                // 显示预览弹窗 (调用 View 层接口)
+                bool confirm = await _view.ShowRenamePreviewAsync(sortedPreview, skippedCount);
+
+                if (confirm)
+                {
+                    await PerformRenameFiles(sortedPreview);
+                }
+            }
+            catch (Exception ex)
+            {
+                SetBusy(false);
+                await _view.ShowTipAsync($"预处理失败: {ex.Message}");
+            }
+        }
+
         [RelayCommand]
         private async Task ScanDuplicates()
         {
@@ -109,7 +250,6 @@ namespace BlueSapphire.ViewModels
             {
                 SetBusy(true, "正在初始化扫描...", 0, 100);
 
-                // 1. 获取所有文件 (预取大小)
                 var fileExtensions = new List<string> { ".jpg", ".png", ".jpeg", ".bmp", ".gif", ".webp", ".heic", ".mp4", ".mov", ".avi", ".wmv", ".mkv" };
                 var queryOptions = new QueryOptions(CommonFileQuery.DefaultQuery, fileExtensions);
                 queryOptions.SetPropertyPrefetch(PropertyPrefetchOptions.BasicProperties, new[] { "System.Size" });
@@ -125,7 +265,6 @@ namespace BlueSapphire.ViewModels
 
                 UpdateProgress(0, allFiles.Count, "正在建立索引 (对比大小)...");
 
-                // 2. 第一阶段：大小分组
                 var suspectGroups = await Task.Run(() =>
                 {
                     var sizeGroups = new Dictionary<ulong, List<StorageFile>>();
@@ -141,14 +280,12 @@ namespace BlueSapphire.ViewModels
                         }
                         catch { }
 
-                        // 简单的进度节流
                         if (++processed % 50 == 0)
                             _dispatcherQueue.TryEnqueue(() => ProgressValue = processed);
                     }
                     return sizeGroups.Values.Where(g => g.Count > 1).ToList();
                 });
 
-                // 3. 第二阶段：MD5 校验
                 int totalSuspects = suspectGroups.Sum(g => g.Count);
                 if (totalSuspects == 0)
                 {
@@ -198,7 +335,6 @@ namespace BlueSapphire.ViewModels
 
                 if (finalDuplicates.Count > 0)
                 {
-                    // 弹出删除确认框 (由 View 实现)
                     var filesToDelete = await _view.ShowDuplicateResultsAsync(finalDuplicates);
                     if (filesToDelete != null && filesToDelete.Count > 0)
                     {
@@ -244,6 +380,113 @@ namespace BlueSapphire.ViewModels
         }
 
         // --- 私有方法 ---
+
+        // [新增] 辅助方法：尝试从文件名中解析日期时间
+        private static DateTimeOffset TryParseDateFromFileName(string fileName)
+        {
+            // 定义一组正则模式，按优先级尝试匹配
+            var patterns = new List<string>
+            {
+                // 1. 标准/混合分隔符格式 (带时间)
+                // 能匹配: VID_20250517_144353, IMG_2023-12-01 12.00.00, Screenshot_2023-12-01-12-00-00
+                // 逻辑: 年(20xx) + 月 + 日 + [至少一个分隔符] + 时 + 分 + 秒
+                // 关键点: [-_.\sT]+ 用于匹配日期和时间之间的各种连接符
+                @"(?<year>20\d{2})[-_.]?(?<month>\d{2})[-_.]?(?<day>\d{2})[-_.\sT]+(?<hour>\d{2})[-_:.]?(?<minute>\d{2})[-_:.]?(?<second>\d{2})",
+
+                // 2. 纯紧凑格式 (无分隔符，通常是连续数字)
+                // 能匹配: 20250517144353
+                @"(?<year>20\d{2})(?<month>\d{2})(?<day>\d{2})(?<hour>\d{2})(?<minute>\d{2})(?<second>\d{2})",
+
+                // 3. 仅日期 (回退策略，时间设为00:00:00)
+                // 能匹配: VID_20250517, Screenshot_2025-05-17
+                @"(?<year>20\d{2})[-_.]?(?<month>\d{2})[-_.]?(?<day>\d{2})"
+            };
+
+            foreach (var pattern in patterns)
+            {
+                try
+                {
+                    var regex = new Regex(pattern);
+                    var match = regex.Match(fileName);
+
+                    if (match.Success)
+                    {
+                        int year = int.Parse(match.Groups["year"].Value);
+                        int month = int.Parse(match.Groups["month"].Value);
+                        int day = int.Parse(match.Groups["day"].Value);
+
+                        // 简单的合法性检查
+                        if (month < 1 || month > 12 || day < 1 || day > 31) continue;
+
+                        int hour = 0, minute = 0, second = 0;
+
+                        // 如果匹配到了时间部分，则提取
+                        if (match.Groups["hour"].Success) hour = int.Parse(match.Groups["hour"].Value);
+                        if (match.Groups["minute"].Success) minute = int.Parse(match.Groups["minute"].Value);
+                        if (match.Groups["second"].Success) second = int.Parse(match.Groups["second"].Value);
+
+                        // 再次检查时间合法性
+                        if (hour > 23 || minute > 59 || second > 59) continue;
+
+                        return new DateTimeOffset(new DateTime(year, month, day, hour, minute, second));
+                    }
+                }
+                catch
+                {
+                    // 单个模式解析失败不影响尝试下一个
+                }
+            }
+
+            return DateTimeOffset.MinValue;
+        }
+
+        // [新增] 执行重命名逻辑 (支持节流更新)
+        private async Task PerformRenameFiles(List<RenamePreviewItem> items)
+        {
+            SetBusy(true, "正在重命名...", 0, items.Count);
+            int successCount = 0;
+            int failCount = 0;
+
+            await Task.Run(async () =>
+            {
+                for (int i = 0; i < items.Count; i++)
+                {
+                    var item = items[i];
+                    try
+                    {
+                        await item.File.RenameAsync(item.NewName, NameCollisionOption.GenerateUniqueName);
+                        successCount++;
+                    }
+                    catch
+                    {
+                        failCount++;
+                    }
+
+                    // 进度节流：每 20 个或最后一个时更新 UI
+                    if ((i + 1) % 20 == 0 || i == items.Count - 1)
+                    {
+                        int current = i + 1;
+                        _dispatcherQueue.TryEnqueue(() =>
+                        {
+                            ProgressValue = current;
+                            StatusMainText = $"正在重命名... {current}/{items.Count}";
+                        });
+                    }
+                }
+            });
+
+            SetBusy(false);
+
+            // 刷新文件夹
+            if (_currentFolder != null)
+            {
+                await LoadFolderContentAsync(_currentFolder);
+            }
+
+            string msg = $"重命名完成。\n成功: {successCount} 个\n失败: {failCount} 个";
+            if (failCount > 0) msg += "\n(失败原因通常是文件被占用)";
+            await _view.ShowTipAsync(msg);
+        }
 
         private async Task LoadFolderContentAsync(StorageFolder folder)
         {
@@ -301,7 +544,6 @@ namespace BlueSapphire.ViewModels
         {
             if (_cachedAllItems.Count == 0) return;
 
-            // 在 UI 线程更新集合，防止多线程冲突
             _dispatcherQueue.TryEnqueue(() =>
             {
                 IEnumerable<ImageItem> query = _cachedAllItems;
@@ -333,7 +575,6 @@ namespace BlueSapphire.ViewModels
                     {
                         await file.DeleteAsync();
 
-                        // 线程安全地从缓存移除
                         lock (_cachedAllItems)
                         {
                             var cacheItem = _cachedAllItems.FirstOrDefault(x => x.ImagePath == file.Path);
@@ -345,7 +586,8 @@ namespace BlueSapphire.ViewModels
                     Interlocked.Increment(ref deletedCount);
                     if (deletedCount % 10 == 0)
                     {
-                        _dispatcherQueue.TryEnqueue(() => {
+                        _dispatcherQueue.TryEnqueue(() =>
+                        {
                             ProgressValue = deletedCount;
                             StatusMainText = $"正在删除... ({deletedCount}/{files.Count})";
                         });
@@ -355,7 +597,7 @@ namespace BlueSapphire.ViewModels
 
             SetBusy(false);
             CountText = $"ITEMS: {_cachedAllItems.Count}";
-            RefreshViewFromCache(); // 重新生成视图
+            RefreshViewFromCache();
             await _view.ShowTipAsync($"清理完成，共删除 {deletedCount} 个文件。");
         }
 
@@ -366,7 +608,7 @@ namespace BlueSapphire.ViewModels
                 IsBusy = busy;
                 StatusMainText = text;
                 StatusDetailText = "";
-                IsProgressVisible = busy; // 简化处理，忙碌即显示进度条
+                IsProgressVisible = busy;
                 ProgressValue = val;
                 ProgressMax = max;
             });

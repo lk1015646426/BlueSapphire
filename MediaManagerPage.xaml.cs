@@ -74,6 +74,64 @@ namespace BlueSapphire
             catch { }
         }
 
+        // [新增] 实现重命名预览弹窗
+        public async Task<bool> ShowRenamePreviewAsync(List<RenamePreviewItem> items, int skippedCount)
+        {
+            // 1. 创建列表视图
+            var listView = new ListView
+            {
+                ItemsSource = items,
+                SelectionMode = ListViewSelectionMode.None,
+                MaxHeight = 400,
+                ItemTemplate = (DataTemplate)this.Resources["RenamePreviewTemplate"]
+            };
+
+            // 2. 构建提示信息
+            var stackPanel = new StackPanel { Spacing = 10 };
+
+            // 头部提示
+            stackPanel.Children.Add(new TextBlock
+            {
+                Text = "请确认以下更改：",
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+            });
+
+            // 列表
+            stackPanel.Children.Add(listView);
+
+            // 底部警告 (如果有跳过的文件)
+            if (skippedCount > 0)
+            {
+                stackPanel.Children.Add(new TextBlock
+                {
+                    Text = $"⚠ 注意：有 {skippedCount} 个文件因缺失拍摄日期信息将被跳过。",
+                    Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 165, 0)), // Orange
+                    FontSize = 12,
+                    TextWrapping = TextWrapping.Wrap
+                });
+            }
+
+            // 格式说明
+            stackPanel.Children.Add(new TextBlock
+            {
+                Text = "命名格式：yyyyMMdd_HHmmss (如遇冲突自动添加序号)",
+                Opacity = 0.6,
+                FontSize = 12
+            });
+
+            var dialog = new ContentDialog
+            {
+                Title = "批量重命名预览",
+                Content = stackPanel,
+                PrimaryButtonText = "确认修改",
+                CloseButtonText = "取消",
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = this.XamlRoot
+            };
+
+            return await dialog.ShowAsync() == ContentDialogResult.Primary;
+        }
+
         public async Task<bool> ShowDeleteConfirmationAsync(int count)
         {
             var dialog = new ContentDialog
@@ -108,47 +166,64 @@ namespace BlueSapphire
             return await openPicker.PickSingleFolderAsync();
         }
 
+        // [重构] 使用 DataTemplate 和 ListView 替代 XamlReader
         public async Task<List<StorageFile>> ShowDuplicateResultsAsync(List<List<StorageFile>> dupes)
         {
+            // 1. 准备扁平化数据源
             var flatList = new System.Collections.ObjectModel.ObservableCollection<DuplicateItem>();
             foreach (var g in dupes)
             {
                 flatList.Add(DuplicateItem.CreateSeparator());
+                // 按日期降序排列（最新的在最前）
                 var sorted = g.OrderByDescending(f => f.DateCreated).ToList();
                 for (int i = 0; i < sorted.Count; i++)
                 {
+                    // 逻辑：每组第一个（最新的）标记为“推荐保留”
                     flatList.Add(new DuplicateItem(sorted[i], i == 0));
                 }
             }
+            // 移除首个多余的分隔符
             if (flatList.Any()) flatList.RemoveAt(0);
 
+            // 2. 编程式创建 ListView
             var listView = new ListView
             {
                 ItemsSource = flatList,
                 SelectionMode = ListViewSelectionMode.None,
-                MaxHeight = 400
+                MaxHeight = 500, // 限制高度，防止弹窗溢出屏幕
+                Width = 450,
+                // [关键] 引用 XAML 中定义的 DataTemplate
+                ItemTemplate = (DataTemplate)this.Resources["DuplicateItemTemplate"]
             };
 
-            string xaml = @"
-                <DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>
-                    <Grid>
-                        <TextBlock Text='重复组' FontWeight='Bold' Foreground='#00FFFF' Opacity='0.6' Margin='0,10,0,0'
-                                   Visibility='{Binding SeparatorVisibility}'/>     
-                        <CheckBox IsChecked='{Binding IsChecked, Mode=TwoWay}' Margin='0,2,0,2'
-                                  Visibility='{Binding CheckBoxVisibility}'>
-                            <StackPanel Orientation='Horizontal'>
-                                <TextBlock Text='{Binding DisplayName}' FontWeight='SemiBold' />
-                                <TextBlock Text=' (' Foreground='#80FFFFFF' FontSize='12'/>
-                                <TextBlock Text='{Binding DateString}' Foreground='#80FFFFFF' FontSize='12'/>
-                                <TextBlock Text=')' Foreground='#80FFFFFF' FontSize='12'/>
-                                <TextBlock Text=' [推荐保留]' Foreground='LightGreen' Margin='10,0,0,0' FontSize='12'
-                                           Visibility='{Binding SuggestionVisibility}'/>
-                            </StackPanel>
-                        </CheckBox>
-                    </Grid>
-                </DataTemplate>";
-            listView.ItemTemplate = (DataTemplate)XamlReader.Load(xaml);
+            // 3. 注册事件：懒加载缩略图
+            listView.ContainerContentChanging += (s, args) =>
+            {
+                if (args.Item is DuplicateItem item && !item.IsSeparator && !args.InRecycleQueue)
+                {
+                    // 调用 Model 中的异步加载方法
+                    _ = item.LoadThumbnailAsync(this.DispatcherQueue);
+                }
+            };
 
+            // 4. 注册事件：双击预览大图
+            listView.DoubleTapped += async (s, e) =>
+            {
+                // 获取被点击的数据项
+                if ((e.OriginalSource as FrameworkElement)?.DataContext is DuplicateItem item
+                    && item.File != null)
+                {
+                    try
+                    {
+                        // [交互优化] 调用系统默认查看器打开文件
+                        // 这是查看原始画质最准确、最兼容的方式
+                        await Windows.System.Launcher.LaunchFileAsync(item.File);
+                    }
+                    catch { }
+                }
+            };
+
+            // 5. 显示对话框
             var dialog = new ContentDialog
             {
                 Title = $"发现 {dupes.Count} 组重复文件",
@@ -161,9 +236,11 @@ namespace BlueSapphire
 
             if (await dialog.ShowAsync() == ContentDialogResult.Primary)
             {
+                // 返回所有被勾选的文件（即待删除的文件）
                 return flatList.Where(x => x.File != null && x.IsChecked).Select(x => x.File!).ToList();
             }
             return new List<StorageFile>();
         }
     }
 }
+
