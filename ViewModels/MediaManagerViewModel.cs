@@ -96,7 +96,7 @@ namespace BlueSapphire.ViewModels
             RefreshViewFromCache();
         }
 
-        // [功能二] 批量重命名命令 (Exif > 文件名解析 > 跳过)
+        // [功能二] 批量重命名命令 (Exif > 智能文件名解析 > 跳过)
         [RelayCommand]
         private async Task RenameSelected(IList<object> selectedItems)
         {
@@ -124,7 +124,7 @@ namespace BlueSapphire.ViewModels
                 int total = items.Count;
                 int processed = 0;
 
-                // [性能优化] 使用 SemaphoreSlim 限制并发数为 50，平衡 IO 性能与系统稳定性
+                // [性能优化] 使用 SemaphoreSlim 限制并发数为 50
                 using var semaphore = new SemaphoreSlim(50);
 
                 var tasks = items.Select(async item =>
@@ -144,40 +144,51 @@ namespace BlueSapphire.ViewModels
                         var props = await file.Properties.GetImagePropertiesAsync();
                         DateTimeOffset targetTime = props.DateTaken;
 
-                        // B. [核心策略] 回退：如果 Exif 无效，尝试从文件名解析
-                        if (targetTime == DateTimeOffset.MinValue)
+                        // [校验] 拦截 1601/1/1 等无效时间
+                        bool isInvalidTime = targetTime == DateTimeOffset.MinValue || targetTime.Year < 1980;
+
+                        // B. 回退：智能解析
+                        if (isInvalidTime)
                         {
-                            targetTime = TryParseDateFromFileName(file.Name);
+                            targetTime = await SmartParseDateAsync(file);
                         }
 
-                        // C. [核心策略] 最终判决：如果还是无效，坚决跳过，绝不使用创建时间
-                        if (targetTime == DateTimeOffset.MinValue)
+                        // C. 最终判决：如果还是无效，或者解析失败(比如 mmexport 文件)
+                        // 则 increment skippedCount 并直接返回
+                        if (targetTime == DateTimeOffset.MinValue || targetTime.Year < 1980)
                         {
                             Interlocked.Increment(ref skippedCount);
-                            return; // 跳过此文件
+                            return; // 跳过此文件，不加入 previewList
                         }
 
                         // --- 核心逻辑结束 ---
 
                         string extension = file.FileType;
-                        string dateStr = targetTime.ToString("yyyyMMdd_HHmmss");
+
+                        // [格式] 0点用 yyyy-MM-dd，有时间用 yyyy-MM-dd_HH-mm-ss
+                        bool isTimeZero = targetTime.TimeOfDay == TimeSpan.Zero;
+                        string dateFormat = isTimeZero ? "yyyy-MM-dd" : "yyyy-MM-dd_HH-mm-ss";
+
+                        string dateStr = targetTime.ToString(dateFormat);
                         string baseName = dateStr;
                         string newName = baseName + extension;
 
-                        // 冲突解决 (确保唯一性)
-                        int counter = 1;
-                        while (true)
+                        // [冲突检测]
+                        if (!newName.Equals(file.Name, StringComparison.OrdinalIgnoreCase))
                         {
-                            string lowerName = newName.ToLower();
-                            // TryAdd 返回 true 说明该名字可用 (未被占用)
-                            if (allFilenames.TryAdd(lowerName, 0))
+                            int counter = 1;
+                            while (true)
                             {
-                                break;
-                            }
+                                string lowerName = newName.ToLower();
+                                if (allFilenames.TryAdd(lowerName, 0))
+                                {
+                                    break;
+                                }
 
-                            // 名字冲突，尝试添加序号 _01, _02
-                            newName = $"{baseName}_{counter:D2}{extension}";
-                            counter++;
+                                // 名字冲突，添加序号
+                                newName = $"{baseName}_{counter:D2}{extension}";
+                                counter++;
+                            }
                         }
 
                         previewList.Add(new RenamePreviewItem
@@ -187,7 +198,6 @@ namespace BlueSapphire.ViewModels
                             NewName = newName
                         });
 
-                        // 进度反馈 (每处理 20 个更新一次 UI，防止界面卡顿)
                         int current = Interlocked.Increment(ref processed);
                         if (current % 20 == 0)
                         {
@@ -205,23 +215,25 @@ namespace BlueSapphire.ViewModels
                     }
                 });
 
-                // 等待所有并发任务完成
                 await Task.WhenAll(tasks);
 
                 SetBusy(false);
 
-                // 排序预览列表 (因为并发处理导致顺序是乱的)
                 var sortedPreview = previewList.OrderBy(x => x.NewName).ToList();
 
+                // 如果没有文件可以重命名，且有跳过的文件
                 if (sortedPreview.Count == 0)
                 {
-                    string msg = $"未找到包含有效时间信息的图片。\n已跳过 {skippedCount} 个文件。";
-                    if (skippedCount > 0) msg += "\n(原因：无 Exif 信息且文件名中无法提取日期)";
+                    string msg = "未找到包含有效时间信息的图片。";
+                    if (skippedCount > 0)
+                    {
+                        msg += $"\n\n已跳过 {skippedCount} 个文件。\n原因：无 Exif 信息，且文件名不包含清晰的日期格式（如 mmexport 等随机命名）。";
+                    }
                     await _view.ShowTipAsync(msg);
                     return;
                 }
 
-                // 显示预览弹窗 (调用 View 层接口)
+                // 显示预览，同时告知跳过了多少个
                 bool confirm = await _view.ShowRenamePreviewAsync(sortedPreview, skippedCount);
 
                 if (confirm)
@@ -381,63 +393,51 @@ namespace BlueSapphire.ViewModels
 
         // --- 私有方法 ---
 
-        // [新增] 辅助方法：尝试从文件名中解析日期时间
-        private static DateTimeOffset TryParseDateFromFileName(string fileName)
+        // [核心改进] 智能解析文件名日期
+        // 关键点：加入了 (?<!\d) 断言，防止匹配到长数字中间的年份
+        private static async Task<DateTimeOffset> SmartParseDateAsync(StorageFile file)
         {
-            // 定义一组正则模式，按优先级尝试匹配
-            var patterns = new List<string>
+            string fileName = file.Name;
+
+            // Tier 1: 尝试提取【完整时间】
+            // (?<!\d) 意味着: 20xx的前面不能是数字！
+            // 这能完美解决 mmexport172043... 中匹配到 2043 的问题
+            var fullTimePattern = new Regex(
+                @"(?<!\d)(?<year>20\d{2})[-_.\s]?(?<month>0[1-9]|1[0-2])[-_.\s]?(?<day>0[1-9]|[12]\d|3[01])[-_.\sT]+(?<hour>[01]\d|2[0-3])[-_:.]?(?<minute>[0-5]\d)[-_:.]?(?<second>[0-5]\d)?");
+
+            var match = fullTimePattern.Match(fileName);
+            if (match.Success)
             {
-                // 1. 标准/混合分隔符格式 (带时间)
-                // 能匹配: VID_20250517_144353, IMG_2023-12-01 12.00.00, Screenshot_2023-12-01-12-00-00
-                // 逻辑: 年(20xx) + 月 + 日 + [至少一个分隔符] + 时 + 分 + 秒
-                // 关键点: [-_.\sT]+ 用于匹配日期和时间之间的各种连接符
-                @"(?<year>20\d{2})[-_.]?(?<month>\d{2})[-_.]?(?<day>\d{2})[-_.\sT]+(?<hour>\d{2})[-_:.]?(?<minute>\d{2})[-_:.]?(?<second>\d{2})",
-
-                // 2. 纯紧凑格式 (无分隔符，通常是连续数字)
-                // 能匹配: 20250517144353
-                @"(?<year>20\d{2})(?<month>\d{2})(?<day>\d{2})(?<hour>\d{2})(?<minute>\d{2})(?<second>\d{2})",
-
-                // 3. 仅日期 (回退策略，时间设为00:00:00)
-                // 能匹配: VID_20250517, Screenshot_2025-05-17
-                @"(?<year>20\d{2})[-_.]?(?<month>\d{2})[-_.]?(?<day>\d{2})"
-            };
-
-            foreach (var pattern in patterns)
-            {
-                try
-                {
-                    var regex = new Regex(pattern);
-                    var match = regex.Match(fileName);
-
-                    if (match.Success)
-                    {
-                        int year = int.Parse(match.Groups["year"].Value);
-                        int month = int.Parse(match.Groups["month"].Value);
-                        int day = int.Parse(match.Groups["day"].Value);
-
-                        // 简单的合法性检查
-                        if (month < 1 || month > 12 || day < 1 || day > 31) continue;
-
-                        int hour = 0, minute = 0, second = 0;
-
-                        // 如果匹配到了时间部分，则提取
-                        if (match.Groups["hour"].Success) hour = int.Parse(match.Groups["hour"].Value);
-                        if (match.Groups["minute"].Success) minute = int.Parse(match.Groups["minute"].Value);
-                        if (match.Groups["second"].Success) second = int.Parse(match.Groups["second"].Value);
-
-                        // 再次检查时间合法性
-                        if (hour > 23 || minute > 59 || second > 59) continue;
-
-                        return new DateTimeOffset(new DateTime(year, month, day, hour, minute, second));
-                    }
-                }
-                catch
-                {
-                    // 单个模式解析失败不影响尝试下一个
-                }
+                return ParseRegexMatch(match);
             }
 
+            // Tier 2: 尝试提取【仅日期】
+            // 同样加入 (?<!\d) 保护
+            var dateOnlyPattern = new Regex(
+                @"(?<!\d)(?<year>20\d{2})[-_.\s年]?(?<month>0?[1-9]|1[0-2])[-_.\s月]?(?<day>0?[1-9]|[12]\d|3[01])[日号]?");
+
+            match = dateOnlyPattern.Match(fileName);
+            if (match.Success)
+            {
+                return ParseRegexMatch(match).Date;
+            }
+
+            // mmexport 等乱码文件将在这里返回 MinValue，然后在外部被跳过
             return DateTimeOffset.MinValue;
+        }
+
+        private static DateTime ParseRegexMatch(Match match)
+        {
+            int y = int.Parse(match.Groups["year"].Value);
+            int m = int.Parse(match.Groups["month"].Value);
+            int d = int.Parse(match.Groups["day"].Value);
+
+            int h = 0, min = 0, s = 0;
+            if (match.Groups["hour"].Success) h = int.Parse(match.Groups["hour"].Value);
+            if (match.Groups["minute"].Success) min = int.Parse(match.Groups["minute"].Value);
+            if (match.Groups["second"].Success) s = int.Parse(match.Groups["second"].Value);
+
+            return new DateTime(y, m, d, h, min, s);
         }
 
         // [新增] 执行重命名逻辑 (支持节流更新)
@@ -454,7 +454,10 @@ namespace BlueSapphire.ViewModels
                     var item = items[i];
                     try
                     {
-                        await item.File.RenameAsync(item.NewName, NameCollisionOption.GenerateUniqueName);
+                        if (!item.OriginalName.Equals(item.NewName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            await item.File.RenameAsync(item.NewName, NameCollisionOption.GenerateUniqueName);
+                        }
                         successCount++;
                     }
                     catch
@@ -462,7 +465,7 @@ namespace BlueSapphire.ViewModels
                         failCount++;
                     }
 
-                    // 进度节流：每 20 个或最后一个时更新 UI
+                    // 进度节流
                     if ((i + 1) % 20 == 0 || i == items.Count - 1)
                     {
                         int current = i + 1;
@@ -477,7 +480,6 @@ namespace BlueSapphire.ViewModels
 
             SetBusy(false);
 
-            // 刷新文件夹
             if (_currentFolder != null)
             {
                 await LoadFolderContentAsync(_currentFolder);
