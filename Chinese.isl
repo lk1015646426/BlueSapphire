@@ -12,10 +12,6 @@ DialogFontName=Microsoft YaHei UI
 DialogFontSize=9
 WelcomeFontName=Microsoft YaHei UI
 WelcomeFontSize=12
-TitleFontName=Microsoft YaHei UI
-TitleFontSize=29
-CopyrightFontName=Microsoft YaHei UI
-CopyrightFontSize=8
 
 [Messages]
 
@@ -72,40 +68,23 @@ ErrorCreatingTemp=当尝试在目标目录创建临时文件时发生错误。
 ErrorReadingSource=当尝试读取源文件时发生错误。
 ErrorCopying=当尝试复制文件时发生错误。
 ErrorRenamingTemp=当尝试重命名目标目录中的临时文件时发生错误。
-ErrorDeletingExisting=当尝试删除现有的文件时发生错误。
-ErrorWriting=当尝试写入文件时发生错误。
-ErrorAccessDenied=拒绝访问。
-ErrorRenameAccessDenied=重命名文件失败: 拒绝访问。
-ErrorFillAccessDenied=填充文件失败: 拒绝访问。
+ErrorReadingExistingDest=当尝试读取现有文件时发生错误。
 ErrorCloseApplications=安装程序无法自动关闭所有应用程序。建议您在继续安装之前先关闭所有使用被安装程序文件的应用程序。
 ErrorRestartingComputer=安装程序无法重启电脑。请手动重启。
 ErrorRestartReplace=重启置换失败:
-ErrorRenameExisting=无法重命名现有文件。
-ErrorReadingExistingDest=当尝试读取现有文件时发生错误。
-ErrorReadingExistingDestOrSource=当尝试读取现有文件或源文件时发生错误。
-ErrorInValidOpenMode=文件无法以只读模式打开。
-ErrorParentDirNotExists=父目录不存在。
-ErrorUserCancel=用户取消了操作。
-ErrorInvalidSourceDir=源目录无效。
-ErrorBadInstallation=无效的安装。请卸载之后重新安装。
-ErrorRestartingComputer2=安装程序无法重启电脑。请手动重启。
 
 ; *** Post-installation errors
 ErrorRegisterServer=无法注册 DLL/OCX: %1
 ErrorRegSvr32Failed=RegSvr32 失败，返回代码 %1
 ErrorRegisterTypeLib=无法注册类型库: %1
-ErrorOpeningIniFile=当尝试打开 INI 文件时发生错误: %1
 ErrorIniEntry=无法在 INI 文件中创建条目 "%1"。
-ErrorAccessingIniFile=当尝试写入 INI 文件时发生错误: %1
 
 ; *** Uninstaller messages
 UninstallNotFound=文件 "%1" 不存在。无法卸载。
 UninstallOpenError=文件 "%1" 无法打开。无法卸载
 UninstallUnsupportedVer=卸载日志文件 "%1" 的格式不能被此版本的卸载程序识别。无法卸载
 UninstallUnknownEntry=在卸载日志中遇到一个未知的条目 (%1)
-UninstallProblem=卸载日志文件 "%1" 存在问题。无法卸载
 UninstallDataCorrupted=文件 "%1" 数据已损坏。无法卸载
-FileNotFound=文件未找到
 CannotInstallToNetworkDrive=安装程序无法安装到网络驱动器。
 CannotInstallToUNCPath=安装程序无法安装到 UNC 路径。
 CannotContinue=安装程序无法继续。请点击“取消”退出。
@@ -126,15 +105,8 @@ NewFolderName=新文件夹
 ; *** Wizard "Welcome" & "Finished" pages
 WelcomeLabel1=欢迎使用 [name] 安装向导
 WelcomeLabel2=本向导将在您的电脑上安装 [name/ver]。%n%n建议您在继续之前关闭所有其它应用程序。
-WizardFinishedLabel=安装程序已在您的电脑中安装了 [name]。本应用程序可以通过选择安装的快捷方式运行。
-WizardFinishedLabel2=安装程序已在您的电脑中安装了 [name]。
 ClickFinish=点击“完成”退出安装。
-ClickYes=是
-ClickNo=否
 FinishedRestartLabel=为了完成 [name] 的安装，安装程序必须重启您的电脑。您想现在重启吗?
-FinishedRestartError=为了完成 [name] 的安装，安装程序必须重启您的电脑。%n%n请手动重启。
-FinishedRestartOption=是，现在重启电脑(&Y)
-FinishedNoRestartOption=否，我稍后重启电脑(&N)
 
 ; *** Wizard "Setup Password" page
 WizardPassword=密码
@@ -173,7 +145,6 @@ SelectDirLabel3=安装程序将把 [name] 安装在下列文件夹中。
 SelectDirBrowseLabel=点击“下一步”继续。如果您想选择其它文件夹，点击“浏览”。
 DiskSpaceGBLabel=至少需要 [gb] GB 的可用磁盘空间。
 DiskSpaceMBLabel=至少需要 [mb] MB 的可用磁盘空间。
-CannotInstallToPath=程序不能安装在那个文件夹，因为这不满足条件。
 InvalidPath=您必须输入一个完整的路径，并带盘符; 例如:%n%nC:\APP%n%n或一个 UNC 路径:%n%n\\server\share
 InvalidDrive=您选择的驱动器或 UNC 共享不存在或不能访问。请另外选择。
 DiskSpaceWarning=安装程序至少需要 %1 KB 的可用磁盘空间才能安装，但选定驱动器只有 %2 KB 的可用空间。%n%n您确定要继续吗?
@@ -192,8 +163,6 @@ SelectComponentsLabel2=选择您想安装的组件; 清除您不想安装的组�
 FullInstallation=完全安装
 CompactInstallation=精简安装
 CustomInstallation=自定义安装
-TypesComboLabel=安装类型(&T):
-ComponentsListLabel=组件(&C):
 ComponentsDiskSpaceGBLabel=当前选择至少需要 [gb] GB 的磁盘空间。
 ComponentsDiskSpaceMBLabel=当前选择至少需要 [mb] MB 的磁盘空间。
 
@@ -246,14 +215,10 @@ InfoAfterLabel=继续安装前请阅读下列重要信息。
 InfoAfterClickLabel=准备好继续后，点击“下一步”。
 
 ; *** Wizard "Setup Completed" page
-WizardSetupCompleted=安装完成
 SetupCompletedLabel=安装程序已在您的电脑中安装了 [name]。本应用程序可以通过选择安装的快捷方式运行。
 SetupCompletedLabel2=安装程序已在您的电脑中安装了 [name]。
 ClickFinish=点击“完成”退出安装。
 FinishedRestartLabel=为了完成 [name] 的安装，安装程序必须重启您的电脑。您想现在重启吗?
-FinishedRestartError=为了完成 [name] 的安装，安装程序必须重启您的电脑。%n%n请手动重启。
-FinishedRestartOption=是，现在重启电脑(&Y)
-FinishedNoRestartOption=否，我稍后重启电脑(&N)
 
 ; *** "Select Language" dialog messages
 SelectLanguageTitle=选择安装语言
@@ -261,31 +226,9 @@ SelectLanguageLabel=选择安装时要使用的语言。
 
 ; *** Common messages
 ConfirmTitle=确认
-ConfirmCancelMessage=您确定要完全取消安装吗?
-ActionConfirmation=您确定要执行这个动作吗?
 InfoTitle=信息
 ErrorTitle=错误
-ErrorMessage=错误: %1
-ErrorNumber=错误 %1
-Retry=重试(&R)
-Ignore=忽略(&I)
-Abort=中止(&A)
-Cancel=取消
-OK=确定
-Yes=是(&Y)
-No=否(&N)
-MessageboxTitle=信息
-MessageboxErrorTitle=错误
-MsgBoxRetryCancel=重试;取消
-MsgBoxAbortRetryIgnore=中止;重试;忽略
-MsgBoxYesNo=是;否
-MsgBoxYesNoCancel=是;否;取消
-DiskSpaceWarning=磁盘空间不足
-DirNameTooLong=目录名称太长
-InvalidDirName=目录名称无效
-BadDirName32=目录名称无效
-DirExists=目录已存在
-DirDoesntExist=目录不存在
+ConfirmCancelMessage=您确定要完全取消安装吗?
 
 ; *** Custom messages
 ; (None - you can add your custom messages here)
