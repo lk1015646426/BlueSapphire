@@ -34,9 +34,18 @@
 
 ### 4. 📂 媒体管家 (Media Manager)
 
+* **智能时空重构 (Smart Chrono-Rename)**:
+* 采用 **三级解析策略 (Tiered Parsing Strategy)**：优先读取 Exif 元数据，回退至 **正则文件名智能分析**，并自动拦截无意义字符（如 `mmexport...` 等伪时间数据）。
+* 将混乱的文件名标准化为 `yyyy-MM-dd_HH-mm-ss` 时间轴格式，并内置 **自动序列化** 冲突解决机制。
+
+
+* **可视化去重协议 (Visual Deduplication)**:
+* 集成 **MD5 深度校验** 与视觉哈希算法。
+* 在执行删除指令前，提供 **嫌疑文件视觉预览 (Suspect Visual Preview)**，支持在删除列表中直接查看图片内容，确保“所见即所删”，彻底杜绝误杀风险。
+
+
 * **极速虚拟化**: 支持数万张图片的秒级加载与无限滚动。
-* **智能去重**: 集成 **MD5 深度校验** 与 **dHash 视觉哈希** 算法基础。
-* **安全交互**: 具备跨线程安全的实时进度条与删除确认机制。
+* **安全交互**: 具备跨线程安全的实时进度条与操作确认机制。
 
 ---
 
@@ -54,20 +63,21 @@
 
 ```text
 BlueSapphire/
-├── ViewModels/              # 业务逻辑 (MVVM)
-├── Models/                  
-│   ├── AppMessages.cs       # [v0.6.0] 消息总线定义
-│   └── ...                  # 数据模型
-├── Helpers/                 
-│   ├── AppSettings.cs       # 配置管理
-│   └── ...
-├── Services/                # 核心服务 (文件扫描/哈希计算)
-├── Pages/                   
-│   ├── HomePage.xaml        # [v0.6.0] 赛博朋克指挥中心首页
-│   ├── MediaManagerPage.xaml# 媒体管理功能页
-│   └── SettingsPage.xaml    # 设置页
-├── MainWindow.xaml.cs       # [v0.6.0] 零GC粒子引擎 + 手动渲染循环
-└── BlueSapphire.csproj      # .NET 8 + WinUI 3 配置
+├── ViewModels/              # 业务逻辑 (MVVM)
+├── Models/                  
+│   ├── AppMessages.cs       # [v0.6.0] 消息总线定义
+│   └── ...                  # 数据模型
+├── Helpers/                 
+│   ├── AppSettings.cs       # 配置管理
+│   └── ...
+├── Services/                # 核心服务 (文件扫描/哈希计算)
+├── Pages/                   
+│   ├── HomePage.xaml        # [v0.6.0] 赛博朋克指挥中心首页
+│   ├── MediaManagerPage.xaml# 媒体管理功能页
+│   └── SettingsPage.xaml    # 设置页
+├── MainWindow.xaml.cs       # [v0.6.0] 零GC粒子引擎 + 手动渲染循环
+└── BlueSapphire.csproj      # .NET 8 + WinUI 3 配置
+
 
 ```
 
