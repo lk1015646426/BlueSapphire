@@ -1,14 +1,16 @@
 ﻿using BlueSapphire.Helpers;
 using BlueSapphire.Interfaces;
 using BlueSapphire.Models;
+using BlueSapphire.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI.Dispatching;
 using System;
-using System.Collections.Concurrent; // 用于线程安全集合
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics; // [新增] 用于日志输出
 using System.Linq;
-using System.Text.RegularExpressions; // 用于文件名正则解析
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Storage;
@@ -58,7 +60,7 @@ namespace BlueSapphire.ViewModels
         private bool _isEmptyStateVisible = true;
 
         [ObservableProperty]
-        private string _currentSortField = "Name"; // Name, Date, Size
+        private string _currentSortField = "Name";
 
         [ObservableProperty]
         private bool _isSortDescending;
@@ -96,7 +98,6 @@ namespace BlueSapphire.ViewModels
             RefreshViewFromCache();
         }
 
-        // [功能二] 批量重命名命令 (Exif > 智能文件名解析 > 跳过)
         [RelayCommand]
         private async Task RenameSelected(IList<object> selectedItems)
         {
@@ -108,12 +109,10 @@ namespace BlueSapphire.ViewModels
 
             if (_currentFolder == null) return;
 
-            // 1. 准备阶段
             SetBusy(true, "正在并发分析文件属性...");
-            var previewList = new ConcurrentBag<RenamePreviewItem>(); // 线程安全集合
+            var previewList = new ConcurrentBag<RenamePreviewItem>();
             int skippedCount = 0;
 
-            // 获取现有文件名用于冲突检测 (线程安全字典)
             var existingFiles = await _currentFolder.GetFilesAsync();
             var allFilenames = new ConcurrentDictionary<string, byte>(
                 existingFiles.Select(f => new KeyValuePair<string, byte>(f.Name.ToLower(), 0)));
@@ -124,8 +123,7 @@ namespace BlueSapphire.ViewModels
                 int total = items.Count;
                 int processed = 0;
 
-                // [性能优化] 使用 SemaphoreSlim 限制并发数为 50
-                using var semaphore = new SemaphoreSlim(50);
+                using var semaphore = new SemaphoreSlim(20);
 
                 var tasks = items.Select(async item =>
                 {
@@ -136,44 +134,32 @@ namespace BlueSapphire.ViewModels
 
                         StorageFile file;
                         try { file = await StorageFile.GetFileFromPathAsync(item.ImagePath); }
-                        catch { return; }
+                        catch (Exception ex) { Debug.WriteLine($"[Rename] GetFile Error: {ex.Message}"); return; }
 
-                        // --- 核心逻辑开始 ---
-
-                        // A. 优先尝试读取 Exif 拍摄时间
                         var props = await file.Properties.GetImagePropertiesAsync();
                         DateTimeOffset targetTime = props.DateTaken;
 
-                        // [校验] 拦截 1601/1/1 等无效时间
-                        bool isInvalidTime = targetTime == DateTimeOffset.MinValue || targetTime.Year < 1980;
+                        // [逻辑修复] 放宽年份限制到 1900
+                        bool isInvalidTime = targetTime == DateTimeOffset.MinValue || targetTime.Year < 1900;
 
-                        // B. 回退：智能解析
                         if (isInvalidTime)
                         {
                             targetTime = await SmartParseDateAsync(file);
                         }
 
-                        // C. 最终判决：如果还是无效，或者解析失败(比如 mmexport 文件)
-                        // 则 increment skippedCount 并直接返回
-                        if (targetTime == DateTimeOffset.MinValue || targetTime.Year < 1980)
+                        if (targetTime == DateTimeOffset.MinValue || targetTime.Year < 1900)
                         {
                             Interlocked.Increment(ref skippedCount);
-                            return; // 跳过此文件，不加入 previewList
+                            return;
                         }
 
-                        // --- 核心逻辑结束 ---
-
                         string extension = file.FileType;
-
-                        // [格式] 0点用 yyyy-MM-dd，有时间用 yyyy-MM-dd_HH-mm-ss
                         bool isTimeZero = targetTime.TimeOfDay == TimeSpan.Zero;
                         string dateFormat = isTimeZero ? "yyyy-MM-dd" : "yyyy-MM-dd_HH-mm-ss";
-
                         string dateStr = targetTime.ToString(dateFormat);
                         string baseName = dateStr;
                         string newName = baseName + extension;
 
-                        // [冲突检测]
                         if (!newName.Equals(file.Name, StringComparison.OrdinalIgnoreCase))
                         {
                             int counter = 1;
@@ -184,8 +170,6 @@ namespace BlueSapphire.ViewModels
                                 {
                                     break;
                                 }
-
-                                // 名字冲突，添加序号
                                 newName = $"{baseName}_{counter:D2}{extension}";
                                 counter++;
                             }
@@ -199,7 +183,7 @@ namespace BlueSapphire.ViewModels
                         });
 
                         int current = Interlocked.Increment(ref processed);
-                        if (current % 20 == 0)
+                        if (current % 10 == 0)
                         {
                             _dispatcherQueue.TryEnqueue(() =>
                             {
@@ -216,24 +200,21 @@ namespace BlueSapphire.ViewModels
                 });
 
                 await Task.WhenAll(tasks);
-
                 SetBusy(false);
 
                 var sortedPreview = previewList.OrderBy(x => x.NewName).ToList();
 
-                // 如果没有文件可以重命名，且有跳过的文件
                 if (sortedPreview.Count == 0)
                 {
                     string msg = "未找到包含有效时间信息的图片。";
                     if (skippedCount > 0)
                     {
-                        msg += $"\n\n已跳过 {skippedCount} 个文件。\n原因：无 Exif 信息，且文件名不包含清晰的日期格式（如 mmexport 等随机命名）。";
+                        msg += $"\n\n已跳过 {skippedCount} 个文件。\n原因：无 Exif 信息，且文件名不包含清晰的日期格式。";
                     }
                     await _view.ShowTipAsync(msg);
                     return;
                 }
 
-                // 显示预览，同时告知跳过了多少个
                 bool confirm = await _view.ShowRenamePreviewAsync(sortedPreview, skippedCount);
 
                 if (confirm)
@@ -244,6 +225,7 @@ namespace BlueSapphire.ViewModels
             catch (Exception ex)
             {
                 SetBusy(false);
+                Debug.WriteLine($"[Rename] Process Error: {ex}");
                 await _view.ShowTipAsync($"预处理失败: {ex.Message}");
             }
         }
@@ -275,7 +257,7 @@ namespace BlueSapphire.ViewModels
                     return;
                 }
 
-                UpdateProgress(0, allFiles.Count, "正在建立索引 (对比大小)...");
+                UpdateProgress(0, allFiles.Count, "阶段 1/3: 按大小分组...");
 
                 var suspectGroups = await Task.Run(() =>
                 {
@@ -287,10 +269,13 @@ namespace BlueSapphire.ViewModels
                         try
                         {
                             ulong size = file.GetBasicPropertiesAsync().AsTask().Result.Size;
-                            if (!sizeGroups.ContainsKey(size)) sizeGroups[size] = new List<StorageFile>();
-                            sizeGroups[size].Add(file);
+                            if (size > 0)
+                            {
+                                if (!sizeGroups.ContainsKey(size)) sizeGroups[size] = new List<StorageFile>();
+                                sizeGroups[size].Add(file);
+                            }
                         }
-                        catch { }
+                        catch (Exception ex) { Debug.WriteLine($"[Scan] GetSize Error: {ex.Message}"); }
 
                         if (++processed % 50 == 0)
                             _dispatcherQueue.TryEnqueue(() => ProgressValue = processed);
@@ -306,38 +291,55 @@ namespace BlueSapphire.ViewModels
                     return;
                 }
 
-                UpdateProgress(0, totalSuspects, "正在深度校验 (MD5计算)...");
+                UpdateProgress(0, totalSuspects, "正在深度校验 (Tier 2/3)...");
 
                 var finalDuplicates = await Task.Run(async () =>
                 {
                     var result = new List<List<StorageFile>>();
-                    int hashed = 0;
+                    int processedCount = 0;
 
                     foreach (var group in suspectGroups)
                     {
                         if (token.IsCancellationRequested) break;
-                        var md5Groups = new Dictionary<string, List<StorageFile>>();
 
+                        var quickHashGroups = new Dictionary<string, List<StorageFile>>();
                         foreach (var file in group)
                         {
-                            string hash = await FileHelper.ComputeMD5Async(file);
-                            if (!string.IsNullOrEmpty(hash))
+                            string qHash = await MediaScanService.ComputeQuickHeaderFooterHashAsync(file);
+                            if (!string.IsNullOrEmpty(qHash))
                             {
-                                if (!md5Groups.ContainsKey(hash)) md5Groups[hash] = new List<StorageFile>();
-                                md5Groups[hash].Add(file);
+                                if (!quickHashGroups.ContainsKey(qHash)) quickHashGroups[qHash] = new List<StorageFile>();
+                                quickHashGroups[qHash].Add(file);
                             }
 
-                            hashed++;
-                            if (hashed % 5 == 0)
-                                _dispatcherQueue.TryEnqueue(() => {
-                                    ProgressValue = hashed;
-                                    StatusDetailText = $"{hashed} / {totalSuspects}";
+                            processedCount++;
+                            if (processedCount % 10 == 0)
+                            {
+                                _dispatcherQueue.TryEnqueue(() =>
+                                {
+                                    ProgressValue = processedCount;
+                                    StatusDetailText = $"{processedCount} / {totalSuspects}";
                                 });
+                            }
                         }
 
-                        foreach (var g in md5Groups.Values.Where(g => g.Count > 1))
+                        foreach (var quickGroup in quickHashGroups.Values.Where(g => g.Count > 1))
                         {
-                            result.Add(g);
+                            var md5Groups = new Dictionary<string, List<StorageFile>>();
+                            foreach (var file in quickGroup)
+                            {
+                                string fullHash = await MediaScanService.ComputeMD5Async(file);
+                                if (!string.IsNullOrEmpty(fullHash))
+                                {
+                                    if (!md5Groups.ContainsKey(fullHash)) md5Groups[fullHash] = new List<StorageFile>();
+                                    md5Groups[fullHash].Add(file);
+                                }
+                            }
+
+                            foreach (var finalGroup in md5Groups.Values.Where(g => g.Count > 1))
+                            {
+                                result.Add(finalGroup);
+                            }
                         }
                     }
                     return result;
@@ -361,6 +363,7 @@ namespace BlueSapphire.ViewModels
             catch (Exception ex)
             {
                 SetBusy(false);
+                Debug.WriteLine($"[Scan] Critical Error: {ex}");
                 await _view.ShowTipAsync($"扫描中断: {ex.Message}");
             }
         }
@@ -368,11 +371,7 @@ namespace BlueSapphire.ViewModels
         [RelayCommand]
         private async Task DeleteSelected(IList<object> selectedItems)
         {
-            if (selectedItems == null || selectedItems.Count == 0)
-            {
-                await _view.ShowTipAsync("请先选择文件");
-                return;
-            }
+            if (selectedItems == null || selectedItems.Count == 0) return;
 
             var confirm = await _view.ShowDeleteConfirmationAsync(selectedItems.Count);
             if (confirm)
@@ -385,44 +384,26 @@ namespace BlueSapphire.ViewModels
                         if (item.ImagePath != null)
                             files.Add(await StorageFile.GetFileFromPathAsync(item.ImagePath));
                     }
-                    catch { }
+                    catch (Exception ex) { Debug.WriteLine($"[Delete] GetFile Error: {ex.Message}"); }
                 }
                 await PerformDeleteFiles(files);
             }
         }
 
-        // --- 私有方法 ---
-
-        // [核心改进] 智能解析文件名日期
-        // 关键点：加入了 (?<!\d) 断言，防止匹配到长数字中间的年份
+        // [逻辑修复] 正则表达式现在支持 19xx 和 20xx
         private static async Task<DateTimeOffset> SmartParseDateAsync(StorageFile file)
         {
             string fileName = file.Name;
 
-            // Tier 1: 尝试提取【完整时间】
-            // (?<!\d) 意味着: 20xx的前面不能是数字！
-            // 这能完美解决 mmexport172043... 中匹配到 2043 的问题
-            var fullTimePattern = new Regex(
-                @"(?<!\d)(?<year>20\d{2})[-_.\s]?(?<month>0[1-9]|1[0-2])[-_.\s]?(?<day>0[1-9]|[12]\d|3[01])[-_.\sT]+(?<hour>[01]\d|2[0-3])[-_:.]?(?<minute>[0-5]\d)[-_:.]?(?<second>[0-5]\d)?");
-
+            // 匹配 1900-2099
+            var fullTimePattern = new Regex(@"(?<!\d)(?<year>(?:19|20)\d{2})[-_.\s]?(?<month>0[1-9]|1[0-2])[-_.\s]?(?<day>0[1-9]|[12]\d|3[01])[-_.\sT]+(?<hour>[01]\d|2[0-3])[-_:.]?(?<minute>[0-5]\d)[-_:.]?(?<second>[0-5]\d)?");
             var match = fullTimePattern.Match(fileName);
-            if (match.Success)
-            {
-                return ParseRegexMatch(match);
-            }
+            if (match.Success) return ParseRegexMatch(match);
 
-            // Tier 2: 尝试提取【仅日期】
-            // 同样加入 (?<!\d) 保护
-            var dateOnlyPattern = new Regex(
-                @"(?<!\d)(?<year>20\d{2})[-_.\s年]?(?<month>0?[1-9]|1[0-2])[-_.\s月]?(?<day>0?[1-9]|[12]\d|3[01])[日号]?");
-
+            var dateOnlyPattern = new Regex(@"(?<!\d)(?<year>(?:19|20)\d{2})[-_.\s年]?(?<month>0?[1-9]|1[0-2])[-_.\s月]?(?<day>0?[1-9]|[12]\d|3[01])[日号]?");
             match = dateOnlyPattern.Match(fileName);
-            if (match.Success)
-            {
-                return ParseRegexMatch(match).Date;
-            }
+            if (match.Success) return ParseRegexMatch(match).Date;
 
-            // mmexport 等乱码文件将在这里返回 MinValue，然后在外部被跳过
             return DateTimeOffset.MinValue;
         }
 
@@ -431,16 +412,13 @@ namespace BlueSapphire.ViewModels
             int y = int.Parse(match.Groups["year"].Value);
             int m = int.Parse(match.Groups["month"].Value);
             int d = int.Parse(match.Groups["day"].Value);
-
             int h = 0, min = 0, s = 0;
             if (match.Groups["hour"].Success) h = int.Parse(match.Groups["hour"].Value);
             if (match.Groups["minute"].Success) min = int.Parse(match.Groups["minute"].Value);
             if (match.Groups["second"].Success) s = int.Parse(match.Groups["second"].Value);
-
             return new DateTime(y, m, d, h, min, s);
         }
 
-        // [新增] 执行重命名逻辑 (支持节流更新)
         private async Task PerformRenameFiles(List<RenamePreviewItem> items)
         {
             SetBusy(true, "正在重命名...", 0, items.Count);
@@ -460,17 +438,16 @@ namespace BlueSapphire.ViewModels
                         }
                         successCount++;
                     }
-                    catch
+                    catch (Exception ex)
                     {
                         failCount++;
+                        Debug.WriteLine($"[Rename] Execute Error ({item.OriginalName}): {ex.Message}");
                     }
 
-                    // 进度节流
                     if ((i + 1) % 20 == 0 || i == items.Count - 1)
                     {
                         int current = i + 1;
-                        _dispatcherQueue.TryEnqueue(() =>
-                        {
+                        _dispatcherQueue.TryEnqueue(() => {
                             ProgressValue = current;
                             StatusMainText = $"正在重命名... {current}/{items.Count}";
                         });
@@ -479,12 +456,7 @@ namespace BlueSapphire.ViewModels
             });
 
             SetBusy(false);
-
-            if (_currentFolder != null)
-            {
-                await LoadFolderContentAsync(_currentFolder);
-            }
-
+            if (_currentFolder != null) await LoadFolderContentAsync(_currentFolder);
             string msg = $"重命名完成。\n成功: {successCount} 个\n失败: {failCount} 个";
             if (failCount > 0) msg += "\n(失败原因通常是文件被占用)";
             await _view.ShowTipAsync(msg);
@@ -525,7 +497,7 @@ namespace BlueSapphire.ViewModels
                             FileSize = props.Size
                         });
                     }
-                    catch { }
+                    catch (Exception ex) { Debug.WriteLine($"[Load] File Error ({file.Name}): {ex.Message}"); }
                 }
 
                 CountText = $"ITEMS: {_cachedAllItems.Count}";
@@ -533,19 +505,17 @@ namespace BlueSapphire.ViewModels
             }
             catch (Exception ex)
             {
+                Debug.WriteLine($"[Load] Folder Error: {ex}");
                 await _view.ShowTipAsync($"读取失败: {ex.Message}");
                 IsEmptyStateVisible = true;
             }
-            finally
-            {
-                SetBusy(false);
-            }
+            finally { SetBusy(false); }
         }
 
+        // ... (RefreshViewFromCache, PerformDeleteFiles, SetBusy, UpdateProgress 保持原样，仅添加了 try-catch 日志，此处为节省篇幅略去)
         private void RefreshViewFromCache()
         {
             if (_cachedAllItems.Count == 0) return;
-
             _dispatcherQueue.TryEnqueue(() =>
             {
                 IEnumerable<ImageItem> query = _cachedAllItems;
@@ -555,7 +525,6 @@ namespace BlueSapphire.ViewModels
                     "Size" => IsSortDescending ? query.OrderByDescending(x => x.FileSize) : query.OrderBy(x => x.FileSize),
                     _ => IsSortDescending ? query.OrderByDescending(x => x.FileName) : query.OrderBy(x => x.FileName),
                 };
-
                 var sortedList = query.ToList();
                 Images = new IncrementalLoadingCollection<ImageItem>(async (token, count) =>
                 {
@@ -568,7 +537,6 @@ namespace BlueSapphire.ViewModels
         {
             SetBusy(true, "正在删除...", 0, files.Count);
             int deletedCount = 0;
-
             await Task.Run(async () =>
             {
                 foreach (var file in files)
@@ -576,27 +544,23 @@ namespace BlueSapphire.ViewModels
                     try
                     {
                         await file.DeleteAsync();
-
                         lock (_cachedAllItems)
                         {
                             var cacheItem = _cachedAllItems.FirstOrDefault(x => x.ImagePath == file.Path);
                             if (cacheItem != null) _cachedAllItems.Remove(cacheItem);
                         }
                     }
-                    catch { }
-
+                    catch (Exception ex) { Debug.WriteLine($"[Delete] Error: {ex.Message}"); }
                     Interlocked.Increment(ref deletedCount);
                     if (deletedCount % 10 == 0)
                     {
-                        _dispatcherQueue.TryEnqueue(() =>
-                        {
+                        _dispatcherQueue.TryEnqueue(() => {
                             ProgressValue = deletedCount;
                             StatusMainText = $"正在删除... ({deletedCount}/{files.Count})";
                         });
                     }
                 }
             });
-
             SetBusy(false);
             CountText = $"ITEMS: {_cachedAllItems.Count}";
             RefreshViewFromCache();
@@ -605,8 +569,7 @@ namespace BlueSapphire.ViewModels
 
         private void SetBusy(bool busy, string text = "", double val = 0, double max = 100)
         {
-            _dispatcherQueue.TryEnqueue(() =>
-            {
+            _dispatcherQueue.TryEnqueue(() => {
                 IsBusy = busy;
                 StatusMainText = text;
                 StatusDetailText = "";
@@ -618,8 +581,7 @@ namespace BlueSapphire.ViewModels
 
         private void UpdateProgress(double val, double max, string mainText)
         {
-            _dispatcherQueue.TryEnqueue(() =>
-            {
+            _dispatcherQueue.TryEnqueue(() => {
                 ProgressValue = val;
                 ProgressMax = max;
                 StatusMainText = mainText;

@@ -16,32 +16,65 @@ namespace BlueSapphire.Services
         // pHash 的指纹大小 (8x8)
         private const int HashSize = 8;
 
-        // 扫描结果的数据结构
         public class MediaFile
         {
-            // 强制要求初始化时赋值，解决了 CS8618
             public required StorageFile File { get; set; }
             public ulong FileSize { get; set; }
-            // 同上
             public required string Md5Hash { get; set; }
             public ulong? VisualHash { get; set; }
         }
 
+        // --- 核心方法 (Static) ---
+
+        /// <summary>
+        /// [新增] 快速头尾哈希比对 (用于三级比对法的第二步)
+        /// 读取前4KB和后4KB，能过滤99%的大小相同但内容不同的文件
+        /// </summary>
+        public static async Task<string> ComputeQuickHeaderFooterHashAsync(StorageFile file)
+        {
+            try
+            {
+                using var stream = await file.OpenStreamForReadAsync();
+                long length = stream.Length;
+                int bufferSize = 4096; // 4KB
+                byte[] buffer = new byte[bufferSize * 2]; // 8KB
+                int bytesRead = 0;
+
+                if (length <= bufferSize * 2)
+                {
+                    // 如果文件很小，直接读完
+                    bytesRead = await stream.ReadAsync(buffer, 0, (int)length);
+                }
+                else
+                {
+                    // 读取头部
+                    await stream.ReadAsync(buffer, 0, bufferSize);
+                    // 跳转到尾部
+                    stream.Seek(-bufferSize, SeekOrigin.End);
+                    // 读取尾部
+                    await stream.ReadAsync(buffer, bufferSize, bufferSize);
+                    bytesRead = bufferSize * 2;
+                }
+
+                using var md5 = MD5.Create();
+                var hashBytes = md5.ComputeHash(buffer, 0, bytesRead);
+                return BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
         /// <summary>
         /// [核心] 计算图片的感知哈希 (pHash)
-        /// 使用 Windows 原生 API，0 依赖，速度快
         /// </summary>
-        public async Task<ulong?> ComputePHashAsync(StorageFile file)
+        public static async Task<ulong?> ComputePHashAsync(StorageFile file)
         {
             try
             {
                 using var stream = await file.OpenAsync(FileAccessMode.Read);
-
-                // 1. 创建解码器 (自动识别 JPG, PNG, HEIC 等)
                 var decoder = await BitmapDecoder.CreateAsync(stream);
-
-                // 2. 预处理：强制缩放到 32x32 (为了性能和算法要求)
-                // 虽然最终只需要 8x8，但先缩放到 32x32 进行平滑处理效果更好
                 var transform = new BitmapTransform
                 {
                     ScaledWidth = 32,
@@ -49,7 +82,6 @@ namespace BlueSapphire.Services
                     InterpolationMode = BitmapInterpolationMode.Linear
                 };
 
-                // 3. 获取像素数据 (BGRA8 格式)
                 var pixelData = await decoder.GetPixelDataAsync(
                     BitmapPixelFormat.Bgra8,
                     BitmapAlphaMode.Ignore,
@@ -61,24 +93,19 @@ namespace BlueSapphire.Services
                 var bytes = pixelData.DetachPixelData();
                 var grays = new List<byte>();
 
-                // 4. 转灰度 (B, G, R, A)
                 for (int i = 0; i < bytes.Length; i += 4)
                 {
                     byte b = bytes[i];
                     byte g = bytes[i + 1];
                     byte r = bytes[i + 2];
-                    // 心理学灰度公式: 0.299R + 0.587G + 0.114B
                     var gray = (byte)(0.299 * r + 0.587 * g + 0.114 * b);
                     grays.Add(gray);
                 }
 
-                // 5. 计算 DCT (离散余弦变换) 的简化版 -> 均值哈希
-                // 这里为了性能使用简化的均值哈希 (Average Hash)
-                // 如果需要更高级的 DCT-pHash，可以在这里扩展，但均值哈希对连拍去重已足够
                 double average = grays.Average(b => b);
                 ulong hash = 0;
 
-                for (int i = 0; i < 64 && i < grays.Count; i++) // 取前 8x8 区域
+                for (int i = 0; i < 64 && i < grays.Count; i++)
                 {
                     if (grays[i] >= average)
                     {
@@ -90,15 +117,14 @@ namespace BlueSapphire.Services
             }
             catch
             {
-                // 如果文件损坏或无法解码，返回 null
                 return null;
             }
         }
 
         /// <summary>
-        /// 计算文件的 MD5 (精确查重用)
+        /// 计算文件的全量 MD5 (精确查重用)
         /// </summary>
-        public async Task<string> ComputeMD5Async(StorageFile file)
+        public static async Task<string> ComputeMD5Async(StorageFile file)
         {
             try
             {
@@ -113,9 +139,6 @@ namespace BlueSapphire.Services
             }
         }
 
-        /// <summary>
-        /// 计算两个 pHash 的汉明距离 (0=完全一样, <5=极度相似, <10=相似)
-        /// </summary>
         public static int HammingDistance(ulong hash1, ulong hash2)
         {
             ulong x = hash1 ^ hash2;

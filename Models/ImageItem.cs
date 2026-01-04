@@ -1,6 +1,7 @@
 ﻿using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Threading; // [新增]
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Storage;
@@ -9,9 +10,6 @@ using Windows.Storage.Streams;
 
 namespace BlueSapphire.Models
 {
-    // ==========================================
-    // 1. 数据模型: ImageItem (主界面图片)
-    // ==========================================
     public partial class ImageItem : INotifyPropertyChanged
     {
         public event PropertyChangedEventHandler? PropertyChanged;
@@ -26,7 +24,6 @@ namespace BlueSapphire.Models
         public string DateCreatedString => DateCreated.ToString("yyyy-MM-dd");
         public string FileSizeString => FormatBytes(FileSize);
 
-        // 静态方法优化
         private static string FormatBytes(ulong bytes)
         {
             string[] suffixes = { "B", "KB", "MB", "GB" };
@@ -55,26 +52,42 @@ namespace BlueSapphire.Models
         }
 
         private bool _isLoaded = false;
+        private CancellationTokenSource? _loadingCts; // [新增] 用于取消加载任务
 
         public async Task LoadImageAsync(Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
         {
             if (_isLoaded || string.IsNullOrEmpty(ImagePath)) return;
+
+            // 取消之前的任何尝试
+            _loadingCts?.Cancel();
+            _loadingCts = new CancellationTokenSource();
+            var token = _loadingCts.Token;
+
             _isLoaded = true;
             IsImageLoading = true;
 
             try
             {
+                // [优化] 检查取消
+                if (token.IsCancellationRequested) return;
+
                 var file = await StorageFile.GetFileFromPathAsync(ImagePath);
-                // 200u 解决类型转换错误
+                if (token.IsCancellationRequested) return;
+
                 using var thumb = await file.GetThumbnailAsync(ThumbnailMode.PicturesView, 200u);
+                if (token.IsCancellationRequested) return;
+
                 if (thumb != null)
                 {
                     var memoryStream = new InMemoryRandomAccessStream();
                     await RandomAccessStream.CopyAsync(thumb, memoryStream);
                     memoryStream.Seek(0);
 
+                    if (token.IsCancellationRequested) return;
+
                     dispatcherQueue.TryEnqueue(() =>
                     {
+                        if (token.IsCancellationRequested) return;
                         var bitmap = new BitmapImage();
                         bitmap.SetSource(memoryStream);
                         bitmap.DecodePixelWidth = 200;
@@ -82,8 +95,27 @@ namespace BlueSapphire.Models
                     });
                 }
             }
-            catch { _isLoaded = false; }
-            finally { IsImageLoading = false; }
+            catch (OperationCanceledException)
+            {
+                _isLoaded = false;
+            }
+            catch
+            {
+                _isLoaded = false;
+            }
+            finally
+            {
+                IsImageLoading = false;
+            }
+        }
+
+        // [新增] 外部调用此方法取消加载（如滚动出屏幕时）
+        public void CancelLoad()
+        {
+            _loadingCts?.Cancel();
+            _loadingCts = null;
+            _isLoaded = false; // 重置状态，以便下次进入屏幕时重新尝试
+            IsImageLoading = false;
         }
     }
 }

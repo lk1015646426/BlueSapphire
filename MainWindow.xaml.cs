@@ -12,8 +12,7 @@ using BlueSapphire.Models;
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using CommunityToolkit.Mvvm.Messaging;
-using Microsoft.UI.Xaml.Media; // 引用 CompositionTarget
-// [AOT 兼容]
+using Microsoft.UI.Xaml.Media;
 using System.Diagnostics.CodeAnalysis;
 
 namespace BlueSapphire
@@ -27,19 +26,29 @@ namespace BlueSapphire
         private Random _random = new Random();
         private Vector2 _mousePosition = new Vector2(-1000, -1000);
 
-        // [优化] 预计算
         private const float ConnectionDistance = 150f;
         private const float ConnectionDistanceSq = ConnectionDistance * ConnectionDistance;
 
-        // [优化] 对象池 (Zero-Allocation)
         private Dictionary<long, List<Particle>> _grid = new Dictionary<long, List<Particle>>();
         private Stack<List<Particle>> _listPool = new Stack<List<Particle>>();
         private int _gridCellSize = (int)ConnectionDistance;
+
+        // [优化] 预计算透明度颜色表 (0-100)
+        private Color[] _alphaColors;
 
         public MainWindow()
         {
             this.InitializeComponent();
             LoadSettingsFromDisk();
+
+            // [优化] 初始化颜色查找表
+            _alphaColors = new Color[101];
+            for (int i = 0; i <= 100; i++)
+            {
+                // 这里的 i 对应之前的 (byte)(alpha * 100)
+                // 颜色保持为 Cyan (0, 255, 255)
+                _alphaColors[i] = Color.FromArgb((byte)i, 0, 255, 255);
+            }
 
             if (AppTitleBar != null)
             {
@@ -49,30 +58,20 @@ namespace BlueSapphire
             CustomizeTitleBar();
             LoadTools();
 
-            // 注册消息
             WeakReferenceMessenger.Default.Register<ToggleParticleMessage>(this, (r, m) =>
             {
                 IsParticleEffectEnabled = m.Value;
-                // 如果禁用，可以手动重绘一次清空屏幕，或者停止 invalidation
                 if (IsParticleEffectEnabled) BackgroundCanvas?.Invalidate();
             });
 
-            // 启动时默认选中第一个 (即 HomePage)
             if (NavView.MenuItems.Count > 0) NavView.SelectedItem = NavView.MenuItems[0];
-
-            // [关键修复] 手动注册渲染循环，替代 CanvasAnimatedControl
             CompositionTarget.Rendering += OnRendering;
         }
 
-        // [关键修复] 手动游戏循环
         private void OnRendering(object? sender, object e)
         {
             if (!IsParticleEffectEnabled || BackgroundCanvas == null) return;
-
-            // 1. 在这里执行逻辑更新 (原本的 OnUpdate)
             UpdateLogic();
-
-            // 2. 触发重绘 (原本的 OnDraw 会被调用)
             BackgroundCanvas.Invalidate();
         }
 
@@ -95,19 +94,13 @@ namespace BlueSapphire
             }
         }
 
-        // --- 👇 重点修改了这里 👇 ---
-        // [AOT 适配] 显式告诉编译器保留这两个页面的构造函数
         [DynamicDependency(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor, typeof(HomePage))]
         [DynamicDependency(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor, typeof(MediaManagerPage))]
         private void LoadTools()
         {
-            // 1. 注册首页 (放在第一个，启动时会默认选中并显示它)
             RegisterTool(new HomePage());
-
-            // 2. 注册功能页
             RegisterTool(new MediaManagerPage());
         }
-        // ---------------------------
 
         private void RegisterTool(ITool tool)
         {
@@ -141,18 +134,14 @@ namespace BlueSapphire
             }
         }
 
-        // 逻辑更新 (独立出来)
         private void UpdateLogic()
         {
             if (BackgroundCanvas == null) return;
-
-            // [新增] 安全检查：如果宽高无效，直接跳过，防止崩溃
             if (BackgroundCanvas.ActualWidth <= 0 || BackgroundCanvas.ActualHeight <= 0) return;
 
             float width = (float)BackgroundCanvas.ActualWidth;
             float height = (float)BackgroundCanvas.ActualHeight;
 
-            // 回收 List
             foreach (var list in _grid.Values)
             {
                 list.Clear();
@@ -160,7 +149,6 @@ namespace BlueSapphire
             }
             _grid.Clear();
 
-            // 更新粒子 & 重建网格
             foreach (var p in _particles)
             {
                 p.Update(width, height, _mousePosition);
@@ -178,14 +166,12 @@ namespace BlueSapphire
             }
         }
 
-        // 绘制方法 (由 Invalidate 触发)
         private void OnDraw(CanvasControl sender, CanvasDrawEventArgs args)
         {
             if (!IsParticleEffectEnabled) return;
 
             var session = args.DrawingSession;
 
-            // 绘制连线
             foreach (var kvp in _grid)
             {
                 long key = kvp.Key;
@@ -193,7 +179,6 @@ namespace BlueSapphire
                 int cellY = (int)(key & 0xFFFFFFFF);
                 var cellParticles = kvp.Value;
 
-                // 检查周围九宫格
                 for (int dx = -1; dx <= 1; dx++)
                 {
                     for (int dy = -1; dy <= 1; dy++)
@@ -211,8 +196,12 @@ namespace BlueSapphire
                                     if (distSq < ConnectionDistanceSq)
                                     {
                                         float alpha = 1.0f - (float)Math.Sqrt(distSq) / ConnectionDistance;
-                                        session.DrawLine(p1.Position, p2.Position,
-                                            Color.FromArgb((byte)(alpha * 100), 0, 255, 255), 1);
+                                        // [优化] 直接使用查找表，避免构造 struct
+                                        int index = (int)(alpha * 100);
+                                        if (index < 0) index = 0;
+                                        if (index > 100) index = 100;
+
+                                        session.DrawLine(p1.Position, p2.Position, _alphaColors[index], 1);
                                     }
                                 }
                             }
@@ -221,7 +210,6 @@ namespace BlueSapphire
                 }
             }
 
-            // 绘制粒子
             foreach (var p in _particles)
             {
                 session.FillCircle(p.Position, 2, Colors.Cyan);

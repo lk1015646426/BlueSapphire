@@ -21,14 +21,14 @@
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 		<WindowsPackageType>None</WindowsPackageType>
 		<ApplicationIcon>BS.ico</ApplicationIcon>
+
+		<EnableDefaultPageItems>true</EnableDefaultPageItems>
+		<EnableDefaultCompileItems>true</EnableDefaultCompileItems>
 	</PropertyGroup>
 
 	<ItemGroup>
 		<Content Include="Assets\**" />
 		<Content Include="BS.ico" />
-	</ItemGroup>
-
-	<ItemGroup>
 		<Manifest Include="$(ApplicationManifest)" />
 	</ItemGroup>
 
@@ -36,7 +36,6 @@
 		<PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.22621.3233" />
 		<PackageReference Include="Microsoft.WindowsAppSDK" Version="1.5.240428000" />
 		<PackageReference Include="Microsoft.Graphics.Win2D" Version="1.2.0" />
-		<PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
 	</ItemGroup>
 
