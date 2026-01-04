@@ -21,7 +21,7 @@
 
 ### 2. ⚡ 极致引擎 (Extreme Engine)
 
-* **零内存分配 (Zero-Allocation)**: 引入 **对象池 (Object Pooling)** 技术重构粒子系统，将高频渲染时的 GC (垃圾回收) 压力降至 **0**，彻底消除微卡顿。
+* **零内存分配 (Zero-Allocation)**: 引入 **对象池 (Object Pooling)** 技术重构粒子系统 (`Particle.cs`)，将高频渲染时的 GC (垃圾回收) 压力降至 **0**，彻底消除微卡顿。
 * **手动高性能循环**: 摒弃封装控件，基于 `CompositionTarget.Rendering` 手动构建 **60FPS+ 游戏级渲染循环**，结合 **空间分区算法 (Spatial Partitioning)**，在数千粒子下依然丝滑流畅。
 * **启动瞬开**: 移除反射 (Reflection) 扫描，采用 **手动依赖注入** 注册工具链，配合 ReadyToRun (R2R) 技术，实现毫秒级启动。
 
@@ -34,17 +34,20 @@
 ### 4. 📂 媒体管家 (Media Manager)
 
 * **智能时空重构 (Smart Chrono-Rename)**:
-* 采用 **三级解析策略 (Tiered Parsing Strategy)**：优先读取 Exif 元数据，回退至 **正则文件名智能分析**，并自动拦截无意义字符（如 `mmexport...` 等伪时间数据）。
+* 采用 **三级解析策略 (Tiered Parsing Strategy)**：优先读取 Exif 元数据，回退至 **正则文件名智能分析**（支持 1900-2099 年份识别），并自动拦截无意义字符。
 * 将混乱的文件名标准化为 `yyyy-MM-dd_HH-mm-ss` 时间轴格式，并内置 **自动序列化** 冲突解决机制。
 
 
 * **可视化去重协议 (Visual Deduplication)**:
 * 集成 **MD5 深度校验** 与视觉哈希算法。
-* 在执行删除指令前，提供 **嫌疑文件视觉预览 (Suspect Visual Preview)**，支持在删除列表中直接查看图片内容，确保“所见即所删”，彻底杜绝误杀风险。
+* 在执行删除指令前，提供 **嫌疑文件视觉预览 (Suspect Visual Preview)**，确保“所见即所删”。
 
 
+* **安全交互**:
 * **极速虚拟化**: 支持数万张图片的秒级加载与无限滚动。
-* **安全交互**: 具备跨线程安全的实时进度条与操作确认机制。
+* **回收站机制**: 删除操作调用 Windows Shell API，将文件移入回收站而非永久删除，提供数据后悔药。
+
+
 
 ---
 
@@ -54,7 +57,7 @@
 * **架构**: MVVM (CommunityToolkit.Mvvm) / Dependency Injection (Manual)
 * **渲染**: Microsoft.Graphics.Win2D / CompositionTarget.Rendering
 * **特效**: Custom Particle Engine (Object Pooling + Spatial Partitioning)
-* **图像**: SixLabors.ImageSharp
+* **IO 操作**: Windows.Storage + Win32 Shell API
 
 ---
 
@@ -62,21 +65,38 @@
 
 ```text
 BlueSapphire/
-├── ViewModels/              # 业务逻辑 (MVVM)
-├── Models/                  
-│   ├── AppMessages.cs       # [v0.6.0] 消息总线定义
-│   └── ...                  # 数据模型
-├── Helpers/                 
-│   ├── AppSettings.cs       # 配置管理
-│   └── ...
-├── Services/                # 核心服务 (文件扫描/哈希计算)
-├── Pages/                   
-│   ├── HomePage.xaml        # [v0.6.0] 赛博朋克指挥中心首页
-│   ├── MediaManagerPage.xaml# 媒体管理功能页
-│   └── SettingsPage.xaml    # 设置页
-├── MainWindow.xaml.cs       # [v0.6.0] 零GC粒子引擎 + 手动渲染循环
-└── BlueSapphire.csproj      # .NET 8 + WinUI 3 配置
-
+├── Assets/                  # 静态资源 (Logo, Splashes, Icons)
+├── Helpers/                 # 辅助工具类
+│   ├── AppSettings.cs       # 本地配置存储 (LocalSettings)
+│   ├── Converters.cs        # XAML 值转换器 (Visibility, Bool等)
+│   └── IncrementalLoading...# 增量加载集合 (支持无限滚动列表)
+├── Interfaces/              # 抽象接口定义
+│   ├── IMediaViewInteraction.cs # ViewModel 与 View 的交互契约 (解耦 UI 操作)
+│   └── ITool.cs             # 工具插件标准接口
+├── Models/                  # 数据实体模型
+│   ├── AppMessages.cs       # [v0.6.0] 消息总线定义 (WeakReferenceMessenger)
+│   ├── DuplicateItem.cs     # 重复文件分组实体
+│   ├── ImageItem.cs         # 媒体文件基础实体
+│   └── RenamePreviewItem.cs # 重命名预览实体
+├── Services/                # 核心底层服务
+│   ├── MediaScanService.cs  # 三级去重算法 / 哈希计算 / 文件扫描
+│   └── NativeFileService.cs # Win32 API 封装 (实现安全删除至回收站)
+├── Tools/                   # 工具策略实现
+│   ├── HomeTool.cs          # 首页工具定义
+│   └── MediaManagerTool.cs  # 媒体管家工具定义
+├── ViewModels/              # 业务逻辑层 (MVVM)
+│   └── MediaManagerViewModel.cs # 媒体管理核心逻辑 (含重命名、扫描、UI状态管理)
+├── Views/                   # UI 视图层 (Pages & Dialogs)
+│   ├── HomePage.xaml        # [v0.6.0] 赛博指挥中心首页 (HUD 风格)
+│   ├── MediaManagerPage.xaml# 媒体网格展示页
+│   ├── SettingsPage.xaml    # 全局设置页
+│   ├── AboutPage.xaml       # 关于页面
+│   ├── DuplicateResultDialog.xaml # 去重结果确认弹窗
+│   └── RenamePreviewDialog.xaml   # 重命名操作预览弹窗
+├── MainWindow.xaml          # [v0.6.0] 主窗口 (含粒子引擎渲染循环 / 导航框架)
+├── Particle.cs              # [v0.6.0] 粒子物理与渲染实体 (零 GC 优化核心)
+├── App.xaml                 # 应用生命周期管理
+└── Package.appxmanifest     # 应用清单与权限配置
 
 ```
 
