@@ -1,64 +1,135 @@
 ﻿using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
-using System.ComponentModel.DataAnnotations;
-using System.Reflection;
-using System.Security.Claims;
-using System.Xml.Linq;
-using Windows.UI.Text;
-using static System.Net.Mime.MediaTypeNames;
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Windows.Storage;
+using BlueSapphire.Interfaces;
+using BlueSapphire.Models;
+using BlueSapphire.ViewModels;
 
-< ContentDialog
-    x: Class = "BlueSapphire.DuplicateResultDialog"
-    xmlns = "http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns: x = "http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns: local = "using:BlueSapphire"
-    xmlns: models = "using:BlueSapphire.Models"
-    Title = "重复文件扫描结果"
-    PrimaryButtonText = "删除选中项"
-    CloseButtonText = "取消"
-    DefaultButton = "Primary" >
+namespace BlueSapphire
+{
+    public sealed partial class MediaManagerPage : Page, IMediaViewInteraction
+    {
+        public MediaManagerViewModel ViewModel { get; }
 
-    < ContentDialog.Resources >
-        < DataTemplate x: Key = "DuplicateItemTemplate" x: DataType = "models:DuplicateItem" >
-            < Grid >
-                < Grid Visibility = "{x:Bind SeparatorVisibility}" Background = "{ThemeResource SystemControlBackgroundChromeMediumBrush}" Padding = "10,5" >
-                    < TextBlock Text = "重复文件组" FontWeight = "Bold" Opacity = "0.8" />
-                </ Grid >
+        public MediaManagerPage()
+        {
+            this.InitializeComponent();
+            // 确保 ViewModel 正确初始化
+            ViewModel = new MediaManagerViewModel(this, this.DispatcherQueue);
+        }
 
-                < Grid Visibility = "{x:Bind CheckBoxVisibility}" Padding = "10" Height = "60" >
-                    < Grid.ColumnDefinitions >
-                        < ColumnDefinition Width = "Auto" />
-                        < ColumnDefinition Width = "60" />
-                        < ColumnDefinition Width = "*" />
-                    </ Grid.ColumnDefinitions >
+        // --- 接口实现 ---
 
-                    < CheckBox IsChecked = "{x:Bind IsChecked, Mode=TwoWay}" VerticalAlignment = "Center" Margin = "0,0,10,0" />
+        // 1. 文件夹选择 (修复了返回值 ? 和句柄问题)
+        public async Task<StorageFolder?> PickFolderAsync()
+        {
+            var folderPicker = new Windows.Storage.Pickers.FolderPicker();
+            folderPicker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.PicturesLibrary;
+            folderPicker.FileTypeFilter.Add("*");
 
-                    < Border Grid.Column = "1" CornerRadius = "4" Background = "#10808080" Width = "50" Height = "50"  VerticalAlignment = "Center" >
-                        < Image Source = "{x:Bind Thumbnail, Mode=OneWay}" Stretch = "UniformToFill" />
-                    </ Border >
+            // 修复：使用 App.MainWindowHandle
+            WinRT.Interop.InitializeWithWindow.Initialize(folderPicker, App.MainWindowHandle);
 
-                    < StackPanel Grid.Column = "2" Margin = "10,0,0,0" VerticalAlignment = "Center" >
-                        < TextBlock Text = "{x:Bind DisplayName}" TextTrimming = "CharacterEllipsis" />
-                        < TextBlock Text = "{x:Bind DateString}" FontSize = "11" Opacity = "0.6" />
-                        < TextBlock Text = "推荐保留" Visibility = "{x:Bind SuggestionVisibility}" Foreground = "Green" FontSize = "10" />
-                    </ StackPanel >
+            return await folderPicker.PickSingleFolderAsync();
+        }
 
+        // 2. 显示重命名预览 (调用你新建的 XAML Dialog)
+        public async Task<bool> ShowRenamePreviewAsync(List<RenamePreviewItem> items, int skippedCount)
+        {
+            var dialog = new RenamePreviewDialog(items, skippedCount)
+            {
+                XamlRoot = this.XamlRoot // 必须设置
+            };
+            var result = await dialog.ShowAsync();
+            return result == ContentDialogResult.Primary;
+        }
 
-                    < ToolTipService.ToolTip >
-                        < ToolTip Content = "{x:Bind PathString}" />
-                    </ ToolTipService.ToolTip >
-                </ Grid >
-            </ Grid >
-        </ DataTemplate >
-    </ ContentDialog.Resources >
+        // 3. 显示重复结果 (调用你新建的 XAML Dialog)
+        public async Task<List<StorageFile>> ShowDuplicateResultsAsync(List<List<StorageFile>> duplicates)
+        {
+            var dialog = new DuplicateResultDialog(duplicates, this.DispatcherQueue)
+            {
+                XamlRoot = this.XamlRoot // 必须设置
+            };
+            var result = await dialog.ShowAsync();
 
-    < ListView x: Name = "DuplicateList"
-              SelectionMode = "None"
-              MaxHeight = "500"
-              Width = "450"
-              ItemTemplate = "{StaticResource DuplicateItemTemplate}"
-              ContainerContentChanging = "DuplicateList_ContainerContentChanging"
-              DoubleTapped = "DuplicateList_DoubleTapped" />
-</ ContentDialog >
+            if (result == ContentDialogResult.Primary)
+            {
+                return dialog.GetSelectedFiles();
+            }
+            return new List<StorageFile>(); // 返回空列表表示取消
+        }
+
+        // 4. 显示简单提示
+        public async Task ShowTipAsync(string message)
+        {
+            var dialog = new ContentDialog
+            {
+                Title = "提示",
+                Content = message,
+                CloseButtonText = "确定",
+                XamlRoot = this.XamlRoot
+            };
+            await dialog.ShowAsync();
+        }
+
+        // 5. 删除确认
+        public async Task<bool> ShowDeleteConfirmationAsync(int count)
+        {
+            var dialog = new ContentDialog
+            {
+                Title = "删除确认",
+                Content = $"确定要永久删除这 {count} 个文件吗？",
+                PrimaryButtonText = "删除",
+                CloseButtonText = "取消",
+                DefaultButton = ContentDialogButton.Close,
+                XamlRoot = this.XamlRoot
+            };
+            var result = await dialog.ShowAsync();
+            return result == ContentDialogResult.Primary;
+        }
+
+        // GridView 事件处理 (保持 UI 响应)
+        // MediaManagerPage.xaml.cs
+
+        private void ImageGrid_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
+        {
+            // 如果在回收队列中，不处理
+            if (args.InRecycleQueue)
+            {
+                // 可选：如果 ImageItem 支持取消加载，可以在这里调用
+                // (args.Item as ImageItem)?.CancelLoad();
+                return;
+            }
+
+            if (args.Item is ImageItem item)
+            {
+                // 修复点：方法名改为 LoadImageAsync，并传入 DispatcherQueue
+                _ = item.LoadImageAsync(this.DispatcherQueue);
+            }
+        }
+
+        private async void ImageGrid_DoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+        {
+            if ((e.OriginalSource as FrameworkElement)?.DataContext is ImageItem item)
+            {
+                // 打开图片查看
+                try
+                {
+                    var file = await StorageFile.GetFileFromPathAsync(item.ImagePath);
+                    await Windows.System.Launcher.LaunchFileAsync(file);
+                }
+                catch { }
+            }
+        }
+
+        private void OnDeleteClicked(object sender, RoutedEventArgs e)
+        {
+            // 转发给 ViewModel 的命令
+            ViewModel.DeleteSelectedCommand.Execute(ImageGrid.SelectedItems);
+        }
+    }
+}

@@ -28,9 +28,21 @@ namespace BlueSapphire
     {
         // [优化修改]
         // 将原有的 private Window? _window; 替换为全局静态属性。
-        // 这样子页面(如 MediaManagerPage)可以通过 App.CurrentWindow 获取句柄，
-        // 而不需要依赖 MainWindow.Instance。
+        // 这样子页面(如 MediaManagerPage)可以通过 App.CurrentWindow 获取句柄。
         public static Window? CurrentWindow { get; private set; }
+
+        // [新增修复] 
+        // 提供一个静态属性来获取主窗口句柄 (IntPtr)，
+        // 专门供 PickFolderAsync 等需要窗口句柄的方法使用。
+        public static IntPtr MainWindowHandle
+        {
+            get
+            {
+                if (CurrentWindow == null) return IntPtr.Zero;
+                // 使用 WinRT 互操作库从 Window 对象获取原生句柄
+                return WinRT.Interop.WindowNative.GetWindowHandle(CurrentWindow);
+            }
+        }
 
         /// <summary>
         /// Initializes the singleton application object.  This is the first line of authored code
@@ -38,7 +50,7 @@ namespace BlueSapphire
         /// </summary>
         public App()
         {
-            InitializeComponent();
+            this.InitializeComponent();
         }
 
         /// <summary>

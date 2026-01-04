@@ -1,19 +1,20 @@
-﻿using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
-using Microsoft.Graphics.Canvas.UI.Xaml;
-using System.Numerics;
-using System;
-using System.Collections.Generic;
-using Windows.UI;
-using System.Linq;
+﻿using BlueSapphire.Helpers;
 using BlueSapphire.Interfaces;
-using BlueSapphire.Helpers;
 using BlueSapphire.Models;
+using BlueSapphire.Tools;
+using CommunityToolkit.Mvvm.Messaging;
+using Microsoft.Graphics.Canvas.UI.Xaml;
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
-using CommunityToolkit.Mvvm.Messaging;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
+using System.Numerics;
+using Windows.UI;
 
 namespace BlueSapphire
 {
@@ -98,8 +99,9 @@ namespace BlueSapphire
         [DynamicDependency(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor, typeof(MediaManagerPage))]
         private void LoadTools()
         {
-            RegisterTool(new HomePage());
-            RegisterTool(new MediaManagerPage());
+            // 正确：传入实现了 ITool 的包装类实例
+            RegisterTool(new HomeTool());
+            RegisterTool(new MediaManagerTool());
         }
 
         private void RegisterTool(ITool tool)
