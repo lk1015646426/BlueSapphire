@@ -462,6 +462,8 @@ namespace BlueSapphire.ViewModels
             await _view.ShowTipAsync(msg);
         }
 
+        // 在 BlueSapphire/ViewModels/MediaManagerViewModel.cs 中
+
         private async Task LoadFolderContentAsync(StorageFolder folder)
         {
             SetBusy(true, "正在扫描文件...");
@@ -469,6 +471,9 @@ namespace BlueSapphire.ViewModels
             _cachedAllItems.Clear();
             PathText = $"PATH: {folder.Path}";
             IsEmptyStateVisible = false;
+
+            // [优化] 定义局部变量用于统计加载失败的文件数
+            int skippedCount = 0;
 
             try
             {
@@ -497,11 +502,26 @@ namespace BlueSapphire.ViewModels
                             FileSize = props.Size
                         });
                     }
-                    catch (Exception ex) { Debug.WriteLine($"[Load] File Error ({file.Name}): {ex.Message}"); }
+                    catch (Exception ex)
+                    {
+                        // [优化] 记录日志并增加跳过计数
+                        Debug.WriteLine($"[Load] File Error ({file.Name}): {ex.Message}");
+                        skippedCount++;
+                    }
                 }
 
                 CountText = $"ITEMS: {_cachedAllItems.Count}";
                 RefreshViewFromCache();
+
+                // [优化] 如果有跳过的文件，向用户显示提示 (Toast)
+                if (skippedCount > 0)
+                {
+                    // 这里的文案可以根据需要调整，例如："部分文件加载失败"
+                    await _view.ShowTipAsync($"加载完成，但有 {skippedCount} 个文件因无法读取而被跳过。");
+
+                    // 可选：也可以同时在状态栏保留一条记录
+                    // StatusDetailText = $"警告：{skippedCount} 个文件加载失败";
+                }
             }
             catch (Exception ex)
             {
