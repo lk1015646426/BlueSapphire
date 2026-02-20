@@ -54,11 +54,12 @@ namespace BlueSapphire.Models
         private bool _isLoaded = false;
         private CancellationTokenSource? _loadingCts; // [新增] 用于取消加载任务
 
+
         public async Task LoadImageAsync(Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
         {
             if (_isLoaded || string.IsNullOrEmpty(ImagePath)) return;
 
-            // 取消之前的任何尝试
+            // 取消之前的尝试
             _loadingCts?.Cancel();
             _loadingCts = new CancellationTokenSource();
             var token = _loadingCts.Token;
@@ -68,32 +69,52 @@ namespace BlueSapphire.Models
 
             try
             {
-                // [优化] 检查取消
+                // ✅ 绝杀优化：防抖！等待 100 毫秒。如果用户只是快速滚过，直接在这一步被掐断，绝对不碰硬盘！
+                await Task.Delay(100, token);
                 if (token.IsCancellationRequested) return;
 
                 var file = await StorageFile.GetFileFromPathAsync(ImagePath);
                 if (token.IsCancellationRequested) return;
 
-                using var thumb = await file.GetThumbnailAsync(ThumbnailMode.PicturesView, 200u);
-                if (token.IsCancellationRequested) return;
+                // 🚨 修复：去掉 using！我们要把流的控制权交给 UI 线程，不能在这里提前销毁
+                var thumb = await file.GetThumbnailAsync(ThumbnailMode.PicturesView, 200, ThumbnailOptions.UseCurrentScale);
+
+                if (token.IsCancellationRequested)
+                {
+                    thumb?.Dispose(); // 如果中途取消，手动销毁
+                    return;
+                }
 
                 if (thumb != null)
                 {
-                    var memoryStream = new InMemoryRandomAccessStream();
-                    await RandomAccessStream.CopyAsync(thumb, memoryStream);
-                    memoryStream.Seek(0);
-
-                    if (token.IsCancellationRequested) return;
-
-                    dispatcherQueue.TryEnqueue(() =>
+                    dispatcherQueue.TryEnqueue(async () =>
                     {
-                        if (token.IsCancellationRequested) return;
-                        var bitmap = new BitmapImage();
-                        bitmap.SetSource(memoryStream);
-                        bitmap.DecodePixelWidth = 200;
-                        ImageSource = bitmap;
+                        if (token.IsCancellationRequested)
+                        {
+                            thumb.Dispose();
+                            return;
+                        }
+
+                        try
+                        {
+                            var bitmap = new BitmapImage();
+                            bitmap.DecodePixelWidth = 200;
+                            await bitmap.SetSourceAsync(thumb); // 安全读取
+                            ImageSource = bitmap;
+                        }
+                        catch { /* 忽略渲染异常 */ }
+                        finally
+                        {
+                            // ✅ 修复：UI 线程把图片成功“吃”进内存后，再由 UI 线程负责销毁流
+                            thumb.Dispose();
+                        }
                     });
                 }
+            }
+            catch (TaskCanceledException)
+            {
+                // Task.Delay 被取消会抛出这个异常
+                _isLoaded = false;
             }
             catch (OperationCanceledException)
             {
@@ -105,7 +126,8 @@ namespace BlueSapphire.Models
             }
             finally
             {
-                IsImageLoading = false;
+                // 确保在 UI 线程更新 Loading 状态
+                dispatcherQueue.TryEnqueue(() => IsImageLoading = false);
             }
         }
 

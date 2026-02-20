@@ -21,8 +21,8 @@ namespace BlueSapphire.ViewModels
 {
     public partial class MediaManagerViewModel : ObservableObject
     {
-        private readonly IMediaViewInteraction _view;
-        private readonly DispatcherQueue _dispatcherQueue;
+        private IMediaViewInteraction _view = null!;
+        private DispatcherQueue _dispatcherQueue = null!;
         private List<ImageItem> _cachedAllItems = new List<ImageItem>();
         private CancellationTokenSource? _globalCts;
         private StorageFolder? _currentFolder;
@@ -65,7 +65,27 @@ namespace BlueSapphire.ViewModels
         [ObservableProperty]
         private bool _isSortDescending;
 
-        public MediaManagerViewModel(IMediaViewInteraction view, DispatcherQueue dispatcherQueue)
+        // ✅ 增加一个私有只读字段存放 Service
+        private readonly MediaRenameService _renameService;
+
+        // ✅ 增加存放去重服务的字段
+        private readonly BlueSapphire.Services.MediaDeduplicationService _deduplicationService;
+
+        // ✅ 依赖注入容器会自动把实例从这里“喂”进来
+        // ✅ 修改构造函数接收两个服务
+        public MediaManagerViewModel(
+            MediaRenameService renameService,
+            BlueSapphire.Services.MediaDeduplicationService deduplicationService)
+        {
+            _renameService = renameService;
+            _deduplicationService = deduplicationService;
+        }
+        public MediaManagerViewModel()
+        {
+        }
+
+        // ✅ 修改 3：把原本写在构造函数里的赋值逻辑，挪到这个独立的 Initialize 方法里
+        public void Initialize(IMediaViewInteraction view, DispatcherQueue dispatcherQueue)
         {
             _view = view;
             _dispatcherQueue = dispatcherQueue;
@@ -123,7 +143,7 @@ namespace BlueSapphire.ViewModels
                 int total = items.Count;
                 int processed = 0;
 
-                using var semaphore = new SemaphoreSlim(20);
+                using var semaphore = new SemaphoreSlim(8);
 
                 var tasks = items.Select(async item =>
                 {
@@ -144,7 +164,8 @@ namespace BlueSapphire.ViewModels
 
                         if (isInvalidTime)
                         {
-                            targetTime = await SmartParseDateAsync(file);
+                            // 修改为调用注入的 Service
+                            targetTime = await _renameService.SmartParseDateAsync(file);
                         }
 
                         if (targetTime == DateTimeOffset.MinValue || targetTime.Year < 1900)
@@ -244,109 +265,24 @@ namespace BlueSapphire.ViewModels
             {
                 SetBusy(true, "正在初始化扫描...", 0, 100);
 
-                var fileExtensions = new List<string> { ".jpg", ".png", ".jpeg", ".bmp", ".gif", ".webp", ".heic", ".mp4", ".mov", ".avi", ".wmv", ".mkv" };
-                var queryOptions = new QueryOptions(CommonFileQuery.DefaultQuery, fileExtensions);
-                queryOptions.SetPropertyPrefetch(PropertyPrefetchOptions.BasicProperties, new[] { "System.Size" });
-
-                var allFiles = await _currentFolder.CreateFileQueryWithOptions(queryOptions).GetFilesAsync();
-
-                if (allFiles.Count < 2)
+                // ✅ 优雅地使用 IProgress 接收底层服务传来的进度更新，并分发到 UI 线程
+                var progress = new Progress<(double Value, string Message, string Detail)>(p =>
                 {
-                    SetBusy(false);
-                    await _view.ShowTipAsync("文件不足，无需扫描");
-                    return;
-                }
-
-                UpdateProgress(0, allFiles.Count, "阶段 1/3: 按大小分组...");
-
-                var suspectGroups = await Task.Run(() =>
-                {
-                    var sizeGroups = new Dictionary<ulong, List<StorageFile>>();
-                    int processed = 0;
-                    foreach (var file in allFiles)
+                    _dispatcherQueue.TryEnqueue(() =>
                     {
-                        if (token.IsCancellationRequested) break;
-                        try
-                        {
-                            ulong size = file.GetBasicPropertiesAsync().AsTask().Result.Size;
-                            if (size > 0)
-                            {
-                                if (!sizeGroups.ContainsKey(size)) sizeGroups[size] = new List<StorageFile>();
-                                sizeGroups[size].Add(file);
-                            }
-                        }
-                        catch (Exception ex) { Debug.WriteLine($"[Scan] GetSize Error: {ex.Message}"); }
-
-                        if (++processed % 50 == 0)
-                            _dispatcherQueue.TryEnqueue(() => ProgressValue = processed);
-                    }
-                    return sizeGroups.Values.Where(g => g.Count > 1).ToList();
+                        ProgressValue = p.Value;
+                        if (!string.IsNullOrEmpty(p.Message)) StatusMainText = p.Message;
+                        if (p.Detail != null) StatusDetailText = p.Detail;
+                    });
                 });
 
-                int totalSuspects = suspectGroups.Sum(g => g.Count);
-                if (totalSuspects == 0)
-                {
-                    SetBusy(false);
-                    await _view.ShowTipAsync("未发现重复文件 (大小均不相同)");
-                    return;
-                }
-
-                UpdateProgress(0, totalSuspects, "正在深度校验 (Tier 2/3)...");
-
-                var finalDuplicates = await Task.Run(async () =>
-                {
-                    var result = new List<List<StorageFile>>();
-                    int processedCount = 0;
-
-                    foreach (var group in suspectGroups)
-                    {
-                        if (token.IsCancellationRequested) break;
-
-                        var quickHashGroups = new Dictionary<string, List<StorageFile>>();
-                        foreach (var file in group)
-                        {
-                            string qHash = await MediaScanService.ComputeQuickHeaderFooterHashAsync(file);
-                            if (!string.IsNullOrEmpty(qHash))
-                            {
-                                if (!quickHashGroups.ContainsKey(qHash)) quickHashGroups[qHash] = new List<StorageFile>();
-                                quickHashGroups[qHash].Add(file);
-                            }
-
-                            processedCount++;
-                            if (processedCount % 10 == 0)
-                            {
-                                _dispatcherQueue.TryEnqueue(() =>
-                                {
-                                    ProgressValue = processedCount;
-                                    StatusDetailText = $"{processedCount} / {totalSuspects}";
-                                });
-                            }
-                        }
-
-                        foreach (var quickGroup in quickHashGroups.Values.Where(g => g.Count > 1))
-                        {
-                            var md5Groups = new Dictionary<string, List<StorageFile>>();
-                            foreach (var file in quickGroup)
-                            {
-                                string fullHash = await MediaScanService.ComputeMD5Async(file);
-                                if (!string.IsNullOrEmpty(fullHash))
-                                {
-                                    if (!md5Groups.ContainsKey(fullHash)) md5Groups[fullHash] = new List<StorageFile>();
-                                    md5Groups[fullHash].Add(file);
-                                }
-                            }
-
-                            foreach (var finalGroup in md5Groups.Values.Where(g => g.Count > 1))
-                            {
-                                result.Add(finalGroup);
-                            }
-                        }
-                    }
-                    return result;
-                });
+                // ✅ 核心魔法：一行代码调用分离出去的扫描算法
+                var finalDuplicates = await _deduplicationService.FindDuplicatesAsync(_currentFolder, progress, token);
 
                 SetBusy(false);
+                if (token.IsCancellationRequested) return;
 
+                // 处理扫描结果
                 if (finalDuplicates.Count > 0)
                 {
                     var filesToDelete = await _view.ShowDuplicateResultsAsync(finalDuplicates);
@@ -388,35 +324,6 @@ namespace BlueSapphire.ViewModels
                 }
                 await PerformDeleteFiles(files);
             }
-        }
-
-        // [逻辑修复] 正则表达式现在支持 19xx 和 20xx
-        private static async Task<DateTimeOffset> SmartParseDateAsync(StorageFile file)
-        {
-            string fileName = file.Name;
-
-            // 匹配 1900-2099
-            var fullTimePattern = new Regex(@"(?<!\d)(?<year>(?:19|20)\d{2})[-_.\s]?(?<month>0[1-9]|1[0-2])[-_.\s]?(?<day>0[1-9]|[12]\d|3[01])[-_.\sT]+(?<hour>[01]\d|2[0-3])[-_:.]?(?<minute>[0-5]\d)[-_:.]?(?<second>[0-5]\d)?");
-            var match = fullTimePattern.Match(fileName);
-            if (match.Success) return ParseRegexMatch(match);
-
-            var dateOnlyPattern = new Regex(@"(?<!\d)(?<year>(?:19|20)\d{2})[-_.\s年]?(?<month>0?[1-9]|1[0-2])[-_.\s月]?(?<day>0?[1-9]|[12]\d|3[01])[日号]?");
-            match = dateOnlyPattern.Match(fileName);
-            if (match.Success) return ParseRegexMatch(match).Date;
-
-            return DateTimeOffset.MinValue;
-        }
-
-        private static DateTime ParseRegexMatch(Match match)
-        {
-            int y = int.Parse(match.Groups["year"].Value);
-            int m = int.Parse(match.Groups["month"].Value);
-            int d = int.Parse(match.Groups["day"].Value);
-            int h = 0, min = 0, s = 0;
-            if (match.Groups["hour"].Success) h = int.Parse(match.Groups["hour"].Value);
-            if (match.Groups["minute"].Success) min = int.Parse(match.Groups["minute"].Value);
-            if (match.Groups["second"].Success) s = int.Parse(match.Groups["second"].Value);
-            return new DateTime(y, m, d, h, min, s);
         }
 
         private async Task PerformRenameFiles(List<RenamePreviewItem> items)

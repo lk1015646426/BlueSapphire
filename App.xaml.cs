@@ -16,8 +16,10 @@ using Windows.ApplicationModel.Activation;
 using Windows.Foundation;
 using Windows.Foundation.Collections;
 
-// To learn more about WinUI, the WinUI project structure,
-// and more about our project templates, see: http://aka.ms/winui-project-info.
+// ✅ 新增的命名空间，用于依赖注入
+using Microsoft.Extensions.DependencyInjection;
+using BlueSapphire.Tools;
+using BlueSapphire.ViewModels;
 
 namespace BlueSapphire
 {
@@ -30,6 +32,12 @@ namespace BlueSapphire
         // 将原有的 private Window? _window; 替换为全局静态属性。
         // 这样子页面(如 MediaManagerPage)可以通过 App.CurrentWindow 获取句柄。
         public static Window? CurrentWindow { get; private set; }
+
+        // ✅ 新增 1：方便全局获取 App 实例
+        public new static App Current => (App)Application.Current;
+
+        // ✅ 新增 2：定义全局服务提供者 (DI 容器的核心)
+        public IServiceProvider Services { get; }
 
         // [新增修复] 
         // 提供一个静态属性来获取主窗口句柄 (IntPtr)，
@@ -50,7 +58,30 @@ namespace BlueSapphire
         /// </summary>
         public App()
         {
+            // ✅ 新增 3：在程序最开始初始化 DI 容器
+            Services = ConfigureServices();
             this.InitializeComponent();
+        }
+
+        // ✅ 新增 4：注册所有的 Tool 和 ViewModel
+        private static IServiceProvider ConfigureServices()
+        {
+            var services = new ServiceCollection();
+
+            // 注册工具
+            services.AddTransient<HomeTool>();
+            services.AddTransient<MediaManagerTool>();
+
+            // ✅ 新增：注册我们的重命名业务服务 (使用 Singleton 单例即可，因为它是无状态的工具类)
+            services.AddSingleton<BlueSapphire.Services.MediaRenameService>();
+
+            // ✅ 新增：注册去重扫描业务服务
+            services.AddSingleton<BlueSapphire.Services.MediaDeduplicationService>();
+
+            // 注册 ViewModel
+            services.AddTransient<MediaManagerViewModel>();
+
+            return services.BuildServiceProvider();
         }
 
         /// <summary>

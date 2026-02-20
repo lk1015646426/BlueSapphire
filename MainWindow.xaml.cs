@@ -3,6 +3,7 @@ using BlueSapphire.Interfaces;
 using BlueSapphire.Models;
 using BlueSapphire.Tools;
 using CommunityToolkit.Mvvm.Messaging;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Graphics.Canvas.UI.Xaml;
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
@@ -99,9 +100,9 @@ namespace BlueSapphire
         [DynamicDependency(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor, typeof(MediaManagerPage))]
         private void LoadTools()
         {
-            // 正确：传入实现了 ITool 的包装类实例
-            RegisterTool(new HomeTool());
-            RegisterTool(new MediaManagerTool());
+            // 移除硬编码的 new，改为通过 DI 容器获取
+            RegisterTool(App.Current.Services.GetRequiredService<HomeTool>());
+            RegisterTool(App.Current.Services.GetRequiredService<MediaManagerTool>());
         }
 
         private void RegisterTool(ITool tool)

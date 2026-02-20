@@ -7,6 +7,7 @@ using Windows.Storage;
 using BlueSapphire.Interfaces;
 using BlueSapphire.Models;
 using BlueSapphire.ViewModels;
+using Microsoft.Extensions.DependencyInjection; // ✅ 新增：引入依赖注入扩展
 
 namespace BlueSapphire
 {
@@ -17,8 +18,12 @@ namespace BlueSapphire
         public MediaManagerPage()
         {
             this.InitializeComponent();
-            // 确保 ViewModel 正确初始化
-            ViewModel = new MediaManagerViewModel(this, this.DispatcherQueue);
+
+            // ✅ 1. 从全局容器中获取 ViewModel 实例，替代原来的 new
+            ViewModel = App.Current.Services.GetRequiredService<MediaManagerViewModel>();
+
+            // ✅ 2. 调用 Initialize 方法，注入当前页面接口实例与 DispatcherQueue
+            ViewModel.Initialize(this, this.DispatcherQueue);
         }
 
         // --- 接口实现 ---
@@ -97,17 +102,16 @@ namespace BlueSapphire
 
         private void ImageGrid_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
         {
-            // 如果在回收队列中，不处理
+            // ✅ 当网格滑出屏幕被回收时，立刻掐断后台的 I/O 加载！
             if (args.InRecycleQueue)
             {
-                // 可选：如果 ImageItem 支持取消加载，可以在这里调用
-                // (args.Item as ImageItem)?.CancelLoad();
+                // 把前面的 // 删掉了，现在它是真正起作用的代码了！
+                (args.Item as ImageItem)?.CancelLoad();
                 return;
             }
 
             if (args.Item is ImageItem item)
             {
-                // 修复点：方法名改为 LoadImageAsync，并传入 DispatcherQueue
                 _ = item.LoadImageAsync(this.DispatcherQueue);
             }
         }
