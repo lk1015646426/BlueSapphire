@@ -28,6 +28,7 @@
 
 	<ItemGroup>
 		<Content Include="Assets\**" />
+		<Page Remove="Views\DevLogPage.xaml" />
 		<Content Include="BS.ico" />
 		<Manifest Include="$(ApplicationManifest)" />
 	</ItemGroup>
@@ -53,5 +54,11 @@
 			<Generator>ResXFileCodeGenerator</Generator>
 			<LastGenOutput>Resources.Designer.cs</LastGenOutput>
 		</EmbeddedResource>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <None Update="Views\DevLogPage.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </None>
 	</ItemGroup>
 </Project>

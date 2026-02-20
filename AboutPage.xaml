@@ -10,7 +10,12 @@
     <Grid Padding="40">
         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="25">
 
-            <StackPanel HorizontalAlignment="Center" Spacing="5">
+            <StackPanel x:Name="TitleContainer" 
+                        HorizontalAlignment="Center" 
+                        Spacing="5" 
+                        Tapped="TitleContainer_Tapped" 
+                        Background="Transparent" 
+                        IsHitTestVisible="True">
                 <TextBlock Text="蓝宝石工具箱" 
                            FontSize="48" 
                            FontWeight="SemiBold" 
@@ -22,7 +27,7 @@
                            Foreground="#00FFFF" 
                            HorizontalAlignment="Center"/>
 
-                <TextBlock Text="Version v0.3 Alpha (Neural Link Upgrade)" 
+                <TextBlock Text="Version v0.6.0 (The Visual Revolution)" 
                            FontSize="14" 
                            Foreground="Gray" 
                            HorizontalAlignment="Center" 
@@ -33,16 +38,12 @@
 
             <StackPanel Width="350" Spacing="10">
                 <TextBlock Text=":: CORE SPECIFICATIONS ::" FontSize="16" FontWeight="Bold" Foreground="#00FFFF" Margin="0,0,0,10"/>
-
                 <TextBlock FontWeight="SemiBold" Foreground="White">核心理念:</TextBlock>
                 <TextBlock Text="宿主(Host) + 插件(Plugin) 架构" Margin="0,0,0,5" Foreground="Gray" FontSize="14"/>
-
                 <TextBlock FontWeight="SemiBold" Foreground="White">图形引擎:</TextBlock>
                 <TextBlock Text="Win2D (高性能粒子渲染)" Margin="0,0,0,5" Foreground="Gray" FontSize="14"/>
-
                 <TextBlock FontWeight="SemiBold" Foreground="White">UI 框架:</TextBlock>
                 <TextBlock Text="WinUI 3 (Windows App SDK) / Fluent Design" Margin="0,0,0,5" Foreground="Gray" FontSize="14"/>
-
                 <TextBlock FontWeight="SemiBold" Foreground="White">兼容环境:</TextBlock>
                 <TextBlock Text="Visual Studio 2026 / .NET 10" Margin="0,0,0,5" Foreground="Gray" FontSize="14"/>
             </StackPanel>
@@ -52,7 +53,6 @@
                        Foreground="#30FFFFFF" 
                        Margin="0,30,0,0" 
                        HorizontalAlignment="Center"/>
-
         </StackPanel>
     </Grid>
 </Page>
