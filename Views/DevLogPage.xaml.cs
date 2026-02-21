@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Input;
 using BlueSapphire.ViewModels;
 using BlueSapphire.Models;
 using System;
+using Windows.Storage;
 
 namespace BlueSapphire.Views
 {
@@ -21,9 +22,23 @@ namespace BlueSapphire.Views
         {
             await System.Threading.Tasks.Task.Delay(300);
 
-            if (ViewModel.Logs.Count == 0)
+            bool isFirstRun = true;
+            try
             {
-                // 恢复为你最真实的开发记录摘要
+                var folder = ApplicationData.Current.LocalFolder;
+                var item = await folder.GetItemAsync("DevMatrixLog.json");
+                if (item != null)
+                {
+                    isFirstRun = false;
+                }
+            }
+            catch
+            {
+                isFirstRun = true;
+            }
+
+            if (ViewModel.Logs.Count == 0 && isFirstRun)
+            {
                 ViewModel.Logs.Add(new DevLogItem
                 {
                     Title = "视觉重构与零 GC 渲染",
@@ -79,6 +94,24 @@ namespace BlueSapphire.Views
             }
         }
 
+        private void DeleteLog_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.CommandParameter is DevLogItem item)
+            {
+                // 转移焦点，防止带有焦点的按钮瞬间消失导致系统级死锁
+                RootPage.IsTabStop = true;
+                RootPage.Focus(FocusState.Programmatic);
+
+                // 核心修复：直接从 ViewModel 的集合中暴力移除该项
+                // 抛弃复杂的命令接口转换，绝对不会出现按钮变灰却删不掉的情况
+                if (ViewModel.Logs.Contains(item))
+                {
+                    ViewModel.Logs.Remove(item);
+                    SaveViewModelData(); // 同步触发本地 JSON 保存
+                }
+            }
+        }
+
         private void SaveViewModelData()
         {
             try
@@ -95,7 +128,6 @@ namespace BlueSapphire.Views
             if (sender is Button btn && btn.CommandParameter is DevLogItem item)
             {
                 DetailTitle.Text = item.Title;
-                // 正常的文案
                 DetailVersion.Text = $"版本号: {item.Version}  |  更新时间: {item.DisplayTime}";
                 DetailContent.Text = string.IsNullOrWhiteSpace(item.FullContent) ? "暂无详细文档内容。" : item.FullContent;
 

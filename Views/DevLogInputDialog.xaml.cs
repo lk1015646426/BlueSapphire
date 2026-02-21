@@ -11,7 +11,11 @@ namespace BlueSapphire.Views
         public string NodeTitle => TitleInput.Text;
         public string NodeDescription => DescInput.Text;
         public string NodeVersion => VersionInput.Text;
-        public string NodeFullContent => FullContentInput.Text;
+
+        // 核心修复：用原生变量替代 TextBox 存储完整文本，防止遇到回车被强行截断
+        private string _fullContent = string.Empty;
+        public string NodeFullContent => _fullContent;
+
         public DateTime? NodeDate
         {
             get
@@ -42,8 +46,10 @@ namespace BlueSapphire.Views
             StorageFile file = await picker.PickSingleFileAsync();
             if (file != null)
             {
+                // 彻底解决截断问题：直接把读到的完整文本塞给内部变量
                 string text = await FileIO.ReadTextAsync(file);
-                FullContentInput.Text = text;
+                _fullContent = text;
+
                 FileStatusText.Text = $"[已加载] {file.Name} ({text.Length} 字节)";
                 FileStatusText.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Cyan);
             }

@@ -39,6 +39,5 @@
             <TextBlock x:Name="FileStatusText" Text="未选择文件" Foreground="DimGray" FontSize="12" FontStyle="Italic"/>
         </StackPanel>
 
-        <TextBox x:Name="FullContentInput" Visibility="Collapsed"/>
     </StackPanel>
 </ContentDialog>
