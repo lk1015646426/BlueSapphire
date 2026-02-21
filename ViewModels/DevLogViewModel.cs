@@ -46,16 +46,16 @@ namespace BlueSapphire.ViewModels
             _ = InitializeAsync();
         }
 
+        // DevLogViewModel.cs 中的 InitializeAsync 方法
         private async Task InitializeAsync()
         {
             var loadedLogs = await _dataService.LoadLogsAsync();
-            foreach (var log in loadedLogs)
-            {
-                Logs.Add(log);
-            }
+
+            // 直接赋值是最安全的，SetProperty 会自动通知 UI 刷新界面
+            Logs = new ObservableCollection<DevLogItem>(loadedLogs);
+
             UpdateHUD();
         }
-
         public async Task AddNewLogAsync(string title, string description, string version)
         {
             var newItem = new DevLogItem
@@ -77,6 +77,7 @@ namespace BlueSapphire.ViewModels
             if (item != null && Logs.Contains(item))
             {
                 Logs.Remove(item);
+                // 等待 UI 数据移除完毕后立即保存
                 await SaveDataAsync();
             }
         }
@@ -86,23 +87,35 @@ namespace BlueSapphire.ViewModels
         {
             if (item == null) return;
 
+            bool isChanged = false;
+
             if (item.Status == DevLogStatus.Pending)
             {
                 item.Status = DevLogStatus.InProgress;
+                isChanged = true;
             }
             else if (item.Status == DevLogStatus.InProgress)
             {
                 item.Status = DevLogStatus.Completed;
+                isChanged = true;
                 WeakReferenceMessenger.Default.Send(new DevLogCompletedMessage(item.Title));
             }
 
-            await SaveDataAsync();
+            if (isChanged)
+            {
+                await SaveDataAsync();
+            }
         }
 
         private async Task SaveDataAsync()
         {
-            await _dataService.SaveLogsAsync(Logs.ToList());
+            // 保存前更新统计信息
             UpdateHUD();
+
+            // 将当前的 ObservableCollection 转为全新的 List 交给底层保存
+            // 确保底层拿到的是当前内存的精确快照，包括列表为空的情况
+            var snapShot = Logs.ToList();
+            await _dataService.SaveLogsAsync(snapShot);
         }
 
         private void UpdateHUD()
