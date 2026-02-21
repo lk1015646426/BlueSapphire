@@ -1,9 +1,9 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Input; // 【新增】必须引用，用于 TappedRoutedEventArgs
+using Microsoft.UI.Xaml.Input;
 using BlueSapphire.Helpers;
-using BlueSapphire.Models; // 必须引用，用于使用 ToggleParticleMessage
-using CommunityToolkit.Mvvm.Messaging; // 必须引用，用于发送消息
+using BlueSapphire.Models;
+using CommunityToolkit.Mvvm.Messaging;
 using System.Reflection;
 using System;
 using System.Diagnostics;
@@ -16,7 +16,7 @@ namespace BlueSapphire
         public string AppDisplayVersion { get; private set; } = "v?.?.? (Beta)";
         public string AppBuildDate { get; private set; } = "Unknown Date";
 
-        // 【新增】用于记录点击次数的秘密计数器
+        // 用于记录点击次数的秘密计数器
         private int _versionTapCount = 0;
 
         public SettingsPage()
@@ -84,19 +84,48 @@ namespace BlueSapphire
             AppSettings.Save("IsParticleEffectEnabled", isEnabled);
         }
 
-        // 【新增】处理连续点击解锁的彩蛋事件
+        // 处理连续点击解锁的彩蛋事件
         private void SecretVersion_Tapped(object sender, TappedRoutedEventArgs e)
         {
             _versionTapCount++;
+
+            // 播放点击动效
+            VersionClickStoryboard.Begin();
+
+            // 在界面上临时改变文字，营造黑客感
+            if (_versionTapCount > 0 && _versionTapCount < 5)
+            {
+                VersionTextBlock.Text = $"DECRYPTING... [{_versionTapCount}/5]";
+            }
 
             // 连按 5 次触发彩蛋，进入赛博极客控制台
             if (_versionTapCount >= 5)
             {
                 _versionTapCount = 0; // 重置计数器
+                VersionTextBlock.Text = "ACCESS GRANTED"; // 解锁成功提示
 
-                // 核心：让当前 Frame 导航到隐藏的 DevLogPage
-                this.Frame.Navigate(typeof(Views.DevLogPage));
+                // 短暂延迟后进入极客页面，让用户看清“解锁成功”
+                var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+                timer.Tick += (s, args) =>
+                {
+                    timer.Stop();
+                    // 导航到隐藏的 DevLogPage
+                    this.Frame.Navigate(typeof(Views.DevLogPage));
+                };
+                timer.Start();
             }
+        }
+
+        // 鼠标悬停变为小手
+        private void SecretVersion_PointerEntered(object sender, PointerRoutedEventArgs e)
+        {
+            ProtectedCursor = Microsoft.UI.Input.InputSystemCursor.Create(Microsoft.UI.Input.InputSystemCursorShape.Hand);
+        }
+
+        // 鼠标移出恢复箭头
+        private void SecretVersion_PointerExited(object sender, PointerRoutedEventArgs e)
+        {
+            ProtectedCursor = Microsoft.UI.Input.InputSystemCursor.Create(Microsoft.UI.Input.InputSystemCursorShape.Arrow);
         }
     }
 }

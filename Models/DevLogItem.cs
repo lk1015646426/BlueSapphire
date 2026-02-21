@@ -33,6 +33,14 @@ namespace BlueSapphire.Models
             set => SetProperty(ref _description, value);
         }
 
+        // 新增：用于存储 TXT 完整内容的底层数据源
+        private string _fullContent = string.Empty;
+        public string FullContent
+        {
+            get => _fullContent;
+            set => SetProperty(ref _fullContent, value);
+        }
+
         private string _version = "v0.6.0";
         public string Version
         {
@@ -40,7 +48,7 @@ namespace BlueSapphire.Models
             set => SetProperty(ref _version, value);
         }
 
-        private DevLogStatus _status = DevLogStatus.Pending;
+        private DevLogStatus _status = DevLogStatus.Completed;
         public DevLogStatus Status
         {
             get => _status;
@@ -55,13 +63,11 @@ namespace BlueSapphire.Models
             {
                 if (SetProperty(ref _timestamp, value))
                 {
-                    // 当时间改变时，同时通知界面更新格式化后的文本
                     OnPropertyChanged(nameof(DisplayTime));
                 }
             }
         }
 
-        // 新增：专门用于 UI 显示的字符串属性，彻底避开 XAML 方法绑定缺陷
         public string DisplayTime => Timestamp.ToString("yyyy-MM-dd HH:mm:ss");
     }
 }
