@@ -27,43 +27,89 @@ namespace BlueSapphire.ViewModels
         private CancellationTokenSource? _globalCts;
         private StorageFolder? _currentFolder;
 
-        // --- 绑定属性 ---
-
-        [ObservableProperty]
         private IncrementalLoadingCollection<ImageItem>? _images;
+        public IncrementalLoadingCollection<ImageItem>? Images
+        {
+            get => _images;
+            set => SetProperty(ref _images, value);
+        }
 
-        [ObservableProperty]
         private string _statusMainText = "READY";
+        public string StatusMainText
+        {
+            get => _statusMainText;
+            set => SetProperty(ref _statusMainText, value);
+        }
 
-        [ObservableProperty]
         private string _statusDetailText = "";
+        public string StatusDetailText
+        {
+            get => _statusDetailText;
+            set => SetProperty(ref _statusDetailText, value);
+        }
 
-        [ObservableProperty]
         private string _pathText = "PATH: NULL";
+        public string PathText
+        {
+            get => _pathText;
+            set => SetProperty(ref _pathText, value);
+        }
 
-        [ObservableProperty]
         private string _countText = "ITEMS: 0";
+        public string CountText
+        {
+            get => _countText;
+            set => SetProperty(ref _countText, value);
+        }
 
-        [ObservableProperty]
         private bool _isBusy;
+        public bool IsBusy
+        {
+            get => _isBusy;
+            set => SetProperty(ref _isBusy, value);
+        }
 
-        [ObservableProperty]
         private bool _isProgressVisible;
+        public bool IsProgressVisible
+        {
+            get => _isProgressVisible;
+            set => SetProperty(ref _isProgressVisible, value);
+        }
 
-        [ObservableProperty]
         private double _progressValue;
+        public double ProgressValue
+        {
+            get => _progressValue;
+            set => SetProperty(ref _progressValue, value);
+        }
 
-        [ObservableProperty]
         private double _progressMax = 100;
+        public double ProgressMax
+        {
+            get => _progressMax;
+            set => SetProperty(ref _progressMax, value);
+        }
 
-        [ObservableProperty]
         private bool _isEmptyStateVisible = true;
+        public bool IsEmptyStateVisible
+        {
+            get => _isEmptyStateVisible;
+            set => SetProperty(ref _isEmptyStateVisible, value);
+        }
 
-        [ObservableProperty]
         private string _currentSortField = "Name";
+        public string CurrentSortField
+        {
+            get => _currentSortField;
+            set => SetProperty(ref _currentSortField, value);
+        }
 
-        [ObservableProperty]
         private bool _isSortDescending;
+        public bool IsSortDescending
+        {
+            get => _isSortDescending;
+            set => SetProperty(ref _isSortDescending, value);
+        }
 
         // ✅ 增加一个私有只读字段存放 Service
         private readonly MediaRenameService _renameService;
@@ -82,6 +128,8 @@ namespace BlueSapphire.ViewModels
         }
         public MediaManagerViewModel()
         {
+            _renameService = null!;
+            _deduplicationService = null!;
         }
 
         // ✅ 修改 3：把原本写在构造函数里的赋值逻辑，挪到这个独立的 Initialize 方法里

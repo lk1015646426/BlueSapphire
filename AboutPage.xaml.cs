@@ -6,28 +6,26 @@ namespace BlueSapphire
 {
     public sealed partial class AboutPage : Page
     {
-        private int _clickCount = 0;
-        private DateTime _lastClickTime = DateTime.MinValue;
+        // 新增：用于记录点击次数
+        private int _versionTapCount = 0;
 
         public AboutPage()
         {
             this.InitializeComponent();
         }
 
+        // 修改这个现有的点击事件
         private void TitleContainer_Tapped(object sender, TappedRoutedEventArgs e)
         {
-            var now = DateTime.Now;
-            if ((now - _lastClickTime).TotalMilliseconds > 600) _clickCount = 0;
+            _versionTapCount++;
 
-            _lastClickTime = now;
-            _clickCount++;
-
-            if (_clickCount >= 7)
+            // 连按 5 次触发彩蛋
+            if (_versionTapCount >= 5)
             {
-                _clickCount = 0;
-                // 注意：这里跳转到 DevLogPage。如果你还没创建该页面，这行会报错。
-                // 建议在创建完 DevLogPage 后再取消下面一行的注释。
-                // this.Frame.Navigate(typeof(DevLogPage));
+                _versionTapCount = 0; // 重置计数器
+
+                // 核心：让当前 Frame 导航到隐藏的 DevLogPage
+                this.Frame.Navigate(typeof(Views.DevLogPage));
             }
         }
     }

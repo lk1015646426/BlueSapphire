@@ -98,11 +98,13 @@ namespace BlueSapphire
 
         [DynamicDependency(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor, typeof(HomePage))]
         [DynamicDependency(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor, typeof(MediaManagerPage))]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor, typeof(Views.DevLogPage))]
         private void LoadTools()
         {
             // 移除硬编码的 new，改为通过 DI 容器获取
             RegisterTool(App.Current.Services.GetRequiredService<HomeTool>());
             RegisterTool(App.Current.Services.GetRequiredService<MediaManagerTool>());
+            
         }
 
         private void RegisterTool(ITool tool)

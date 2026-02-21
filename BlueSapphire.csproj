@@ -28,7 +28,8 @@
 
 	<ItemGroup>
 		<Content Include="Assets\**" />
-		<Page Remove="Views\DevLogPage.xaml" />
+		<None Remove="DevLogInputDialog.xaml" />
+		<None Remove="Views\DevLogPage.xaml" />
 		<Content Include="BS.ico" />
 		<Manifest Include="$(ApplicationManifest)" />
 	</ItemGroup>
@@ -57,8 +58,11 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <None Update="Views\DevLogPage.xaml">
+	  <Page Update="DevLogInputDialog.xaml">
 	    <Generator>MSBuild:Compile</Generator>
-	  </None>
+	  </Page>
+	  <Page Update="Views\DevLogPage.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </Page>
 	</ItemGroup>
 </Project>

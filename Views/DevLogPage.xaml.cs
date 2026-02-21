@@ -1,4 +1,6 @@
-﻿using Microsoft.UI.Xaml.Controls;
+﻿using System;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using BlueSapphire.ViewModels;
 
 namespace BlueSapphire.Views
@@ -10,7 +12,21 @@ namespace BlueSapphire.Views
         public DevLogPage()
         {
             this.InitializeComponent();
-            this.Name = "RootPage"; // 用于在 ListView 内部绑定 ViewModel 的 Command
+        }
+
+        private async void OpenInputDialog_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new DevLogInputDialog
+            {
+                XamlRoot = this.XamlRoot
+            };
+
+            var result = await dialog.ShowAsync();
+
+            if (result == ContentDialogResult.Primary)
+            {
+                await ViewModel.AddNewLogAsync(dialog.NodeTitle, dialog.NodeDescription, dialog.NodeVersion);
+            }
         }
     }
 }

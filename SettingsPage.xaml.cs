@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input; // 【新增】必须引用，用于 TappedRoutedEventArgs
 using BlueSapphire.Helpers;
 using BlueSapphire.Models; // 必须引用，用于使用 ToggleParticleMessage
 using CommunityToolkit.Mvvm.Messaging; // 必须引用，用于发送消息
@@ -14,6 +15,9 @@ namespace BlueSapphire
     {
         public string AppDisplayVersion { get; private set; } = "v?.?.? (Beta)";
         public string AppBuildDate { get; private set; } = "Unknown Date";
+
+        // 【新增】用于记录点击次数的秘密计数器
+        private int _versionTapCount = 0;
 
         public SettingsPage()
         {
@@ -78,6 +82,21 @@ namespace BlueSapphire
             WeakReferenceMessenger.Default.Send(new ToggleParticleMessage(isEnabled));
 
             AppSettings.Save("IsParticleEffectEnabled", isEnabled);
+        }
+
+        // 【新增】处理连续点击解锁的彩蛋事件
+        private void SecretVersion_Tapped(object sender, TappedRoutedEventArgs e)
+        {
+            _versionTapCount++;
+
+            // 连按 5 次触发彩蛋，进入赛博极客控制台
+            if (_versionTapCount >= 5)
+            {
+                _versionTapCount = 0; // 重置计数器
+
+                // 核心：让当前 Frame 导航到隐藏的 DevLogPage
+                this.Frame.Navigate(typeof(Views.DevLogPage));
+            }
         }
     }
 }

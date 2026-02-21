@@ -1,6 +1,9 @@
 ﻿using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Data;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI;
 using System;
+using BlueSapphire.Models; // 引入 Models 命名空间以使用 DevLogStatus
 
 namespace BlueSapphire
 {
@@ -66,6 +69,32 @@ namespace BlueSapphire
             }
             return string.Empty;
         }
+        public object ConvertBack(object value, Type targetType, object parameter, string language)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    /// <summary>
+    /// 5. 状态转颜色转换器 (用于 DevLog 节点颜色映射)
+    /// </summary>
+    public class StatusToColorConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, string language)
+        {
+            if (value is DevLogStatus status)
+            {
+                return status switch
+                {
+                    DevLogStatus.Pending => new SolidColorBrush(Windows.UI.Color.FromArgb(255, 100, 100, 100)), // 暗灰
+                    DevLogStatus.InProgress => new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 165, 0)), // 呼吸橙
+                    DevLogStatus.Completed => new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 255, 204)), // 霓虹青
+                    _ => new SolidColorBrush(Colors.Gray)
+                };
+            }
+            return new SolidColorBrush(Colors.Gray);
+        }
+
         public object ConvertBack(object value, Type targetType, object parameter, string language)
         {
             throw new NotImplementedException();
