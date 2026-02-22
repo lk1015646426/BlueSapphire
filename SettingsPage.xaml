@@ -43,7 +43,7 @@
                 <Grid Background="#10FFFFFF" Padding="20" CornerRadius="8">
 
                     <StackPanel Background="Transparent" 
-                                Tapped="SecretVersion_Tapped" 
+                                PointerPressed="SecretVersion_PointerPressed"
                                 PointerEntered="SecretVersion_PointerEntered"
                                 PointerExited="SecretVersion_PointerExited"
                                 HorizontalAlignment="Left">

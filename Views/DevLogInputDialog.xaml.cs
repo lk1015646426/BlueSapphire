@@ -12,7 +12,7 @@ namespace BlueSapphire.Views
         public string NodeDescription => DescInput.Text;
         public string NodeVersion => VersionInput.Text;
 
-        // 核心修复：用原生变量替代 TextBox 存储完整文本，防止遇到回车被强行截断
+        // 原本处理大文本的核心代码
         private string _fullContent = string.Empty;
         public string NodeFullContent => _fullContent;
 
@@ -46,7 +46,6 @@ namespace BlueSapphire.Views
             StorageFile file = await picker.PickSingleFileAsync();
             if (file != null)
             {
-                // 彻底解决截断问题：直接把读到的完整文本塞给内部变量
                 string text = await FileIO.ReadTextAsync(file);
                 _fullContent = text;
 

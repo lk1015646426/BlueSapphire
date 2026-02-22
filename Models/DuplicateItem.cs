@@ -1,6 +1,6 @@
 ﻿using Windows.Storage;
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Media.Imaging; // 新增：用于缩略图类型
+using Microsoft.UI.Xaml.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using System;
 using System.Threading.Tasks;
@@ -18,12 +18,21 @@ namespace BlueSapphire.Models
         public bool IsSeparator { get; init; }
         public bool IsKeepSuggestion { get; init; }
 
-        [ObservableProperty]
+        // [修复] 移除 [ObservableProperty]，改用手写属性，完美兼容 AOT 和 WinUI 3 绑定
         private bool _isChecked;
+        public bool IsChecked
+        {
+            get => _isChecked;
+            set => SetProperty(ref _isChecked, value);
+        }
 
-        // [新增] 用于界面绑定的缩略图属性
-        [ObservableProperty]
+        // [修复] 移除 [ObservableProperty]，改用手写属性，完美兼容 AOT 和 WinUI 3 绑定
         private BitmapImage? _thumbnail;
+        public BitmapImage? Thumbnail
+        {
+            get => _thumbnail;
+            set => SetProperty(ref _thumbnail, value);
+        }
 
         public string DisplayName => File?.Name ?? "Group Separator";
         public string DateString => File != null ? File.DateCreated.ToString("g") : "";

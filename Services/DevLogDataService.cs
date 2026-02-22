@@ -4,7 +4,6 @@ using System.IO;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using Windows.Storage;
 using BlueSapphire.Models;
 
 namespace BlueSapphire.Services
@@ -16,16 +15,31 @@ namespace BlueSapphire.Services
         // 确保读写操作不冲突
         private static readonly SemaphoreSlim _fileLock = new SemaphoreSlim(1, 1);
 
-        // 【关键修复】使用动态属性（懒加载）获取路径
-        // 这样可以避免在程序刚启动时（构造函数中）过早调用 ApplicationData.Current 导致崩溃
-        private string FilePath => Path.Combine(ApplicationData.Current.LocalFolder.Path, FileName);
+        // 【核心修复】适配未打包 (Unpackaged) 的 WinUI 3 应用
+        // 彻底弃用会报错的 ApplicationData.Current，改用系统标准的 LocalAppData 目录
+        private string FilePath
+        {
+            get
+            {
+                // 这将获取到 C:\Users\你的用户名\AppData\Local
+                string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                // 为你的工具箱创建一个专属文件夹
+                string appFolder = Path.Combine(localAppData, "BlueSapphire");
+
+                if (!Directory.Exists(appFolder))
+                {
+                    Directory.CreateDirectory(appFolder);
+                }
+
+                return Path.Combine(appFolder, FileName);
+            }
+        }
 
         public async Task<List<DevLogItem>> LoadLogsAsync()
         {
             await _fileLock.WaitAsync();
             try
             {
-                // 每次操作时才获取具体路径
                 string targetPath = FilePath;
 
                 if (!File.Exists(targetPath))
