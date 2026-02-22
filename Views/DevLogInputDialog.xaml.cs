@@ -12,7 +12,16 @@ namespace BlueSapphire.Views
         public string NodeDescription => DescInput.Text;
         public string NodeVersion => VersionInput.Text;
 
-        // 原本处理大文本的核心代码
+        // 获取纯净的正规中文分级参数
+        public string NodeUpdateLevel
+        {
+            get
+            {
+                if (LevelInput.SelectedIndex == 0) return "核心跃迁";
+                return "常规迭代";
+            }
+        }
+
         private string _fullContent = string.Empty;
         public string NodeFullContent => _fullContent;
 
@@ -34,7 +43,6 @@ namespace BlueSapphire.Views
         private async void SelectTxtFile_Click(object sender, RoutedEventArgs e)
         {
             var picker = new FileOpenPicker();
-            // 获取宿主窗口句柄
             var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.CurrentWindow);
             WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
 
@@ -49,12 +57,12 @@ namespace BlueSapphire.Views
                 string text = await FileIO.ReadTextAsync(file);
                 _fullContent = text;
 
-                FileStatusText.Text = $"[已加载] {file.Name} ({text.Length} 字节)";
+                FileStatusText.Text = $"[读取成功] {file.Name} ({text.Length} 字节)";
                 FileStatusText.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Cyan);
             }
             else
             {
-                FileStatusText.Text = "[操作取消]";
+                FileStatusText.Text = "[操作已取消]";
             }
         }
     }

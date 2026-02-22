@@ -14,7 +14,18 @@ namespace BlueSapphire.Views
         public DevLogPage()
         {
             this.InitializeComponent();
-            // 彻底移除了 Loaded 事件绑定，不再干涉数据的初始化
+        }
+
+        private void BackButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (this.Frame.CanGoBack)
+            {
+                this.Frame.GoBack();
+            }
+            else
+            {
+                this.Frame.Navigate(typeof(SettingsPage));
+            }
         }
 
         private async void OpenInputDialog_Click(object sender, RoutedEventArgs e)
@@ -28,6 +39,7 @@ namespace BlueSapphire.Views
                     dialog.NodeTitle,
                     dialog.NodeDescription,
                     dialog.NodeVersion,
+                    dialog.NodeUpdateLevel, // 【新增】将你的显式选择传给 ViewModel
                     dialog.NodeFullContent,
                     dialog.NodeDate
                 );

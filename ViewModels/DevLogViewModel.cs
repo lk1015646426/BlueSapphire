@@ -42,36 +42,49 @@ namespace BlueSapphire.ViewModels
             set => SetProperty(ref _totalCount, value);
         }
 
+        private bool _isEditable;
+        public bool IsEditable
+        {
+            get => _isEditable;
+            set => SetProperty(ref _isEditable, value);
+        }
+
         public DevLogViewModel()
         {
+            IsEditable = CheckIfUnpackaged();
             _ = InitializeAsync();
+        }
+
+        private bool CheckIfUnpackaged()
+        {
+#if DEBUG
+            return true;
+#else
+            return false;
+#endif
         }
 
         private async Task InitializeAsync()
         {
             var loadedLogs = await _dataService.LoadLogsAsync();
 
-            // 最佳实践：不要重新 new 整个集合，而是清空后逐个添加，这样能确保 UI 绑定绝对不丢失
             Logs.Clear();
             foreach (var log in loadedLogs)
             {
                 Logs.Add(log);
             }
-
             UpdateHUD();
         }
 
-        /// <summary>
-        /// 提供给 View 层使用的标准添加方法（包含完整参数）
-        /// </summary>
-        public async Task AddNewLogAsync(string title, string description, string version, string fullContent, DateTime? date = null)
+        public async Task AddNewLogAsync(string title, string description, string version, string updateLevel, string fullContent, DateTime? date = null)
         {
             var newItem = new DevLogItem
             {
                 Title = title,
                 Description = description,
-                Version = string.IsNullOrWhiteSpace(version) ? "v0.6.0" : version,
-                FullContent = string.IsNullOrWhiteSpace(fullContent) ? "暂无详细文档内容。" : fullContent,
+                Version = string.IsNullOrWhiteSpace(version) ? "1.0.0" : version,
+                UpdateLevel = string.IsNullOrWhiteSpace(updateLevel) ? "常规迭代" : updateLevel, // 保障必定为中文分级
+                FullContent = string.IsNullOrWhiteSpace(fullContent) ? "当前版本暂未录入详细架构文档。" : fullContent,
                 Status = DevLogStatus.Completed,
                 Timestamp = date ?? DateTime.Now
             };
@@ -80,9 +93,6 @@ namespace BlueSapphire.ViewModels
             await SaveDataAsync();
         }
 
-        /// <summary>
-        /// 提供给 View 层使用的标准删除命令
-        /// </summary>
         [RelayCommand]
         private async Task DeleteLogAsync(DevLogItem item)
         {
@@ -97,7 +107,6 @@ namespace BlueSapphire.ViewModels
         private async Task AdvanceStatusAsync(DevLogItem item)
         {
             if (item == null) return;
-
             bool isChanged = false;
 
             if (item.Status == DevLogStatus.Pending)
@@ -109,23 +118,14 @@ namespace BlueSapphire.ViewModels
             {
                 item.Status = DevLogStatus.Completed;
                 isChanged = true;
-                // 注意：如果使用了弱引用消息，需要确保这里有对应的 Message 类定义
-                // WeakReferenceMessenger.Default.Send(new DevLogCompletedMessage(item.Title));
             }
 
-            if (isChanged)
-            {
-                await SaveDataAsync();
-            }
+            if (isChanged) await SaveDataAsync();
         }
 
-        /// <summary>
-        /// 数据持久化保存（已公开，并在增删操作后自动触发）
-        /// </summary>
         public async Task SaveDataAsync()
         {
             UpdateHUD();
-            // 将当前的 ObservableCollection 转为全新的 List 交给底层保存
             var snapShot = Logs.ToList();
             await _dataService.SaveLogsAsync(snapShot);
         }

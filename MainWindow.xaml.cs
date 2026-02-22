@@ -31,8 +31,6 @@ namespace BlueSapphire
         private const float ConnectionDistance = 150f;
         private const float ConnectionDistanceSq = ConnectionDistance * ConnectionDistance;
 
-        // [极客优化] 抛弃 Dictionary，预分配一块支持高达 6000x4500 超高分辨率的二维数组
-        // 最大支持 40列 x 30行 的网格划分，彻底转化为 O(1) 内存偏移量寻址
         private const int MaxGridCols = 40;
         private const int MaxGridRows = 30;
         private List<Particle>[,] _gridArray;
@@ -41,14 +39,12 @@ namespace BlueSapphire
 
         private int _gridCellSize = (int)ConnectionDistance;
 
-        // [优化] 预计算透明度颜色表 (0-100)
         private Color[] _alphaColors;
 
         public MainWindow()
         {
             this.InitializeComponent();
 
-            // 初始化二维数组网格对象池
             _gridArray = new List<Particle>[MaxGridCols, MaxGridRows];
             for (int i = 0; i < MaxGridCols; i++)
             {
@@ -60,7 +56,6 @@ namespace BlueSapphire
 
             LoadSettingsFromDisk();
 
-            // [优化] 初始化颜色查找表
             _alphaColors = new Color[101];
             for (int i = 0; i <= 100; i++)
             {
@@ -78,7 +73,11 @@ namespace BlueSapphire
             WeakReferenceMessenger.Default.Register<ToggleParticleMessage>(this, (r, m) =>
             {
                 IsParticleEffectEnabled = m.Value;
-                if (IsParticleEffectEnabled) BackgroundCanvas?.Invalidate();
+
+                // [核心修复] 移除原来的 if 限制。
+                // 无论开启还是关闭，状态切换时都必须强制重绘一次画布。
+                // 如果是关闭，这最后一次重绘会让画布执行下方的 OnDraw 逻辑并清空画面，彻底消灭残留的粒子。
+                BackgroundCanvas?.Invalidate();
             });
 
             if (NavView.MenuItems.Count > 0) NavView.SelectedItem = NavView.MenuItems[0];
@@ -160,11 +159,9 @@ namespace BlueSapphire
             float width = (float)BackgroundCanvas.ActualWidth;
             float height = (float)BackgroundCanvas.ActualHeight;
 
-            // 动态计算当前需要的网格范围（向上取整并限制在最大预分配范围内，防越界）
             _currentCols = Math.Min((int)(width / _gridCellSize) + 1, MaxGridCols);
             _currentRows = Math.Min((int)(height / _gridCellSize) + 1, MaxGridRows);
 
-            // 高速清空当前可视范围内的网格数据 (规避 Dictionary.Clear() 造成的哈希桶重置开销)
             for (int i = 0; i < _currentCols; i++)
             {
                 for (int j = 0; j < _currentRows; j++)
@@ -180,7 +177,6 @@ namespace BlueSapphire
                 int cellX = (int)(p.Position.X / _gridCellSize);
                 int cellY = (int)(p.Position.Y / _gridCellSize);
 
-                // 边界安全检查，分发到二维数组
                 if (cellX >= 0 && cellX < _currentCols && cellY >= 0 && cellY < _currentRows)
                 {
                     _gridArray[cellX, cellY].Add(p);
@@ -190,11 +186,16 @@ namespace BlueSapphire
 
         private void OnDraw(CanvasControl sender, CanvasDrawEventArgs args)
         {
-            if (!IsParticleEffectEnabled) return;
+            if (!IsParticleEffectEnabled)
+            {
+                // [核心修复] 双重保险：当粒子效果被关闭时，显式调用一次 Clear 清空画布。
+                // 这样彻底杜绝了最后一帧残留导致的“暂停”错觉。
+                args.DrawingSession.Clear(Colors.Black);
+                return;
+            }
 
             var session = args.DrawingSession;
 
-            // 内存连续寻址，遍历当前屏幕可见的二维网格
             for (int cellX = 0; cellX < _currentCols; cellX++)
             {
                 for (int cellY = 0; cellY < _currentRows; cellY++)
