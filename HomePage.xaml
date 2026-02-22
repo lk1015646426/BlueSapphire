@@ -8,23 +8,45 @@
     mc:Ignorable="d">
 
     <Page.Resources>
-        <Color x:Key="CyberCyan">#00FFFF</Color>
-        <Color x:Key="CyberPink">#FF0055</Color>
+        <Storyboard x:Name="CoreIdleAnimation">
 
-        <SolidColorBrush x:Key="GlassFill" Color="#D9050505"/>
+            <DoubleAnimation Storyboard.TargetName="CoreScale" Storyboard.TargetProperty="ScaleX" From="0.98" To="1.02" Duration="0:0:3" AutoReverse="True" RepeatBehavior="Forever">
+                <DoubleAnimation.EasingFunction>
+                    <SineEase EasingMode="EaseInOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="CoreScale" Storyboard.TargetProperty="ScaleY" From="0.98" To="1.02" Duration="0:0:3" AutoReverse="True" RepeatBehavior="Forever">
+                <DoubleAnimation.EasingFunction>
+                    <SineEase EasingMode="EaseInOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
 
-        <Style x:Key="GlassCardStyle" TargetType="Border">
-            <Setter Property="Background" Value="{StaticResource GlassFill}"/>
-            <Setter Property="BorderBrush" Value="#30FFFFFF"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="4"/>
-            <Setter Property="Margin" Value="12"/>
-            <Setter Property="Padding" Value="24"/>
-        </Style>
+            <DoubleAnimation Storyboard.TargetName="CoreTranslate" Storyboard.TargetProperty="Y" From="-6" To="6" Duration="0:0:5" AutoReverse="True" RepeatBehavior="Forever">
+                <DoubleAnimation.EasingFunction>
+                    <SineEase EasingMode="EaseInOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+
+            <DoubleAnimation Storyboard.TargetName="PulseGlowBrush" Storyboard.TargetProperty="Opacity" From="0.1" To="0.5" Duration="0:0:3" AutoReverse="True" RepeatBehavior="Forever">
+                <DoubleAnimation.EasingFunction>
+                    <SineEase EasingMode="EaseInOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+
+            <DoubleAnimation Storyboard.TargetName="OuterRingRotate" Storyboard.TargetProperty="Angle" From="0" To="360" Duration="0:1:0" RepeatBehavior="Forever"/>
+
+            <DoubleAnimation Storyboard.TargetName="InnerRingRotate" Storyboard.TargetProperty="Angle" From="360" To="0" Duration="0:0:40" RepeatBehavior="Forever"/>
+
+            <DoubleAnimation Storyboard.TargetName="CoreCrystalRotate" Storyboard.TargetProperty="Angle" From="45" To="405" Duration="0:1:30" RepeatBehavior="Forever"/>
+        </Storyboard>
 
         <Storyboard x:Name="EntranceStoryboard">
-            <DoubleAnimation Storyboard.TargetName="MainContent" Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:1"/>
-            <DoubleAnimation Storyboard.TargetName="MainContentTrans" Storyboard.TargetProperty="Y" From="30" To="0" Duration="0:0:1">
+            <DoubleAnimation Storyboard.TargetName="ContentStack" Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:1.5">
+                <DoubleAnimation.EasingFunction>
+                    <CubicEase EasingMode="EaseOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="ContentTranslate" Storyboard.TargetProperty="Y" From="20" To="0" Duration="0:0:1.5">
                 <DoubleAnimation.EasingFunction>
                     <CircleEase EasingMode="EaseOut"/>
                 </DoubleAnimation.EasingFunction>
@@ -33,92 +55,97 @@
     </Page.Resources>
 
     <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
+        <Grid Background="#FF030308" Opacity="0.6" />
 
-        <Grid Grid.Row="0" Margin="40,30,40,0">
-            <StackPanel Orientation="Horizontal" Spacing="10" Opacity="0.6">
-                <Rectangle Width="4" Height="16" Fill="#00FFFF"/>
-                <TextBlock Text="终端控制台 // 核心连接已建立" FontFamily="Microsoft YaHei UI" FontSize="12" Foreground="White" VerticalAlignment="Center"/>
-            </StackPanel>
-        </Grid>
+        <StackPanel x:Name="ContentStack" VerticalAlignment="Center" HorizontalAlignment="Center" Opacity="0">
+            <StackPanel.RenderTransform>
+                <TranslateTransform x:Name="ContentTranslate"/>
+            </StackPanel.RenderTransform>
 
-        <Grid x:Name="MainContent" Grid.Row="1" VerticalAlignment="Center" MaxWidth="1100" Opacity="0">
-            <Grid.RenderTransform>
-                <TranslateTransform x:Name="MainContentTrans"/>
-            </Grid.RenderTransform>
+            <Grid Width="280" Height="280" Margin="0,0,0,50">
+                <Grid.RenderTransform>
+                    <TransformGroup>
+                        <ScaleTransform x:Name="CoreScale" CenterX="140" CenterY="140" ScaleX="1" ScaleY="1"/>
+                        <TranslateTransform x:Name="CoreTranslate" Y="0"/>
+                    </TransformGroup>
+                </Grid.RenderTransform>
 
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="1.5*"/>
-                <ColumnDefinition Width="1*"/>
-            </Grid.ColumnDefinitions>
+                <Ellipse Width="260" Height="260" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Ellipse.Fill>
+                        <RadialGradientBrush x:Name="PulseGlowBrush" Center="0.5,0.5" RadiusX="0.5" RadiusY="0.5" Opacity="0.3">
+                            <GradientStop Color="#00F0FF" Offset="0"/>
+                            <GradientStop Color="#00000000" Offset="1"/>
+                        </RadialGradientBrush>
+                    </Ellipse.Fill>
+                </Ellipse>
 
-            <Border Grid.Column="0" Style="{StaticResource GlassCardStyle}" BorderBrush="#5000FFFF">
-                <Grid>
-                    <Path Data="M0,30 L0,0 L30,0" Stroke="#00FFFF" StrokeThickness="2" HorizontalAlignment="Left" VerticalAlignment="Top"/>
-                    <Path Data="M0,30 L0,0 L30,0" Stroke="#00FFFF" StrokeThickness="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" RenderTransformOrigin="0.5,0.5">
-                        <Path.RenderTransform>
-                            <RotateTransform Angle="180"/>
-                        </Path.RenderTransform>
-                    </Path>
+                <Ellipse Width="220" Height="220" Stroke="#30FFFFFF" StrokeThickness="1" StrokeDashArray="1 4 8 4" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Ellipse.RenderTransform>
+                        <RotateTransform x:Name="OuterRingRotate" CenterX="110" CenterY="110"/>
+                    </Ellipse.RenderTransform>
+                </Ellipse>
 
-                    <StackPanel Spacing="20">
-                        <TextBlock Text="系统就绪" Foreground="#80FFFFFF" FontSize="14" CharacterSpacing="400"/>
+                <Ellipse Width="160" Height="160" StrokeThickness="1.5" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Ellipse.RenderTransform>
+                        <RotateTransform x:Name="InnerRingRotate" CenterX="80" CenterY="80"/>
+                    </Ellipse.RenderTransform>
+                    <Ellipse.Stroke>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                            <GradientStop Color="#8000FFFF" Offset="0"/>
+                            <GradientStop Color="#10FFFFFF" Offset="0.3"/>
+                            <GradientStop Color="#6000FFFF" Offset="0.7"/>
+                            <GradientStop Color="#00FFFFFF" Offset="1"/>
+                        </LinearGradientBrush>
+                    </Ellipse.Stroke>
+                </Ellipse>
 
-                        <TextBlock Text="BLUE SAPPHIRE" FontSize="72" FontWeight="Black">
-                            <TextBlock.Foreground>
-                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                    <GradientStop Color="White" Offset="0"/>
-                                    <GradientStop Color="#00FFFF" Offset="1"/>
-                                </LinearGradientBrush>
-                            </TextBlock.Foreground>
-                        </TextBlock>
+                <Grid Width="60" Height="60" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Grid.RenderTransform>
+                        <RotateTransform x:Name="CoreCrystalRotate" Angle="45" CenterX="30" CenterY="30"/>
+                    </Grid.RenderTransform>
 
-                        <TextBlock Text="基于 WINUI 3 的赛博朋克资源管理终端" Foreground="#00FFFF" FontSize="18" Opacity="0.7" CharacterSpacing="200"/>
+                    <Rectangle RadiusX="6" RadiusY="6" StrokeThickness="1" Opacity="0.8">
+                        <Rectangle.Stroke>
+                            <LinearGradientBrush StartPoint="0,1" EndPoint="1,0">
+                                <GradientStop Color="#FFFFFF" Offset="0"/>
+                                <GradientStop Color="#2000FFFF" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Rectangle.Stroke>
+                        <Rectangle.Fill>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#1500FFFF" Offset="0"/>
+                                <GradientStop Color="#05FFFFFF" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Rectangle.Fill>
+                    </Rectangle>
 
-                        <StackPanel Spacing="8" Margin="0,20,0,0">
-                            <TextBlock Text="> 正在进行同步渲染..." Foreground="#60FFFFFF" FontSize="13"/>
-                            <TextBlock Text="> 玻璃拟态界面已激活" Foreground="#60FFFFFF" FontSize="13"/>
-                            <TextBlock x:Name="CursorText" Text="> 实时交互模式: 开启_" Foreground="#00FFFF" FontSize="13" FontWeight="Bold"/>
-                        </StackPanel>
-                    </StackPanel>
+                    <Rectangle Width="42" Height="42" RadiusX="3" RadiusY="3" Stroke="#00FFFF" StrokeThickness="1.5" Opacity="0.6"/>
+                    <Rectangle Width="26" Height="26" Stroke="#40FFFFFF" StrokeThickness="0.5" Opacity="0.4"/>
                 </Grid>
-            </Border>
 
-            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                <Border x:Name="MediaCard" Style="{StaticResource GlassCardStyle}" PointerEntered="Card_PointerEntered" PointerExited="Card_PointerExited">
-                    <StackPanel Spacing="15">
-                        <TextBlock Text="媒体引擎负载" Foreground="White" FontWeight="Bold"/>
-                        <Grid Height="8">
-                            <Rectangle Fill="#20FFFFFF" RadiusX="4" RadiusY="4"/>
-                            <Rectangle x:Name="MediaProgress" Fill="#FF0055" RadiusX="4" RadiusY="4" Width="100" HorizontalAlignment="Left">
-                                <Rectangle.RenderTransform>
-                                    <ScaleTransform x:Name="ProgressScale" ScaleX="1.5"/>
-                                </Rectangle.RenderTransform>
-                            </Rectangle>
-                        </Grid>
-                        <TextBlock Text="状态: 极速模式" FontSize="12" Foreground="#80FFFFFF"/>
-                    </StackPanel>
-                </Border>
+                <Grid Width="12" Height="12" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Ellipse Fill="#FFFFFF" Opacity="0.9"/>
+                    <Ellipse Fill="#00FFFF" Opacity="0.6">
+                        <Ellipse.RenderTransform>
+                            <ScaleTransform ScaleX="2" ScaleY="2" CenterX="6" CenterY="6"/>
+                        </Ellipse.RenderTransform>
+                    </Ellipse>
+                </Grid>
+            </Grid>
 
-                <Border x:Name="CpuCard" Style="{StaticResource GlassCardStyle}" BorderBrush="#40FF0055" PointerEntered="Card_PointerEntered" PointerExited="Card_PointerExited">
-                    <Grid>
-                        <StackPanel Spacing="5">
-                            <TextBlock Text="实时处理效率" Foreground="White" FontSize="12" Opacity="0.6"/>
-                            <TextBlock Text="98.2%" FontSize="36" FontWeight="Bold" Foreground="White"/>
-                            <Polyline Points="0,20 30,10 60,25 90,5 120,15 150,0" Stroke="#00FFFF" StrokeThickness="2" Opacity="0.4" Margin="0,10,0,0"/>
-                        </StackPanel>
-                    </Grid>
-                </Border>
+            <TextBlock x:Name="GreetingText" 
+                       Text="正在感知系统环境..." 
+                       FontSize="22" 
+                       FontWeight="Light" 
+                       Foreground="#F0FFFFFF" 
+                       HorizontalAlignment="Center" 
+                       CharacterSpacing="60"/>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Opacity="0.25" Margin="0,35,0,0">
+                <TextBlock Text="蓝宝石引擎" FontWeight="SemiBold" FontSize="11" CharacterSpacing="250" Margin="0,0,15,0"/>
+                <TextBlock Text="|" FontSize="10" Margin="0,0,15,0" Foreground="#80FFFFFF"/>
+                <TextBlock Text="核心运转平稳" FontSize="11" CharacterSpacing="250"/>
             </StackPanel>
-        </Grid>
-
-        <Grid Grid.Row="2" Margin="40,0,40,30">
-            <TextBlock Text="STABLE BUILD // 0.5.2" HorizontalAlignment="Right" Foreground="#20FFFFFF" FontSize="10" FontFamily="Consolas"/>
-            <TextBlock Text="INTERFACE: GLASSMORPHISM 2.0" HorizontalAlignment="Left" Foreground="#20FFFFFF" FontSize="10" FontFamily="Consolas"/>
-        </Grid>
+        </StackPanel>
     </Grid>
 </Page>
