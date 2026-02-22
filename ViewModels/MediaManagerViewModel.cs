@@ -8,7 +8,7 @@ using Microsoft.UI.Dispatching;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Diagnostics; // [新增] 用于日志输出
+// [极客优化] 已彻底移除 System.Diagnostics，告别低效的 Debug.WriteLine 阻塞写入
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -111,14 +111,9 @@ namespace BlueSapphire.ViewModels
             set => SetProperty(ref _isSortDescending, value);
         }
 
-        // ✅ 增加一个私有只读字段存放 Service
         private readonly MediaRenameService _renameService;
-
-        // ✅ 增加存放去重服务的字段
         private readonly BlueSapphire.Services.MediaDeduplicationService _deduplicationService;
 
-        // ✅ 依赖注入容器会自动把实例从这里“喂”进来
-        // ✅ 修改构造函数接收两个服务
         public MediaManagerViewModel(
             MediaRenameService renameService,
             BlueSapphire.Services.MediaDeduplicationService deduplicationService)
@@ -132,7 +127,6 @@ namespace BlueSapphire.ViewModels
             _deduplicationService = null!;
         }
 
-        // ✅ 修改 3：把原本写在构造函数里的赋值逻辑，挪到这个独立的 Initialize 方法里
         public void Initialize(IMediaViewInteraction view, DispatcherQueue dispatcherQueue)
         {
             _view = view;
@@ -201,18 +195,24 @@ namespace BlueSapphire.ViewModels
                         if (string.IsNullOrEmpty(item.ImagePath)) return;
 
                         StorageFile file;
-                        try { file = await StorageFile.GetFileFromPathAsync(item.ImagePath); }
-                        catch (Exception ex) { Debug.WriteLine($"[Rename] GetFile Error: {ex.Message}"); return; }
+                        try
+                        {
+                            file = await StorageFile.GetFileFromPathAsync(item.ImagePath);
+                        }
+                        catch (Exception ex)
+                        {
+                            // [极客优化] 无锁极速压入异常队列，绝不阻塞并发线程
+                            MatrixLogService.LogError("Rename_GetFile", ex);
+                            return;
+                        }
 
                         var props = await file.Properties.GetImagePropertiesAsync();
                         DateTimeOffset targetTime = props.DateTaken;
 
-                        // [逻辑修复] 放宽年份限制到 1900
                         bool isInvalidTime = targetTime == DateTimeOffset.MinValue || targetTime.Year < 1900;
 
                         if (isInvalidTime)
                         {
-                            // 修改为调用注入的 Service
                             targetTime = await _renameService.SmartParseDateAsync(file);
                         }
 
@@ -294,7 +294,8 @@ namespace BlueSapphire.ViewModels
             catch (Exception ex)
             {
                 SetBusy(false);
-                Debug.WriteLine($"[Rename] Process Error: {ex}");
+                // [极客优化] 无锁日志
+                MatrixLogService.LogError("Rename_Process_Critical", ex);
                 await _view.ShowTipAsync($"预处理失败: {ex.Message}");
             }
         }
@@ -313,7 +314,6 @@ namespace BlueSapphire.ViewModels
             {
                 SetBusy(true, "正在初始化扫描...", 0, 100);
 
-                // ✅ 优雅地使用 IProgress 接收底层服务传来的进度更新，并分发到 UI 线程
                 var progress = new Progress<(double Value, string Message, string Detail)>(p =>
                 {
                     _dispatcherQueue.TryEnqueue(() =>
@@ -324,13 +324,11 @@ namespace BlueSapphire.ViewModels
                     });
                 });
 
-                // ✅ 核心魔法：一行代码调用分离出去的扫描算法
                 var finalDuplicates = await _deduplicationService.FindDuplicatesAsync(_currentFolder, progress, token);
 
                 SetBusy(false);
                 if (token.IsCancellationRequested) return;
 
-                // 处理扫描结果
                 if (finalDuplicates.Count > 0)
                 {
                     var filesToDelete = await _view.ShowDuplicateResultsAsync(finalDuplicates);
@@ -347,7 +345,8 @@ namespace BlueSapphire.ViewModels
             catch (Exception ex)
             {
                 SetBusy(false);
-                Debug.WriteLine($"[Scan] Critical Error: {ex}");
+                // [极客优化] 无锁日志
+                MatrixLogService.LogError("Scan_Duplicates_Critical", ex);
                 await _view.ShowTipAsync($"扫描中断: {ex.Message}");
             }
         }
@@ -368,7 +367,11 @@ namespace BlueSapphire.ViewModels
                         if (item.ImagePath != null)
                             files.Add(await StorageFile.GetFileFromPathAsync(item.ImagePath));
                     }
-                    catch (Exception ex) { Debug.WriteLine($"[Delete] GetFile Error: {ex.Message}"); }
+                    catch (Exception ex)
+                    {
+                        // [极客优化] 无锁日志
+                        MatrixLogService.LogError("Delete_GetFile", ex);
+                    }
                 }
                 await PerformDeleteFiles(files);
             }
@@ -396,7 +399,8 @@ namespace BlueSapphire.ViewModels
                     catch (Exception ex)
                     {
                         failCount++;
-                        Debug.WriteLine($"[Rename] Execute Error ({item.OriginalName}): {ex.Message}");
+                        // [极客优化] 携带具体文件名精准捕获报错，且不拖慢并发重命名速度
+                        MatrixLogService.LogError($"Rename_Execute ({item.OriginalName})", ex);
                     }
 
                     if ((i + 1) % 20 == 0 || i == items.Count - 1)
@@ -417,8 +421,6 @@ namespace BlueSapphire.ViewModels
             await _view.ShowTipAsync(msg);
         }
 
-        // 在 BlueSapphire/ViewModels/MediaManagerViewModel.cs 中
-
         private async Task LoadFolderContentAsync(StorageFolder folder)
         {
             SetBusy(true, "正在扫描文件...");
@@ -427,7 +429,6 @@ namespace BlueSapphire.ViewModels
             PathText = $"PATH: {folder.Path}";
             IsEmptyStateVisible = false;
 
-            // [优化] 定义局部变量用于统计加载失败的文件数
             int skippedCount = 0;
 
             try
@@ -459,8 +460,8 @@ namespace BlueSapphire.ViewModels
                     }
                     catch (Exception ex)
                     {
-                        // [优化] 记录日志并增加跳过计数
-                        Debug.WriteLine($"[Load] File Error ({file.Name}): {ex.Message}");
+                        // [极客优化] 高频遍历受保护的系统级目录时，瞬间记录跳过文件的原因
+                        MatrixLogService.LogError($"Load_File ({file.Name})", ex);
                         skippedCount++;
                     }
                 }
@@ -468,26 +469,21 @@ namespace BlueSapphire.ViewModels
                 CountText = $"ITEMS: {_cachedAllItems.Count}";
                 RefreshViewFromCache();
 
-                // [优化] 如果有跳过的文件，向用户显示提示 (Toast)
                 if (skippedCount > 0)
                 {
-                    // 这里的文案可以根据需要调整，例如："部分文件加载失败"
                     await _view.ShowTipAsync($"加载完成，但有 {skippedCount} 个文件因无法读取而被跳过。");
-
-                    // 可选：也可以同时在状态栏保留一条记录
-                    // StatusDetailText = $"警告：{skippedCount} 个文件加载失败";
                 }
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[Load] Folder Error: {ex}");
+                // [极客优化] 无锁日志
+                MatrixLogService.LogError("Load_Folder_Critical", ex);
                 await _view.ShowTipAsync($"读取失败: {ex.Message}");
                 IsEmptyStateVisible = true;
             }
             finally { SetBusy(false); }
         }
 
-        // ... (RefreshViewFromCache, PerformDeleteFiles, SetBusy, UpdateProgress 保持原样，仅添加了 try-catch 日志，此处为节省篇幅略去)
         private void RefreshViewFromCache()
         {
             if (_cachedAllItems.Count == 0) return;
@@ -525,7 +521,11 @@ namespace BlueSapphire.ViewModels
                             if (cacheItem != null) _cachedAllItems.Remove(cacheItem);
                         }
                     }
-                    catch (Exception ex) { Debug.WriteLine($"[Delete] Error: {ex.Message}"); }
+                    catch (Exception ex)
+                    {
+                        // [极客优化] 无锁日志记录删除失败明细
+                        MatrixLogService.LogError($"Delete_Execute ({file.Name})", ex);
+                    }
                     Interlocked.Increment(ref deletedCount);
                     if (deletedCount % 10 == 0)
                     {

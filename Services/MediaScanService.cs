@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Numerics; // [极客优化] 引入底层数值与位操作运算库
 using System.Security.Cryptography;
 using System.Threading.Tasks;
 using Windows.Graphics.Imaging;
@@ -141,14 +142,8 @@ namespace BlueSapphire.Services
 
         public static int HammingDistance(ulong hash1, ulong hash2)
         {
-            ulong x = hash1 ^ hash2;
-            int distance = 0;
-            while (x > 0)
-            {
-                distance++;
-                x &= x - 1;
-            }
-            return distance;
+            // [极客优化] 直接映射 CPU 硬件指令 POPCNT 替代 while 循环，大幅压榨算力
+            return BitOperations.PopCount(hash1 ^ hash2);
         }
     }
 }

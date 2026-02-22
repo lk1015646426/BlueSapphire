@@ -90,7 +90,10 @@ namespace BlueSapphire
         /// <param name="args">Details about the launch request and process.</param>
         protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
         {
-            // [优化修改]
+            // [新增] 启动后台矩阵日志引擎
+            BlueSapphire.Services.MatrixLogService.Initialize();
+            BlueSapphire.Services.MatrixLogService.LogInfo("App", "Blue Sapphire 引擎点火成功。");
+
             // 实例化 MainWindow 并赋值给静态属性
             CurrentWindow = new MainWindow();
             CurrentWindow.Activate();

@@ -31,8 +31,14 @@ namespace BlueSapphire
         private const float ConnectionDistance = 150f;
         private const float ConnectionDistanceSq = ConnectionDistance * ConnectionDistance;
 
-        private Dictionary<long, List<Particle>> _grid = new Dictionary<long, List<Particle>>();
-        private Stack<List<Particle>> _listPool = new Stack<List<Particle>>();
+        // [极客优化] 抛弃 Dictionary，预分配一块支持高达 6000x4500 超高分辨率的二维数组
+        // 最大支持 40列 x 30行 的网格划分，彻底转化为 O(1) 内存偏移量寻址
+        private const int MaxGridCols = 40;
+        private const int MaxGridRows = 30;
+        private List<Particle>[,] _gridArray;
+        private int _currentCols = 0;
+        private int _currentRows = 0;
+
         private int _gridCellSize = (int)ConnectionDistance;
 
         // [优化] 预计算透明度颜色表 (0-100)
@@ -41,14 +47,23 @@ namespace BlueSapphire
         public MainWindow()
         {
             this.InitializeComponent();
+
+            // 初始化二维数组网格对象池
+            _gridArray = new List<Particle>[MaxGridCols, MaxGridRows];
+            for (int i = 0; i < MaxGridCols; i++)
+            {
+                for (int j = 0; j < MaxGridRows; j++)
+                {
+                    _gridArray[i, j] = new List<Particle>(16);
+                }
+            }
+
             LoadSettingsFromDisk();
 
             // [优化] 初始化颜色查找表
             _alphaColors = new Color[101];
             for (int i = 0; i <= 100; i++)
             {
-                // 这里的 i 对应之前的 (byte)(alpha * 100)
-                // 颜色保持为 Cyan (0, 255, 255)
                 _alphaColors[i] = Color.FromArgb((byte)i, 0, 255, 255);
             }
 
@@ -101,10 +116,8 @@ namespace BlueSapphire
         [DynamicDependency(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor, typeof(Views.DevLogPage))]
         private void LoadTools()
         {
-            // 移除硬编码的 new，改为通过 DI 容器获取
             RegisterTool(App.Current.Services.GetRequiredService<HomeTool>());
             RegisterTool(App.Current.Services.GetRequiredService<MediaManagerTool>());
-            
         }
 
         private void RegisterTool(ITool tool)
@@ -147,12 +160,18 @@ namespace BlueSapphire
             float width = (float)BackgroundCanvas.ActualWidth;
             float height = (float)BackgroundCanvas.ActualHeight;
 
-            foreach (var list in _grid.Values)
+            // 动态计算当前需要的网格范围（向上取整并限制在最大预分配范围内，防越界）
+            _currentCols = Math.Min((int)(width / _gridCellSize) + 1, MaxGridCols);
+            _currentRows = Math.Min((int)(height / _gridCellSize) + 1, MaxGridRows);
+
+            // 高速清空当前可视范围内的网格数据 (规避 Dictionary.Clear() 造成的哈希桶重置开销)
+            for (int i = 0; i < _currentCols; i++)
             {
-                list.Clear();
-                _listPool.Push(list);
+                for (int j = 0; j < _currentRows; j++)
+                {
+                    _gridArray[i, j].Clear();
+                }
             }
-            _grid.Clear();
 
             foreach (var p in _particles)
             {
@@ -160,14 +179,12 @@ namespace BlueSapphire
 
                 int cellX = (int)(p.Position.X / _gridCellSize);
                 int cellY = (int)(p.Position.Y / _gridCellSize);
-                long key = ((long)cellX << 32) | (uint)cellY;
 
-                if (!_grid.TryGetValue(key, out var cellList))
+                // 边界安全检查，分发到二维数组
+                if (cellX >= 0 && cellX < _currentCols && cellY >= 0 && cellY < _currentRows)
                 {
-                    cellList = _listPool.Count > 0 ? _listPool.Pop() : new List<Particle>(16);
-                    _grid[key] = cellList;
+                    _gridArray[cellX, cellY].Add(p);
                 }
-                cellList.Add(p);
             }
         }
 
@@ -177,36 +194,40 @@ namespace BlueSapphire
 
             var session = args.DrawingSession;
 
-            foreach (var kvp in _grid)
+            // 内存连续寻址，遍历当前屏幕可见的二维网格
+            for (int cellX = 0; cellX < _currentCols; cellX++)
             {
-                long key = kvp.Key;
-                int cellX = (int)(key >> 32);
-                int cellY = (int)(key & 0xFFFFFFFF);
-                var cellParticles = kvp.Value;
-
-                for (int dx = -1; dx <= 1; dx++)
+                for (int cellY = 0; cellY < _currentRows; cellY++)
                 {
-                    for (int dy = -1; dy <= 1; dy++)
+                    var cellParticles = _gridArray[cellX, cellY];
+                    if (cellParticles.Count == 0) continue;
+
+                    for (int dx = -1; dx <= 1; dx++)
                     {
-                        long neighborKey = ((long)(cellX + dx) << 32) | (uint)(cellY + dy);
-                        if (_grid.TryGetValue(neighborKey, out var neighborParticles))
+                        for (int dy = -1; dy <= 1; dy++)
                         {
-                            foreach (var p1 in cellParticles)
+                            int neighborX = cellX + dx;
+                            int neighborY = cellY + dy;
+
+                            if (neighborX >= 0 && neighborX < _currentCols && neighborY >= 0 && neighborY < _currentRows)
                             {
-                                foreach (var p2 in neighborParticles)
+                                var neighborParticles = _gridArray[neighborX, neighborY];
+                                foreach (var p1 in cellParticles)
                                 {
-                                    if (p1 == p2) continue;
-
-                                    var distSq = Vector2.DistanceSquared(p1.Position, p2.Position);
-                                    if (distSq < ConnectionDistanceSq)
+                                    foreach (var p2 in neighborParticles)
                                     {
-                                        float alpha = 1.0f - (float)Math.Sqrt(distSq) / ConnectionDistance;
-                                        // [优化] 直接使用查找表，避免构造 struct
-                                        int index = (int)(alpha * 100);
-                                        if (index < 0) index = 0;
-                                        if (index > 100) index = 100;
+                                        if (p1 == p2) continue;
 
-                                        session.DrawLine(p1.Position, p2.Position, _alphaColors[index], 1);
+                                        var distSq = Vector2.DistanceSquared(p1.Position, p2.Position);
+                                        if (distSq < ConnectionDistanceSq)
+                                        {
+                                            float alpha = 1.0f - (float)Math.Sqrt(distSq) / ConnectionDistance;
+                                            int index = (int)(alpha * 100);
+                                            if (index < 0) index = 0;
+                                            if (index > 100) index = 100;
+
+                                            session.DrawLine(p1.Position, p2.Position, _alphaColors[index], 1);
+                                        }
                                     }
                                 }
                             }
