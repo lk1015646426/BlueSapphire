@@ -24,6 +24,7 @@
 
 		<EnableDefaultPageItems>true</EnableDefaultPageItems>
 		<EnableDefaultCompileItems>true</EnableDefaultCompileItems>
+	    <NoWarn>$(NoWarn);CA1416</NoWarn>
 	</PropertyGroup>
 
 	<ItemGroup>

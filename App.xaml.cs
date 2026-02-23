@@ -78,6 +78,9 @@ namespace BlueSapphire
             // ✅ 新增：注册去重扫描业务服务
             services.AddSingleton<BlueSapphire.Services.MediaDeduplicationService>();
 
+            // 注册我们的本地文件系统服务 (回收站功能)
+            services.AddSingleton<BlueSapphire.Services.NativeFileService>();
+
             // 注册 ViewModel
             services.AddTransient<MediaManagerViewModel>();
 

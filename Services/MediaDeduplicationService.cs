@@ -1,6 +1,6 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -28,32 +28,58 @@ namespace BlueSapphire.Services
 
             if (allFiles.Count < 2) return new List<List<StorageFile>>();
 
-            // 2. 第一级：按大小分组 (Tier 1)
+            // 2. 第一级：按大小分组 (Tier 1) - ✅ 彻底拥抱 WinRT 异步并发标准
             progress?.Report((0, "阶段 1/3: 按大小分组...", ""));
-            var sizeGroups = await Task.Run(() =>
-            {
-                var dict = new Dictionary<ulong, List<StorageFile>>();
-                int processed = 0;
-                foreach (var file in allFiles)
-                {
-                    if (token.IsCancellationRequested) break;
-                    try
-                    {
-                        // 使用我们第一阶段优化过的极速 FileInfo
-                        ulong size = (ulong)new System.IO.FileInfo(file.Path).Length;
-                        if (size > 0)
-                        {
-                            if (!dict.ContainsKey(size)) dict[size] = new List<StorageFile>();
-                            dict[size].Add(file);
-                        }
-                    }
-                    catch { }
 
-                    if (++processed % 200 == 0)
-                        progress?.Report((processed, "阶段 1/3: 按大小分组...", ""));
+            var concurrentDict = new ConcurrentDictionary<ulong, ConcurrentBag<StorageFile>>();
+            int processed = 0;
+            int totalFiles = allFiles.Count;
+
+            // 使用 CPU 逻辑核心数 x 2 作为最优并发量
+            using var semaphore = new SemaphoreSlim(Environment.ProcessorCount * 2);
+
+            var sizeTasks = allFiles.Select(async file =>
+            {
+                if (token.IsCancellationRequested) return;
+
+                await semaphore.WaitAsync(token);
+                try
+                {
+                    // ✅ 核心修复：完全摒弃 System.IO.FileInfo，使用现代标准异步获取属性
+                    // 完美支持 MTP 手机设备、云盘文件和局域网共享文件夹
+                    var props = await file.GetBasicPropertiesAsync();
+                    ulong size = props.Size;
+
+                    if (size > 0)
+                    {
+                        var bag = concurrentDict.GetOrAdd(size, _ => new ConcurrentBag<StorageFile>());
+                        bag.Add(file);
+                    }
                 }
-                return dict.Values.Where(g => g.Count > 1).ToList();
+                catch (Exception ex)
+                {
+                    MatrixLogService.LogError($"Dedupe_GetSize ({file.Name})", ex);
+                }
+                finally
+                {
+                    semaphore.Release();
+                    int current = Interlocked.Increment(ref processed);
+                    if (current % 200 == 0)
+                    {
+                        progress?.Report((current, "阶段 1/3: 按大小分组...", $"{current} / {totalFiles}"));
+                    }
+                }
             });
+
+            await Task.WhenAll(sizeTasks);
+
+            if (token.IsCancellationRequested) return new List<List<StorageFile>>();
+
+            // 将并发字典中数量大于 1 的分组提取出来
+            var sizeGroups = concurrentDict.Values
+                .Where(b => b.Count > 1)
+                .Select(b => b.ToList())
+                .ToList();
 
             int totalSuspects = sizeGroups.Sum(g => g.Count);
             if (totalSuspects == 0) return new List<List<StorageFile>>();

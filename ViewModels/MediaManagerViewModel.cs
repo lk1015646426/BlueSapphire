@@ -10,7 +10,6 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 // [极客优化] 已彻底移除 System.Diagnostics，告别低效的 Debug.WriteLine 阻塞写入
 using System.Linq;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Storage;
@@ -113,18 +112,16 @@ namespace BlueSapphire.ViewModels
 
         private readonly MediaRenameService _renameService;
         private readonly BlueSapphire.Services.MediaDeduplicationService _deduplicationService;
+        private readonly NativeFileService _nativeFileService; // ✅ 回收站服务
 
         public MediaManagerViewModel(
             MediaRenameService renameService,
-            BlueSapphire.Services.MediaDeduplicationService deduplicationService)
+            BlueSapphire.Services.MediaDeduplicationService deduplicationService,
+            NativeFileService nativeFileService)
         {
             _renameService = renameService;
             _deduplicationService = deduplicationService;
-        }
-        public MediaManagerViewModel()
-        {
-            _renameService = null!;
-            _deduplicationService = null!;
+            _nativeFileService = nativeFileService;
         }
 
         public void Initialize(IMediaViewInteraction view, DispatcherQueue dispatcherQueue)
@@ -201,8 +198,8 @@ namespace BlueSapphire.ViewModels
                         }
                         catch (Exception ex)
                         {
-                            // [极客优化] 无锁极速压入异常队列，绝不阻塞并发线程
-                            MatrixLogService.LogError("Rename_GetFile", ex);
+                            // ✅ 修复：改用 item 里的属性，避开未赋值的 file 变量
+                            MatrixLogService.LogError($"Rename_GetFile ({item.FileName ?? item.ImagePath})", ex);
                             return;
                         }
 
@@ -294,7 +291,6 @@ namespace BlueSapphire.ViewModels
             catch (Exception ex)
             {
                 SetBusy(false);
-                // [极客优化] 无锁日志
                 MatrixLogService.LogError("Rename_Process_Critical", ex);
                 await _view.ShowTipAsync($"预处理失败: {ex.Message}");
             }
@@ -345,7 +341,6 @@ namespace BlueSapphire.ViewModels
             catch (Exception ex)
             {
                 SetBusy(false);
-                // [极客优化] 无锁日志
                 MatrixLogService.LogError("Scan_Duplicates_Critical", ex);
                 await _view.ShowTipAsync($"扫描中断: {ex.Message}");
             }
@@ -369,7 +364,6 @@ namespace BlueSapphire.ViewModels
                     }
                     catch (Exception ex)
                     {
-                        // [极客优化] 无锁日志
                         MatrixLogService.LogError("Delete_GetFile", ex);
                     }
                 }
@@ -399,7 +393,6 @@ namespace BlueSapphire.ViewModels
                     catch (Exception ex)
                     {
                         failCount++;
-                        // [极客优化] 携带具体文件名精准捕获报错，且不拖慢并发重命名速度
                         MatrixLogService.LogError($"Rename_Execute ({item.OriginalName})", ex);
                     }
 
@@ -429,8 +422,6 @@ namespace BlueSapphire.ViewModels
             PathText = $"PATH: {folder.Path}";
             IsEmptyStateVisible = false;
 
-            int skippedCount = 0;
-
             try
             {
                 var fileExtensions = new List<string> { ".jpg", ".png", ".jpeg", ".bmp", ".gif", ".webp", ".mp4", ".mov", ".avi", ".wmv", ".mkv", ".heic" };
@@ -445,12 +436,17 @@ namespace BlueSapphire.ViewModels
                     return;
                 }
 
-                foreach (var file in files)
+                // ✅ 极速并发 I/O 架构
+                var concurrentBag = new ConcurrentBag<ImageItem>();
+                using var semaphore = new SemaphoreSlim(Environment.ProcessorCount * 2);
+
+                var tasks = files.Select(async file =>
                 {
+                    await semaphore.WaitAsync();
                     try
                     {
                         var props = await file.GetBasicPropertiesAsync();
-                        _cachedAllItems.Add(new ImageItem
+                        concurrentBag.Add(new ImageItem
                         {
                             FileName = file.Name,
                             ImagePath = file.Path,
@@ -460,23 +456,34 @@ namespace BlueSapphire.ViewModels
                     }
                     catch (Exception ex)
                     {
-                        // [极客优化] 高频遍历受保护的系统级目录时，瞬间记录跳过文件的原因
+                        // 摒弃 Interlocked 原子操作，仅记录日志，让底层纯净执行
                         MatrixLogService.LogError($"Load_File ({file.Name})", ex);
-                        skippedCount++;
                     }
+                    finally
+                    {
+                        semaphore.Release();
+                    }
+                });
+
+                await Task.WhenAll(tasks);
+
+                lock (_cachedAllItems)
+                {
+                    _cachedAllItems.AddRange(concurrentBag);
                 }
 
                 CountText = $"ITEMS: {_cachedAllItems.Count}";
                 RefreshViewFromCache();
 
+                // ✅ 最优解：直接通过总文件数与并发抓取成果的差值计算跳过数量
+                int skippedCount = files.Count - concurrentBag.Count;
                 if (skippedCount > 0)
                 {
-                    await _view.ShowTipAsync($"加载完成，但有 {skippedCount} 个文件因无法读取而被跳过。");
+                    await _view.ShowTipAsync($"加载完成，但有 {skippedCount} 个文件因无法读取或损坏而被跳过。");
                 }
             }
             catch (Exception ex)
             {
-                // [极客优化] 无锁日志
                 MatrixLogService.LogError("Load_Folder_Critical", ex);
                 await _view.ShowTipAsync($"读取失败: {ex.Message}");
                 IsEmptyStateVisible = true;
@@ -489,13 +496,21 @@ namespace BlueSapphire.ViewModels
             if (_cachedAllItems.Count == 0) return;
             _dispatcherQueue.TryEnqueue(() =>
             {
-                IEnumerable<ImageItem> query = _cachedAllItems;
+                // ✅ 加锁提取数据快照，防止与后台任务发生读写冲突
+                List<ImageItem> snapshot;
+                lock (_cachedAllItems)
+                {
+                    snapshot = _cachedAllItems.ToList();
+                }
+
+                IEnumerable<ImageItem> query = snapshot;
                 query = CurrentSortField switch
                 {
                     "Date" => IsSortDescending ? query.OrderByDescending(x => x.DateCreated) : query.OrderBy(x => x.DateCreated),
                     "Size" => IsSortDescending ? query.OrderByDescending(x => x.FileSize) : query.OrderBy(x => x.FileSize),
                     _ => IsSortDescending ? query.OrderByDescending(x => x.FileName) : query.OrderBy(x => x.FileName),
                 };
+
                 var sortedList = query.ToList();
                 Images = new IncrementalLoadingCollection<ImageItem>(async (token, count) =>
                 {
@@ -506,40 +521,61 @@ namespace BlueSapphire.ViewModels
 
         private async Task PerformDeleteFiles(List<StorageFile> files)
         {
-            SetBusy(true, "正在删除...", 0, files.Count);
+            SetBusy(true, "正在移至回收站...", 0, files.Count);
             int deletedCount = 0;
+
             await Task.Run(async () =>
             {
-                foreach (var file in files)
+                // ✅ 引入并发架构加速大批量文件的回收站操作
+                using var semaphore = new SemaphoreSlim(Environment.ProcessorCount * 2);
+
+                var tasks = files.Select(async file =>
                 {
+                    await semaphore.WaitAsync();
                     try
                     {
-                        await file.DeleteAsync();
-                        lock (_cachedAllItems)
+                        bool success = await _nativeFileService.MoveToRecycleBinAsync(file.Path);
+                        if (success)
                         {
-                            var cacheItem = _cachedAllItems.FirstOrDefault(x => x.ImagePath == file.Path);
-                            if (cacheItem != null) _cachedAllItems.Remove(cacheItem);
+                            lock (_cachedAllItems)
+                            {
+                                var cacheItem = _cachedAllItems.FirstOrDefault(x => x.ImagePath == file.Path);
+                                if (cacheItem != null) _cachedAllItems.Remove(cacheItem);
+                            }
+                            Interlocked.Increment(ref deletedCount);
+                        }
+                        else
+                        {
+                            throw new Exception("移动到回收站失败，可能被占用或权限不足");
                         }
                     }
                     catch (Exception ex)
                     {
-                        // [极客优化] 无锁日志记录删除失败明细
                         MatrixLogService.LogError($"Delete_Execute ({file.Name})", ex);
                     }
-                    Interlocked.Increment(ref deletedCount);
-                    if (deletedCount % 10 == 0)
+                    finally
+                    {
+                        semaphore.Release();
+                    }
+
+                    // 局部近似更新，避免主线程刷新堵塞
+                    int current = deletedCount;
+                    if (current % 10 == 0)
                     {
                         _dispatcherQueue.TryEnqueue(() => {
-                            ProgressValue = deletedCount;
-                            StatusMainText = $"正在删除... ({deletedCount}/{files.Count})";
+                            ProgressValue = current;
+                            StatusMainText = $"正在移至回收站... ({current}/{files.Count})";
                         });
                     }
-                }
+                });
+
+                await Task.WhenAll(tasks);
             });
+
             SetBusy(false);
             CountText = $"ITEMS: {_cachedAllItems.Count}";
             RefreshViewFromCache();
-            await _view.ShowTipAsync($"清理完成，共删除 {deletedCount} 个文件。");
+            await _view.ShowTipAsync($"清理完成，共移至回收站 {deletedCount} 个文件。");
         }
 
         private void SetBusy(bool busy, string text = "", double val = 0, double max = 100)

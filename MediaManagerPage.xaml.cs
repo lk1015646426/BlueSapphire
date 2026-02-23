@@ -87,7 +87,7 @@ namespace BlueSapphire
             var dialog = new ContentDialog
             {
                 Title = "删除确认",
-                Content = $"确定要永久删除这 {count} 个文件吗？",
+                Content = $"确定要将这 {count} 个文件移至回收站吗？",
                 PrimaryButtonText = "删除",
                 CloseButtonText = "取消",
                 DefaultButton = ContentDialogButton.Close,
