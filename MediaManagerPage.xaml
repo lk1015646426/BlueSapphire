@@ -11,17 +11,33 @@
     <Page.Resources>
         <local:BoolToVisibleConverter x:Key="BoolToVisibleConverter"/>
         <local:InverseBoolToVisibleConverter x:Key="InverseBoolToVisibleConverter"/>
+
+        <SolidColorBrush x:Key="BgColor" Color="#080D10"/>
+        <SolidColorBrush x:Key="BorderColor" Color="#1AFFFFFF"/>
+        <SolidColorBrush x:Key="TextMain" Color="#E2E8F0"/>
+        <SolidColorBrush x:Key="TextMuted" Color="#64748B"/>
+
+        <SolidColorBrush x:Key="ColorAll" Color="#00D28D"/>
+        <SolidColorBrush x:Key="ColorAllBg" Color="#1A00D28D"/>
+        <SolidColorBrush x:Key="ColorImage" Color="#0EA5E9"/>
+        <SolidColorBrush x:Key="ColorVideo" Color="#A855F7"/>
+        <SolidColorBrush x:Key="ColorAudio" Color="#F59E0B"/>
+        <SolidColorBrush x:Key="ColorDoc" Color="#EAB308"/>
+
+        <SolidColorBrush x:Key="ColorDanger" Color="#EF4444"/>
+        <SolidColorBrush x:Key="ColorDangerBg" Color="#1AEF4444"/>
     </Page.Resources>
 
-    <Grid Background="#CC000000">
+    <Grid Background="{StaticResource BgColor}">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <Grid Grid.Row="0" Margin="20" Padding="20,15" CornerRadius="8"
-              Background="#05FFFFFF" BorderBrush="#15FFFFFF" BorderThickness="1">
+        <Grid Grid.Row="0" Padding="25,15" BorderBrush="{StaticResource BorderColor}" BorderThickness="0,0,0,1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
@@ -29,116 +45,236 @@
             </Grid.ColumnDefinitions>
 
             <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                <TextBlock Text="MEDIA MANAGER" FontSize="12" Opacity="0.5" CharacterSpacing="100" Foreground="#A0FFFFFF"/>
-                <TextBlock Text="媒体管家" FontSize="20" FontWeight="Bold" Foreground="White"/>
+                <TextBlock Text="MEDIA MANAGER" FontSize="10" Foreground="{StaticResource TextMuted}" CharacterSpacing="100"/>
+                <TextBlock Text="媒体管家" FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource TextMain}" CharacterSpacing="20" Margin="0,2,0,0"/>
             </StackPanel>
 
-            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12">
-                <DropDownButton Content="{x:Bind ViewModel.CurrentSortField, Mode=OneWay}" 
-                                CornerRadius="4" VerticalAlignment="Center">
+            <Button Grid.Column="2" Command="{x:Bind ViewModel.OpenFolderCommand}" 
+                    Background="{StaticResource ColorAllBg}" BorderBrush="{StaticResource ColorAll}" 
+                    BorderThickness="1" CornerRadius="6" Padding="15,8" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE8B5;" Foreground="{StaticResource ColorAll}" FontSize="14"/>
+                    <TextBlock Text="导入数据源" Foreground="{StaticResource ColorAll}" FontSize="13" FontWeight="SemiBold"/>
+                </StackPanel>
+            </Button>
+        </Grid>
+
+        <StackPanel x:Name="TabsContainer" Grid.Row="1" Orientation="Horizontal" Padding="25,0" BorderBrush="{StaticResource BorderColor}" BorderThickness="0,0,0,1" Spacing="30">
+            <Border x:Name="TabAll" Tapped="Tab_Tapped" Tag="All" Background="Transparent" BorderBrush="{StaticResource ColorAll}" BorderThickness="0,0,0,2" Padding="0,15">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE81E;" Foreground="{StaticResource ColorAll}" FontSize="14"/>
+                    <TextBlock Text="全部文件" Foreground="{StaticResource ColorAll}" FontSize="14"/>
+                </StackPanel>
+            </Border>
+
+            <Border x:Name="TabImage" Tapped="Tab_Tapped" Tag="Image" Background="Transparent" BorderThickness="0,0,0,2" Padding="0,15" Opacity="0.5">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE8B9;" Foreground="{StaticResource TextMain}" FontSize="14"/>
+                    <TextBlock Text="图片" Foreground="{StaticResource TextMain}" FontSize="14"/>
+                </StackPanel>
+            </Border>
+
+            <Border x:Name="TabVideo" Tapped="Tab_Tapped" Tag="Video" Background="Transparent" BorderThickness="0,0,0,2" Padding="0,15" Opacity="0.5">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE714;" Foreground="{StaticResource TextMain}" FontSize="14"/>
+                    <TextBlock Text="视频" Foreground="{StaticResource TextMain}" FontSize="14"/>
+                </StackPanel>
+            </Border>
+
+            <Border x:Name="TabAudio" Tapped="Tab_Tapped" Tag="Audio" Background="Transparent" BorderThickness="0,0,0,2" Padding="0,15" Opacity="0.5">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE8D6;" Foreground="{StaticResource TextMain}" FontSize="14"/>
+                    <TextBlock Text="音频" Foreground="{StaticResource TextMain}" FontSize="14"/>
+                </StackPanel>
+            </Border>
+
+            <Border x:Name="TabDoc" Tapped="Tab_Tapped" Tag="Doc" Background="Transparent" BorderThickness="0,0,0,2" Padding="0,15" Opacity="0.5">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE8A5;" Foreground="{StaticResource TextMain}" FontSize="14"/>
+                    <TextBlock Text="文档" Foreground="{StaticResource TextMain}" FontSize="14"/>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <Grid Grid.Row="2" Padding="25,15" MinHeight="60">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                <StackPanel.ChildrenTransitions>
+                    <TransitionCollection>
+                        <RepositionThemeTransition />
+                        <AddDeleteThemeTransition />
+                    </TransitionCollection>
+                </StackPanel.ChildrenTransitions>
+
+                <DropDownButton Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource TextMain}" BorderThickness="1" CornerRadius="4" Padding="12,6">
+                    <DropDownButton.Content>
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE8CB;" FontSize="12"/>
+                            <TextBlock Text="{x:Bind GetSortButtonText(ViewModel.CurrentSortField), Mode=OneWay}" FontSize="13" VerticalAlignment="Center"/>
+                            <FontIcon Glyph="&#xE0E3;" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextMuted}" Margin="4,0,0,0"/>
+                        </StackPanel>
+                    </DropDownButton.Content>
                     <DropDownButton.Flyout>
                         <MenuFlyout Placement="Bottom">
                             <MenuFlyoutItem Text="按名称" Command="{x:Bind ViewModel.ChangeSortCommand}" CommandParameter="Name"/>
                             <MenuFlyoutItem Text="按日期" Command="{x:Bind ViewModel.ChangeSortCommand}" CommandParameter="Date"/>
                             <MenuFlyoutItem Text="按大小" Command="{x:Bind ViewModel.ChangeSortCommand}" CommandParameter="Size"/>
+
+                            <MenuFlyoutSeparator Background="{StaticResource BorderColor}"/>
+
+                            <MenuFlyoutItem Text="切换 升序/降序" Command="{x:Bind ViewModel.ToggleSortDirectionCommand}">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE8CB;"/>
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
                         </MenuFlyout>
                     </DropDownButton.Flyout>
                 </DropDownButton>
+                <Border Width="1" Background="{StaticResource BorderColor}" Margin="5,0"/>
 
-                <ToggleButton IsChecked="{x:Bind ViewModel.IsSortDescending, Mode=OneWay}" 
-                              Command="{x:Bind ViewModel.ToggleSortDirectionCommand}"
-                              CornerRadius="4" VerticalAlignment="Center" Padding="10,6">
-                    <FontIcon Glyph="&#xE74B;" FontSize="12"/>
-                </ToggleButton>
-
-                <AppBarSeparator Foreground="#30FFFFFF" Margin="5,0"/>
-
-                <Button Command="{x:Bind ViewModel.RenameSelectedCommand}" 
-                        CommandParameter="{x:Bind ImageGrid.SelectedItems, Mode=OneWay}"
-                        Background="#2000FF00" BorderBrush="#4000FF00" BorderThickness="1"
-                        Padding="12,8" CornerRadius="4" ToolTipService.ToolTip="按拍摄日期重命名选中项">
-                    <SymbolIcon Symbol="Rename" Foreground="#00FF00"/>
+                <Button Command="{x:Bind ViewModel.RenameSelectedCommand}" CommandParameter="{x:Bind ImageGrid.SelectedItems, Mode=OneWay}"
+                        Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource TextMain}" BorderThickness="1" CornerRadius="4" Padding="12,6">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE8AC;" FontSize="12"/>
+                        <TextBlock Text="重命名" FontSize="13"/>
+                    </StackPanel>
                 </Button>
 
-                <DropDownButton Background="#20FFD700" BorderBrush="#40FFD700" BorderThickness="1"
-                                Padding="12,8" CornerRadius="4" ToolTipService.ToolTip="扫描重复/相似文件">
+                <DropDownButton Visibility="{x:Bind ViewModel.IsTypeDoc, Mode=OneWay, Converter={StaticResource InverseBoolToVisibleConverter}}"
+                                Background="{StaticResource ColorAllBg}" BorderBrush="{StaticResource ColorAll}" BorderThickness="1" CornerRadius="4" Padding="12,6">
                     <DropDownButton.Content>
-                        <SymbolIcon Symbol="Filter" Foreground="#FFD700"/>
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE74C;" Foreground="{StaticResource ColorAll}" FontSize="12"/>
+                            <TextBlock Text="扫描去重" Foreground="{StaticResource ColorAll}" FontSize="13"/>
+                        </StackPanel>
                     </DropDownButton.Content>
                     <DropDownButton.Flyout>
                         <MenuFlyout Placement="Bottom">
-                            <MenuFlyoutItem Text="精确扫描 (查找 100% 相同克隆)" 
-                                            Command="{x:Bind ViewModel.ScanDuplicatesCommand}" 
-                                            CommandParameter="Exact">
+                            <MenuFlyoutItem Text="精确扫描" Command="{x:Bind ViewModel.ScanDuplicatesCommand}" CommandParameter="Exact">
                                 <MenuFlyoutItem.Icon>
-                                    <FontIcon Glyph="&#xE8B0;" />
+                                    <FontIcon Glyph="&#xE8B0;"/>
                                 </MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
-
-                            <MenuFlyoutItem Text="智能扫描 (去重留清 / 相似照片)" 
-                                            Command="{x:Bind ViewModel.ScanDuplicatesCommand}" 
-                                            CommandParameter="Similar">
+                            <MenuFlyoutItem Text="智能扫描" Command="{x:Bind ViewModel.ScanDuplicatesCommand}" CommandParameter="Similar">
                                 <MenuFlyoutItem.Icon>
-                                    <FontIcon Glyph="&#xE824;" />
+                                    <FontIcon Glyph="&#xE824;"/>
                                 </MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
                         </MenuFlyout>
                     </DropDownButton.Flyout>
                 </DropDownButton>
 
-                <Button Click="OnDeleteClicked" 
-                        Background="#20FF0000" BorderBrush="#40FF0000" BorderThickness="1"
-                        Padding="12,8" CornerRadius="4" ToolTipService.ToolTip="删除选中项">
-                    <SymbolIcon Symbol="Delete" Foreground="#FF4444"/>
+                <Button Visibility="{x:Bind ViewModel.IsTypeImage, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}" Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorImage}" BorderThickness="1" CornerRadius="4" Padding="12,6">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE7A8;" FontSize="12"/>
+                        <TextBlock Text="裁剪" FontSize="13"/>
+                    </StackPanel>
+                </Button>
+                <Button Visibility="{x:Bind ViewModel.IsTypeImage, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}" Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorVideo}" BorderThickness="1" CornerRadius="4" Padding="12,6">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE945;" FontSize="12"/>
+                        <TextBlock Text="AI 增强" FontSize="13"/>
+                    </StackPanel>
                 </Button>
 
-                <Button Command="{x:Bind ViewModel.OpenFolderCommand}" 
-                        Background="#1000FFFF" BorderBrush="#3000FFFF" BorderThickness="1"
-                        Padding="15,8" CornerRadius="4">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <SymbolIcon Symbol="Folder" Foreground="#00FFFF"/>
-                        <TextBlock Text="导入数据源" Foreground="White"/>
+                <Button Visibility="{x:Bind ViewModel.IsTypeVideo, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}" Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorVideo}" BorderThickness="1" CornerRadius="4" Padding="12,6">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xED15;" FontSize="12"/>
+                        <TextBlock Text="提取字幕" FontSize="13"/>
+                    </StackPanel>
+                </Button>
+                <Button Visibility="{x:Bind ViewModel.IsTypeVideo, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}" Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorAudio}" BorderThickness="1" CornerRadius="4" Padding="12,6">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE8D6;" FontSize="12"/>
+                        <TextBlock Text="提取音轨" FontSize="13"/>
+                    </StackPanel>
+                </Button>
+
+                <Button Visibility="{x:Bind ViewModel.IsTypeAudio, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}" Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorAudio}" BorderThickness="1" CornerRadius="4" Padding="12,6">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE8D5;" FontSize="12"/>
+                        <TextBlock Text="格式转换" FontSize="13"/>
+                    </StackPanel>
+                </Button>
+
+                <Button Visibility="{x:Bind ViewModel.IsTypeDoc, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}" Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorDoc}" BorderThickness="1" CornerRadius="4" Padding="12,6">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE8DA;" FontSize="12"/>
+                        <TextBlock Text="打开位置" FontSize="13"/>
+                    </StackPanel>
+                </Button>
+
+                <Button Visibility="{x:Bind ViewModel.IsTypeAll, Mode=OneWay, Converter={StaticResource InverseBoolToVisibleConverter}}" Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource TextMain}" BorderThickness="1" CornerRadius="4" Padding="12,6">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE8EC;" FontSize="12"/>
+                        <TextBlock Text="打标签" FontSize="13"/>
+                    </StackPanel>
+                </Button>
+
+                <Button Click="OnDeleteClicked" Background="{StaticResource ColorDangerBg}" BorderBrush="{StaticResource ColorDanger}" BorderThickness="1" CornerRadius="4" Padding="12,6">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE74D;" Foreground="{StaticResource ColorDanger}" FontSize="12"/>
+                        <TextBlock Text="删除" Foreground="{StaticResource ColorDanger}" FontSize="13"/>
                     </StackPanel>
                 </Button>
             </StackPanel>
+
+            <Border Grid.Column="1" BorderBrush="{x:Bind GetThemeBrush(ViewModel.CurrentMediaType), Mode=OneWay}" BorderThickness="1" CornerRadius="12" Padding="12,4" VerticalAlignment="Center">
+                <TextBlock Text="{x:Bind ViewModel.ContextModeText, Mode=OneWay}" Foreground="{x:Bind GetThemeBrush(ViewModel.CurrentMediaType), Mode=OneWay}" FontSize="12"/>
+            </Border>
         </Grid>
 
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="3" Background="Transparent">
+            <Grid.ChildrenTransitions>
+                <TransitionCollection>
+                    <EntranceThemeTransition FromVerticalOffset="20"/>
+                </TransitionCollection>
+            </Grid.ChildrenTransitions>
+
             <GridView x:Name="ImageGrid" 
                       ItemsSource="{x:Bind ViewModel.Images, Mode=OneWay}"
                       ContainerContentChanging="ImageGrid_ContainerContentChanging"
-                      Padding="20,0,20,20"
-                      SelectionMode="Multiple"
-                      DoubleTapped="ImageGrid_DoubleTapped"
-                      IsDoubleTapEnabled="True">
+                      Padding="25,0,25,25" SelectionMode="Multiple" DoubleTapped="ImageGrid_DoubleTapped" IsDoubleTapEnabled="True">
+
+                <GridView.ItemContainerTransitions>
+                    <TransitionCollection>
+                        <AddDeleteThemeTransition/>
+                        <RepositionThemeTransition/>
+                    </TransitionCollection>
+                </GridView.ItemContainerTransitions>
+
                 <GridView.ItemTemplate>
                     <DataTemplate x:DataType="models:ImageItem">
-                        <Grid Width="180" Height="230" Margin="6" Background="#08FFFFFF" CornerRadius="6" BorderBrush="#15FFFFFF" BorderThickness="1">
+                        <Grid Width="180" Height="230" Margin="8" Background="#0AFFFFFF" CornerRadius="8" BorderBrush="{StaticResource BorderColor}" BorderThickness="1">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="*"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             <Grid Grid.Row="0">
-                                <Rectangle Fill="#2000FFFF" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="6"/>
-                                <ProgressRing IsActive="{x:Bind IsImageLoading, Mode=OneWay}" Width="30" Height="30" Foreground="#00FFFF"/>
+                                <Rectangle Fill="#0AFFFFFF" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="6" RadiusX="4" RadiusY="4"/>
+                                <ProgressRing IsActive="{x:Bind IsImageLoading, Mode=OneWay}" Width="30" Height="30" Foreground="{StaticResource ColorAll}"/>
                                 <Image Source="{x:Bind ImageSource, Mode=OneWay}" Stretch="UniformToFill" Margin="6" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Grid>
-                            <Grid Grid.Row="1" Background="#80000000" Padding="8" CornerRadius="0,0,6,6">
+                            <Grid Grid.Row="1" Background="#80000000" Padding="10,8" CornerRadius="0,0,8,8">
                                 <StackPanel>
-                                    <TextBlock Text="{x:Bind FileName}" Foreground="#CCFFFFFF" FontSize="12" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind FileName}"/>
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8" Margin="0,2,0,0">
-                                        <TextBlock Text="{x:Bind DateCreatedString}" Foreground="#80FFFFFF" FontSize="10"/>
-                                        <TextBlock Text="|" Foreground="#40FFFFFF" FontSize="10"/>
-                                        <TextBlock Text="{x:Bind FileSizeString}" Foreground="#00FFFF" FontSize="10" FontWeight="SemiBold"/>
-                                    </StackPanel>
+                                    <TextBlock Text="{x:Bind FileName}" Foreground="{StaticResource TextMain}" FontSize="12" TextTrimming="CharacterEllipsis"/>
+                                    <Grid Margin="0,4,0,0">
+                                        <TextBlock Text="{x:Bind DateCreatedString}" Foreground="{StaticResource TextMuted}" FontSize="10" HorizontalAlignment="Left"/>
+                                        <TextBlock Text="{x:Bind FileSizeString}" Foreground="{StaticResource ColorAll}" FontSize="10" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                                    </Grid>
                                 </StackPanel>
                             </Grid>
                             <VisualStateManager.VisualStateGroups>
                                 <VisualStateGroup x:Name="CommonStates">
                                     <VisualState x:Name="Selected">
                                         <VisualState.Setters>
-                                            <Setter Target="Grid.BorderBrush" Value="#00FFFF"/>
+                                            <Setter Target="Grid.BorderBrush" Value="{StaticResource ColorAll}"/>
                                             <Setter Target="Grid.BorderThickness" Value="2"/>
+                                            <Setter Target="Grid.Background" Value="{StaticResource ColorAllBg}"/>
                                         </VisualState.Setters>
                                     </VisualState>
                                     <VisualState x:Name="Normal"/>
@@ -149,44 +285,52 @@
                 </GridView.ItemTemplate>
             </GridView>
 
-            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="20" Opacity="0.4"
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="20"
                         Visibility="{x:Bind ViewModel.IsEmptyStateVisible, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
-                <Viewbox Width="120" Height="120">
-                    <SymbolIcon Symbol="Pictures" Foreground="#40FFFFFF"/>
-                </Viewbox>
-                <TextBlock Text="等待接入媒体库..." FontSize="18" HorizontalAlignment="Center" Foreground="#80FFFFFF"/>
-                <TextBlock Text="点击右上角按钮开始扫描" FontSize="14" HorizontalAlignment="Center" Opacity="0.5" Foreground="#80FFFFFF"/>
+                <StackPanel.Transitions>
+                    <TransitionCollection>
+                        <EntranceThemeTransition FromVerticalOffset="30" IsStaggeringEnabled="True"/>
+                    </TransitionCollection>
+                </StackPanel.Transitions>
+                <Border Width="80" Height="80" CornerRadius="16" Background="#03FFFFFF" 
+                        BorderBrush="{x:Bind GetThemeBrush(ViewModel.CurrentMediaType), Mode=OneWay}" BorderThickness="1" HorizontalAlignment="Center">
+                    <FontIcon Glyph="{x:Bind ViewModel.EmptyStateIconGlyph, Mode=OneWay}" Foreground="{x:Bind GetThemeBrush(ViewModel.CurrentMediaType), Mode=OneWay}" FontSize="32" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <StackPanel Spacing="6">
+                    <TextBlock Text="{x:Bind ViewModel.EmptyStateText, Mode=OneWay}" FontSize="16" Foreground="{x:Bind GetThemeBrush(ViewModel.CurrentMediaType), Mode=OneWay}" HorizontalAlignment="Center"/>
+                    <TextBlock Text="点击右上角「导入数据源」开始。" FontSize="13" Foreground="{StaticResource TextMuted}" HorizontalAlignment="Center"/>
+                </StackPanel>
             </StackPanel>
 
-            <Grid Background="#CC000000" 
-                  Visibility="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                  HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+            <Grid Background="#D905080A" Visibility="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
                 <StackPanel Orientation="Vertical" Spacing="15" HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <ProgressRing IsActive="True" Width="50" Height="50" Foreground="#00FFFF"/>
-                    <TextBlock Text="{x:Bind ViewModel.StatusMainText, Mode=OneWay}" FontSize="16" Foreground="#00FFFF" HorizontalAlignment="Center"/>
-                    <TextBlock Text="{x:Bind ViewModel.StatusDetailText, Mode=OneWay}" FontSize="14" Foreground="#80FFFFFF" HorizontalAlignment="Center"/>
-                    <ProgressBar Value="{x:Bind ViewModel.ProgressValue, Mode=OneWay}" 
-                                 Maximum="{x:Bind ViewModel.ProgressMax, Mode=OneWay}"
+                    <ProgressRing IsActive="True" Width="50" Height="50" Foreground="{StaticResource ColorAll}"/>
+                    <TextBlock Text="{x:Bind ViewModel.StatusMainText, Mode=OneWay}" FontSize="16" Foreground="{StaticResource ColorAll}" HorizontalAlignment="Center"/>
+                    <TextBlock Text="{x:Bind ViewModel.StatusDetailText, Mode=OneWay}" FontSize="14" Foreground="{StaticResource TextMain}" HorizontalAlignment="Center"/>
+                    <ProgressBar Value="{x:Bind ViewModel.ProgressValue, Mode=OneWay}" Maximum="{x:Bind ViewModel.ProgressMax, Mode=OneWay}"
                                  Visibility="{x:Bind ViewModel.IsProgressVisible, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                                 Background="#2000FFFF" Foreground="#00FFFF" Height="4" Width="200"/>
+                                 Background="#20FFFFFF" Foreground="{StaticResource ColorAll}" Height="4" Width="250" CornerRadius="2"/>
                 </StackPanel>
             </Grid>
         </Grid>
 
-        <Grid Grid.Row="2" Background="#60000000" BorderBrush="#20FFFFFF" BorderThickness="0,1,0,0" Padding="15,6">
+        <Grid Grid.Row="4" Background="#05080A" BorderBrush="{StaticResource BorderColor}" BorderThickness="0,1,0,0" Padding="25,0" Height="30">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="15">
-                <TextBlock Text="STATUS: OK" FontSize="10" Foreground="#00FF00" VerticalAlignment="Center"/>
-                <AppBarSeparator Foreground="#40FFFFFF"/>
-                <TextBlock Text="{x:Bind ViewModel.CountText, Mode=OneWay}" FontSize="12" Opacity="0.7" Foreground="#E0FFFFFF" VerticalAlignment="Center"/>
+
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="25">
+                <TextBlock Text="OK" FontSize="12" FontWeight="Bold" Foreground="{StaticResource ColorAll}" VerticalAlignment="Center"/>
+                <TextBlock Text="{x:Bind ViewModel.TabStatusText, Mode=OneWay}" FontSize="12" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center"/>
+                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                    <TextBlock Text="ITEMS:" FontSize="12" Foreground="{StaticResource TextMuted}"/>
+                    <TextBlock Text="{x:Bind ViewModel.CountText, Mode=OneWay}" FontSize="12" Foreground="{StaticResource TextMuted}"/>
+                </StackPanel>
             </StackPanel>
-            <TextBlock Grid.Column="1" Text="{x:Bind ViewModel.PathText, Mode=OneWay}" 
-                       FontSize="12" Opacity="0.5" Foreground="#E0FFFFFF" HorizontalAlignment="Right" VerticalAlignment="Center" 
-                       TextTrimming="CharacterEllipsis" Margin="20,0,0,0"/>
+
+            <TextBlock Grid.Column="2" Text="{x:Bind ViewModel.PathText, Mode=OneWay}" FontSize="12" Foreground="{StaticResource TextMuted}" HorizontalAlignment="Right" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
         </Grid>
     </Grid>
 </Page>

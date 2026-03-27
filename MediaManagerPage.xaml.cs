@@ -157,5 +157,84 @@ namespace BlueSapphire
             var result = await dialog.ShowAsync();
             return result == ContentDialogResult.Primary ? textBox.Text : null;
         }
+
+        // ================= 处理 Tab 点击切换 =================
+        private void Tab_Tapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+        {
+            if (sender is Border clickedTab && clickedTab.Tag is string mediaType)
+            {
+                // 1. 调用 ViewModel 执行过滤
+                ViewModel.ChangeMediaTypeCommand.Execute(mediaType);
+
+                // 2. 更新 UI 视觉状态
+                ResetAllTabsVisuals();
+
+                // 3. 高亮当前选中的 Tab
+                clickedTab.Opacity = 1.0;
+
+                // 根据类型获取对应的颜色和图标
+                var textBlock = (TextBlock)((StackPanel)clickedTab.Child).Children[1];
+                var icon = (FontIcon)((StackPanel)clickedTab.Child).Children[0];
+
+                // ✅ 修复：将 Application.Current.Resources 替换为 this.Resources，从当前页面准确获取颜色
+                var brush = mediaType switch
+                {
+                    "Image" => (Microsoft.UI.Xaml.Media.SolidColorBrush)this.Resources["ColorImage"],
+                    "Video" => (Microsoft.UI.Xaml.Media.SolidColorBrush)this.Resources["ColorVideo"],
+                    "Audio" => (Microsoft.UI.Xaml.Media.SolidColorBrush)this.Resources["ColorAll"],
+                    "Doc" => (Microsoft.UI.Xaml.Media.SolidColorBrush)this.Resources["ColorAll"],
+                    _ => (Microsoft.UI.Xaml.Media.SolidColorBrush)this.Resources["ColorAll"]
+                };
+
+                clickedTab.BorderBrush = brush;
+                textBlock.Foreground = brush;
+                icon.Foreground = brush;
+            }
+        }
+
+        // 还原所有 Tab 到未选中状态
+        private void ResetAllTabsVisuals()
+        {
+            // ✅ 修复：将 Application.Current.Resources 替换为 this.Resources
+            var defaultBrush = (Microsoft.UI.Xaml.Media.SolidColorBrush)this.Resources["TextMain"];
+
+            Border[] tabs = { TabAll, TabImage, TabVideo, TabAudio, TabDoc };
+            foreach (var tab in tabs)
+            {
+                tab.Opacity = 0.5;
+                tab.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+
+                var stack = (StackPanel)tab.Child;
+                ((FontIcon)stack.Children[0]).Foreground = defaultBrush;
+                ((TextBlock)stack.Children[1]).Foreground = defaultBrush;
+            }
+        }
+
+        // 为 XAML 提供动态颜色绑定的辅助方法
+        public Microsoft.UI.Xaml.Media.SolidColorBrush GetThemeBrush(string mediaType)
+        {
+            var key = mediaType switch
+            {
+                "Image" => "ColorImage",
+                "Video" => "ColorVideo",
+                "Audio" => "ColorAudio",
+                "Doc" => "ColorDoc",
+                _ => "ColorAll"
+            };
+            return (Microsoft.UI.Xaml.Media.SolidColorBrush)this.Resources[key];
+        }
+
+        // 为合并后的排序按钮提供动态的中文文字转换
+        public string GetSortButtonText(string sortField)
+        {
+            var name = sortField switch
+            {
+                "Date" => "日期",
+                "Size" => "大小",
+                _ => "名称"
+            };
+            return $"排序: {name}";
+        }
+
     }
 }

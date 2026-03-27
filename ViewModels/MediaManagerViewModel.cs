@@ -109,6 +109,53 @@ namespace BlueSapphire.ViewModels
             get => _isSortDescending;
             set => SetProperty(ref _isSortDescending, value);
         }
+        private string _currentMediaType = "All";
+        public string CurrentMediaType
+        {
+            get => _currentMediaType;
+            set => SetProperty(ref _currentMediaType, value);
+        }
+
+        // ====== 新增：用于动态 UI 绑定的状态属性 ======
+        public bool IsTypeAll => CurrentMediaType == "All";
+        public bool IsTypeImage => CurrentMediaType == "Image";
+        public bool IsTypeVideo => CurrentMediaType == "Video";
+        public bool IsTypeAudio => CurrentMediaType == "Audio";
+        public bool IsTypeDoc => CurrentMediaType == "Doc";
+
+        public string EmptyStateText => $"等待接入{(CurrentMediaType switch { "Image" => "图片", "Video" => "视频", "Audio" => "音频", "Doc" => "文档", _ => "全部文件" })}媒体库...";
+        public string ContextModeText => $"{(CurrentMediaType switch { "Image" => "图片", "Video" => "视频", "Audio" => "音频", "Doc" => "文档", _ => "全部文件" })} · 上下文模式";
+        public string TabStatusText => $"TAB: {(CurrentMediaType switch { "Image" => "图片", "Video" => "视频", "Audio" => "音频", "Doc" => "文档", _ => "全部文件" })}";
+        public string EmptyStateIconGlyph => CurrentMediaType switch { "Image" => "\uE8B9", "Video" => "\uE714", "Audio" => "\uE8D6", "Doc" => "\uE8A5", _ => "\uE81E" };
+        // ===============================================
+
+        [RelayCommand]
+        private void ChangeMediaType(string mediaType)
+        {
+            if (CurrentMediaType == mediaType) return;
+            CurrentMediaType = mediaType;
+
+            // 告诉界面：这些状态改变了，请立刻更新对应的文字、图标和工具栏！
+            OnPropertyChanged(nameof(IsTypeAll));
+            OnPropertyChanged(nameof(IsTypeImage));
+            OnPropertyChanged(nameof(IsTypeVideo));
+            OnPropertyChanged(nameof(IsTypeAudio));
+            OnPropertyChanged(nameof(IsTypeDoc));
+            OnPropertyChanged(nameof(EmptyStateText));
+            OnPropertyChanged(nameof(ContextModeText));
+            OnPropertyChanged(nameof(TabStatusText));
+            OnPropertyChanged(nameof(EmptyStateIconGlyph));
+
+            RefreshViewFromCache(); // 重新刷新视图里的数据
+        }
+
+        // ✅ 修复警告：fileName 加上了 ?，表示允许传入 null 引用
+        private bool HasExtension(string? fileName, params string[] exts)
+        {
+            if (string.IsNullOrEmpty(fileName)) return false;
+            string ext = System.IO.Path.GetExtension(fileName).ToLower();
+            return exts.Contains(ext);
+        }
 
         private readonly MediaRenameService _renameService;
         private readonly BlueSapphire.Services.MediaDeduplicationService _deduplicationService;
@@ -507,7 +554,16 @@ namespace BlueSapphire.ViewModels
 
             try
             {
-                var fileExtensions = new List<string> { ".jpg", ".png", ".jpeg", ".bmp", ".gif", ".webp", ".mp4", ".mov", ".avi", ".wmv", ".mkv", ".heic" };
+                var fileExtensions = new List<string> { 
+                    // 图片
+                    ".jpg", ".png", ".jpeg", ".bmp", ".gif", ".webp", ".heic", 
+                    // 视频
+                    ".mp4", ".mov", ".avi", ".wmv", ".mkv",
+                    // 音频
+                    ".mp3", ".wav", ".flac", ".aac", ".m4a",
+                    // 文档
+                    ".txt", ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx"
+                };
                 var queryOptions = new QueryOptions(CommonFileQuery.DefaultQuery, fileExtensions) { FolderDepth = FolderDepth.Deep };
                 var files = await folder.CreateFileQueryWithOptions(queryOptions).GetFilesAsync();
 
@@ -579,19 +635,36 @@ namespace BlueSapphire.ViewModels
             if (_cachedAllItems.Count == 0) return;
             _dispatcherQueue.TryEnqueue(() =>
             {
-                // ✅ 加锁提取数据快照，防止与后台任务发生读写冲突
                 List<ImageItem> snapshot;
                 lock (_cachedAllItems)
                 {
                     snapshot = _cachedAllItems.ToList();
                 }
 
+                // 1. 按媒体类型过滤
                 IEnumerable<ImageItem> query = snapshot;
+                query = CurrentMediaType switch
+                {
+                    "Image" => query.Where(x => HasExtension(x.FileName, ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".heic")),
+                    "Video" => query.Where(x => HasExtension(x.FileName, ".mp4", ".mov", ".avi", ".wmv", ".mkv")),
+                    "Audio" => query.Where(x => HasExtension(x.FileName, ".mp3", ".wav", ".flac", ".aac", ".m4a")),
+                    "Doc" => query.Where(x => HasExtension(x.FileName, ".txt", ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx")),
+                    _ => query // "All"
+                };
+
+                // 2. 更新底部状态栏的文件数量（仅显示当前分类的数量）
+                var filteredList = query.ToList();
+                CountText = $"ITEMS: {filteredList.Count}";
+
+                // 如果当前分类下没有文件，可以在此处通过拓展代码显示空状态，暂且保持原有逻辑
+                IsEmptyStateVisible = filteredList.Count == 0;
+
+                // 3. 执行排序
                 query = CurrentSortField switch
                 {
-                    "Date" => IsSortDescending ? query.OrderByDescending(x => x.DateCreated) : query.OrderBy(x => x.DateCreated),
-                    "Size" => IsSortDescending ? query.OrderByDescending(x => x.FileSize) : query.OrderBy(x => x.FileSize),
-                    _ => IsSortDescending ? query.OrderByDescending(x => x.FileName) : query.OrderBy(x => x.FileName),
+                    "Date" => IsSortDescending ? filteredList.OrderByDescending(x => x.DateCreated) : filteredList.OrderBy(x => x.DateCreated),
+                    "Size" => IsSortDescending ? filteredList.OrderByDescending(x => x.FileSize) : filteredList.OrderBy(x => x.FileSize),
+                    _ => IsSortDescending ? filteredList.OrderByDescending(x => x.FileName) : filteredList.OrderBy(x => x.FileName),
                 };
 
                 var sortedList = query.ToList();
