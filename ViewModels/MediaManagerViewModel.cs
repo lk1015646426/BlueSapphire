@@ -170,7 +170,6 @@ namespace BlueSapphire.ViewModels
 
             SetBusy(true, "正在并发分析文件属性...");
             var previewList = new ConcurrentBag<RenamePreviewItem>();
-            int skippedCount = 0;
 
             var existingFiles = await _currentFolder.GetFilesAsync();
             var allFilenames = new ConcurrentDictionary<string, byte>(
@@ -181,8 +180,10 @@ namespace BlueSapphire.ViewModels
                 var items = selectedItems.Cast<ImageItem>().ToList();
                 int total = items.Count;
                 int processed = 0;
+                int ghostCount = 0; // ✅ 新增：幽灵文件计数器
 
                 using var semaphore = new SemaphoreSlim(8);
+                var noDateFiles = new ConcurrentBag<StorageFile>();
 
                 var tasks = items.Select(async item =>
                 {
@@ -196,9 +197,22 @@ namespace BlueSapphire.ViewModels
                         {
                             file = await StorageFile.GetFileFromPathAsync(item.ImagePath);
                         }
+                        catch (Exception ex) when (ex is System.IO.FileNotFoundException || ex.HResult == unchecked((int)0x80070002))
+                        {
+                            // ✅ 幽灵文件容错
+                            Interlocked.Increment(ref ghostCount); // 记录幽灵数量
+                            _dispatcherQueue.TryEnqueue(() => {
+                                lock (_cachedAllItems)
+                                {
+                                    var ghost = _cachedAllItems.FirstOrDefault(x => x.ImagePath == item.ImagePath);
+                                    if (ghost != null) _cachedAllItems.Remove(ghost);
+                                }
+                                RefreshViewFromCache();
+                            });
+                            return;
+                        }
                         catch (Exception ex)
                         {
-                            // ✅ 修复：改用 item 里的属性，避开未赋值的 file 变量
                             MatrixLogService.LogError($"Rename_GetFile ({item.FileName ?? item.ImagePath})", ex);
                             return;
                         }
@@ -206,16 +220,14 @@ namespace BlueSapphire.ViewModels
                         var props = await file.Properties.GetImagePropertiesAsync();
                         DateTimeOffset targetTime = props.DateTaken;
 
-                        bool isInvalidTime = targetTime == DateTimeOffset.MinValue || targetTime.Year < 1900;
-
-                        if (isInvalidTime)
+                        if (targetTime == DateTimeOffset.MinValue || targetTime.Year < 1900)
                         {
                             targetTime = await _renameService.SmartParseDateAsync(file);
                         }
 
                         if (targetTime == DateTimeOffset.MinValue || targetTime.Year < 1900)
                         {
-                            Interlocked.Increment(ref skippedCount);
+                            noDateFiles.Add(file);
                             return;
                         }
 
@@ -232,31 +244,18 @@ namespace BlueSapphire.ViewModels
                             while (true)
                             {
                                 string lowerName = newName.ToLower();
-                                if (allFilenames.TryAdd(lowerName, 0))
-                                {
-                                    break;
-                                }
+                                if (allFilenames.TryAdd(lowerName, 0)) break;
                                 newName = $"{baseName}_{counter:D2}{extension}";
                                 counter++;
                             }
                         }
 
-                        previewList.Add(new RenamePreviewItem
-                        {
-                            File = file,
-                            OriginalName = file.Name,
-                            NewName = newName
-                        });
+                        previewList.Add(new RenamePreviewItem { File = file, OriginalName = file.Name, NewName = newName });
 
                         int current = Interlocked.Increment(ref processed);
                         if (current % 10 == 0)
                         {
-                            _dispatcherQueue.TryEnqueue(() =>
-                            {
-                                ProgressValue = current;
-                                ProgressMax = total;
-                                StatusMainText = $"正在分析... {current}/{total}";
-                            });
+                            _dispatcherQueue.TryEnqueue(() => { ProgressValue = current; ProgressMax = total; StatusMainText = $"正在分析... {current}/{total}"; });
                         }
                     }
                     finally
@@ -268,25 +267,57 @@ namespace BlueSapphire.ViewModels
                 await Task.WhenAll(tasks);
                 SetBusy(false);
 
+                // ✅ 专属拦截：如果发现了幽灵文件，进行专属提示并安全退出
+                if (ghostCount > 0)
+                {
+                    await _view.ShowTipAsync($"已自动清理 {ghostCount} 个在外部被删除的失效文件。");
+                    // 如果全是幽灵文件，或者剩下的全被幽灵顶了，直接退出
+                    if (previewList.IsEmpty && noDateFiles.IsEmpty) return;
+                }
+
+                // 处理无日期的文件
+                var failedFiles = noDateFiles.ToList();
+                if (failedFiles.Count > 0)
+                {
+                    string? fallback = await _view.ShowInputPromptAsync(
+                        "发现无日期信息的文件",
+                        $"有 {failedFiles.Count} 个文件缺失拍摄时间。\n请输入一个自定义前缀（例如：照片、壁纸），程序将自动为它们顺序编号。如果不填将跳过它们。",
+                        "未命名照片");
+
+                    if (!string.IsNullOrWhiteSpace(fallback))
+                    {
+                        int counter = 1;
+                        foreach (var file in failedFiles)
+                        {
+                            string extension = file.FileType;
+                            string newName = $"{fallback}_{counter:D2}{extension}";
+
+                            while (allFilenames.ContainsKey(newName.ToLower()))
+                            {
+                                counter++;
+                                newName = $"{fallback}_{counter:D2}{extension}";
+                            }
+                            allFilenames.TryAdd(newName.ToLower(), 0);
+                            previewList.Add(new RenamePreviewItem { File = file, OriginalName = file.Name, NewName = newName });
+                            counter++;
+                        }
+                    }
+                }
+
                 var sortedPreview = previewList.OrderBy(x => x.NewName).ToList();
 
                 if (sortedPreview.Count == 0)
                 {
-                    string msg = "未找到包含有效时间信息的图片。";
-                    if (skippedCount > 0)
+                    // 只有在没幽灵、没失败文件的情况下，才报这个兜底错
+                    if (ghostCount == 0 && failedFiles.Count == 0)
                     {
-                        msg += $"\n\n已跳过 {skippedCount} 个文件。\n原因：无 Exif 信息，且文件名不包含清晰的日期格式。";
+                        await _view.ShowTipAsync("没有生成任何需要重命名的任务。");
                     }
-                    await _view.ShowTipAsync(msg);
                     return;
                 }
 
-                bool confirm = await _view.ShowRenamePreviewAsync(sortedPreview, skippedCount);
-
-                if (confirm)
-                {
-                    await PerformRenameFiles(sortedPreview);
-                }
+                bool confirm = await _view.ShowRenamePreviewAsync(sortedPreview, 0);
+                if (confirm) await PerformRenameFiles(sortedPreview);
             }
             catch (Exception ex)
             {
@@ -297,7 +328,7 @@ namespace BlueSapphire.ViewModels
         }
 
         [RelayCommand]
-        private async Task ScanDuplicates()
+        private async Task ScanDuplicates(string mode) // ✅ 增加 mode 参数
         {
             if (_currentFolder == null) { await _view.ShowTipAsync("请先导入文件夹"); return; }
             if (IsBusy) return;
@@ -308,7 +339,8 @@ namespace BlueSapphire.ViewModels
 
             try
             {
-                SetBusy(true, "正在初始化扫描...", 0, 100);
+                string modeName = mode == "Similar" ? "智能扫描" : "精确扫描";
+                SetBusy(true, $"正在初始化{modeName}...", 0, 100);
 
                 var progress = new Progress<(double Value, string Message, string Detail)>(p =>
                 {
@@ -320,7 +352,16 @@ namespace BlueSapphire.ViewModels
                     });
                 });
 
-                var finalDuplicates = await _deduplicationService.FindDuplicatesAsync(_currentFolder, progress, token);
+                // ✅ 根据传入的模式调用不同引擎
+                List<List<StorageFile>> finalDuplicates;
+                if (mode == "Similar")
+                {
+                    finalDuplicates = await _deduplicationService.FindSimilarImagesAsync(_currentFolder, progress, token);
+                }
+                else
+                {
+                    finalDuplicates = await _deduplicationService.FindDuplicatesAsync(_currentFolder, progress, token);
+                }
 
                 SetBusy(false);
                 if (token.IsCancellationRequested) return;
@@ -335,7 +376,7 @@ namespace BlueSapphire.ViewModels
                 }
                 else
                 {
-                    await _view.ShowTipAsync("扫描完成，未发现内容重复的文件。");
+                    await _view.ShowTipAsync(mode == "Similar" ? "扫描完成，未发现相似照片。" : "扫描完成，未发现内容重复的文件。");
                 }
             }
             catch (Exception ex)
@@ -355,6 +396,8 @@ namespace BlueSapphire.ViewModels
             if (confirm)
             {
                 var files = new List<StorageFile>();
+                int ghostCount = 0; // ✅ 新增幽灵文件计数
+
                 foreach (var item in selectedItems.Cast<ImageItem>())
                 {
                     try
@@ -362,12 +405,35 @@ namespace BlueSapphire.ViewModels
                         if (item.ImagePath != null)
                             files.Add(await StorageFile.GetFileFromPathAsync(item.ImagePath));
                     }
+                    catch (Exception ex) when (ex is System.IO.FileNotFoundException || ex.HResult == unchecked((int)0x80070002))
+                    {
+                        // ✅ 幽灵文件容错
+                        ghostCount++;
+                        _dispatcherQueue.TryEnqueue(() => {
+                            lock (_cachedAllItems)
+                            {
+                                var ghost = _cachedAllItems.FirstOrDefault(x => x.ImagePath == item.ImagePath);
+                                if (ghost != null) _cachedAllItems.Remove(ghost);
+                            }
+                            RefreshViewFromCache();
+                        });
+                    }
                     catch (Exception ex)
                     {
                         MatrixLogService.LogError("Delete_GetFile", ex);
                     }
                 }
-                await PerformDeleteFiles(files);
+
+                // ✅ 专属拦截提示
+                if (ghostCount > 0)
+                {
+                    await _view.ShowTipAsync($"已自动清理 {ghostCount} 个在外部被删除的失效文件。");
+                }
+
+                if (files.Count > 0)
+                {
+                    await PerformDeleteFiles(files);
+                }
             }
         }
 
@@ -408,7 +474,24 @@ namespace BlueSapphire.ViewModels
             });
 
             SetBusy(false);
-            if (_currentFolder != null) await LoadFolderContentAsync(_currentFolder);
+            // ✅ 极客优化：局部内存更新，拒绝全局 I/O 扫描
+            lock (_cachedAllItems)
+            {
+                foreach (var item in items)
+                {
+                    if (!item.OriginalName.Equals(item.NewName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // 在缓存中找到对应的旧项，直接更新名字和新路径
+                        var cacheItem = _cachedAllItems.FirstOrDefault(x => x.FileName == item.OriginalName);
+                        if (cacheItem != null)
+                        {
+                            cacheItem.FileName = item.NewName;
+                            cacheItem.ImagePath = item.File.Path; // 文件路径也变了，必须更新
+                        }
+                    }
+                }
+            }
+            RefreshViewFromCache(); // 重新触发视图排序和绑定
             string msg = $"重命名完成。\n成功: {successCount} 个\n失败: {failCount} 个";
             if (failCount > 0) msg += "\n(失败原因通常是文件被占用)";
             await _view.ShowTipAsync(msg);

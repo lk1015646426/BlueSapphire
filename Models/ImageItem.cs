@@ -61,6 +61,7 @@ namespace BlueSapphire.Models
 
             // 取消之前的尝试
             _loadingCts?.Cancel();
+            _loadingCts?.Dispose(); // ✅ 新增：彻底释放底层句柄
             _loadingCts = new CancellationTokenSource();
             var token = _loadingCts.Token;
 
@@ -135,6 +136,7 @@ namespace BlueSapphire.Models
         public void CancelLoad()
         {
             _loadingCts?.Cancel();
+            _loadingCts?.Dispose(); // ✅ 新增：彻底释放底层句柄
             _loadingCts = null;
             _isLoaded = false; // 重置状态，以便下次进入屏幕时重新尝试
             IsImageLoading = false;

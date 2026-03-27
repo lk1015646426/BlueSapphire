@@ -15,5 +15,7 @@ namespace BlueSapphire.Interfaces
         // [新增] 显示重命名预览弹窗
         // 返回 true 表示用户确认执行，false 表示取消
         Task<bool> ShowRenamePreviewAsync(List<RenamePreviewItem> items, int skippedCount);
+        // [新增] 显示带有输入框的弹窗
+        Task<string?> ShowInputPromptAsync(string title, string message, string defaultText);
     }
 }

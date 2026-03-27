@@ -12,37 +12,49 @@ namespace BlueSapphire
 {
     public sealed partial class DuplicateResultDialog : ContentDialog
     {
-        private ObservableCollection<DuplicateItem> _flatList;
+        // ✅ 改用原生的分组集合
+        private ObservableCollection<DuplicateGroup> _groupedList;
 
         public DuplicateResultDialog(List<List<StorageFile>> dupes, Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
         {
             this.InitializeComponent();
 
-            _flatList = new ObservableCollection<DuplicateItem>();
+            _groupedList = new ObservableCollection<DuplicateGroup>();
+            int groupIndex = 1;
+
             foreach (var g in dupes)
             {
-                _flatList.Add(DuplicateItem.CreateSeparator());
-                var sorted = g.OrderByDescending(f => f.DateCreated).ToList();
+                var group = new DuplicateGroup($"重复文件组 {groupIndex++}");
+
+                // ✅ 极客优化：绝对信任后端 Service 传来的排序。
+                // 精确模式下无所谓，但在智能模式下，Service 已经把体积最大（画质最好）的放到了第 0 位！
+                var sorted = g;
+
                 for (int i = 0; i < sorted.Count; i++)
                 {
-                    _flatList.Add(new DuplicateItem(sorted[i], i == 0));
+                    // i == 0 的项会被标记为 IsKeepSuggestion = true (推荐保留)
+                    group.Add(new DuplicateItem(sorted[i], i == 0));
                 }
+                _groupedList.Add(group);
             }
-            if (_flatList.Any()) _flatList.RemoveAt(0);
 
-            DuplicateList.ItemsSource = _flatList;
+            // ✅ 将数据源绑定到 XAML 中定义的 CollectionViewSource
+            GroupedItems.Source = _groupedList;
         }
 
         public List<StorageFile> GetSelectedFiles()
         {
-            return _flatList.Where(x => x.File != null && x.IsChecked)
-                            .Select(x => x.File!)
-                            .ToList();
+            // ✅ 使用 SelectMany 将所有分组展平，提取被勾选的项
+            return _groupedList.SelectMany(g => g)
+                               .Where(x => x.IsChecked)
+                               .Select(x => x.File)
+                               .ToList();
         }
 
         private void DuplicateList_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
         {
-            if (args.Item is DuplicateItem item && !item.IsSeparator && !args.InRecycleQueue)
+            // ✅ 已经没有假分割线了，去掉了 !item.IsSeparator 的判断
+            if (args.Item is DuplicateItem item && !args.InRecycleQueue)
             {
                 _ = item.LoadThumbnailAsync(this.DispatcherQueue);
             }

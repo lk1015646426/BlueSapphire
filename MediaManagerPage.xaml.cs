@@ -135,5 +135,27 @@ namespace BlueSapphire
             // 转发给 ViewModel 的命令
             ViewModel.DeleteSelectedCommand.Execute(ImageGrid.SelectedItems);
         }
+
+        // 6. 显示输入框弹窗 (用于重命名兜底)
+        public async Task<string?> ShowInputPromptAsync(string title, string message, string defaultText)
+        {
+            var textBox = new TextBox { Text = defaultText, AcceptsReturn = false };
+            var dialog = new ContentDialog
+            {
+                Title = title,
+                Content = new StackPanel
+                {
+                    Spacing = 10,
+                    Children = { new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap }, textBox }
+                },
+                PrimaryButtonText = "确定",
+                CloseButtonText = "跳过",
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = this.XamlRoot
+            };
+
+            var result = await dialog.ShowAsync();
+            return result == ContentDialogResult.Primary ? textBox.Text : null;
+        }
     }
 }
