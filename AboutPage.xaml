@@ -10,12 +10,8 @@
     <Grid Padding="40">
         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="25">
 
-            <StackPanel x:Name="TitleContainer" 
-                        HorizontalAlignment="Center" 
-                        Spacing="5" 
-                        Tapped="TitleContainer_Tapped" 
-                        Background="Transparent" 
-                        IsHitTestVisible="True">
+            <StackPanel HorizontalAlignment="Center"
+                        Spacing="5">
                 <TextBlock Text="蓝宝石工具箱" 
                            FontSize="48" 
                            FontWeight="SemiBold" 

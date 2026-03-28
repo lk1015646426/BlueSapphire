@@ -1,34 +1,35 @@
+using BlueSapphire.Helpers;
+using BlueSapphire.Models;
+using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
-using BlueSapphire.Helpers;
-using BlueSapphire.Models;
-using CommunityToolkit.Mvvm.Messaging;
-using System.Reflection;
 using System;
 using System.IO;
+using System.Reflection;
 using System.Threading.Tasks;
 
 namespace BlueSapphire
 {
     public sealed partial class SettingsPage : Page
     {
-        public string AppDisplayVersion { get; private set; } = "∞Ê±æº”‘ÿ ß∞‹";
-        public string AppBuildDate { get; private set; } = "»’∆⁄º”‘ÿ ß∞‹";
+        public string AppDisplayVersion { get; private set; } = "ÁâàÊú¨‰ø°ÊÅØËØªÂèñÂ§±Ë¥•";
+        public string AppBuildDate { get; private set; } = "ÊûÑÂª∫Êó•ÊúüËØªÂèñÂ§±Ë¥•";
 
-        private int _versionTapCount = 0;
-        private DispatcherTimer _clickResetTimer;
+        private int _versionTapCount;
+        private readonly DispatcherTimer _clickResetTimer;
 
         public SettingsPage()
         {
-            this.InitializeComponent();
+            InitializeComponent();
             LoadVersionInfo();
             InitializeSettingsSafe();
+            Bindings.Update();
 
             _clickResetTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(800) };
-            _clickResetTimer.Tick += (s, e) =>
+            _clickResetTimer.Tick += (_, _) =>
             {
                 _versionTapCount = 0;
                 _clickResetTimer.Stop();
@@ -44,18 +45,17 @@ namespace BlueSapphire
 
                 if (version != null)
                 {
-                    this.AppDisplayVersion = $"∞Ê±æ {version.Major}.{version.Minor}.{version.Build}";
+                    AppDisplayVersion = $"ÁâàÊú¨ {version.Major}.{version.Minor}.{version.Build}";
                 }
 
                 if (!string.IsNullOrEmpty(assembly.Location))
                 {
-                    var buildDate = File.GetLastWriteTime(assembly.Location);
-                    this.AppBuildDate = $"{buildDate:yyyy.MM.dd}";
+                    AppBuildDate = File.GetLastWriteTime(assembly.Location).ToString("yyyy.MM.dd");
                 }
             }
             catch
             {
-                this.AppBuildDate = "Ω‚Œˆ“Ï≥£";
+                AppBuildDate = "ËØªÂèñÂºÇÂ∏∏";
             }
         }
 
@@ -63,11 +63,10 @@ namespace BlueSapphire
         {
             ParticleSwitch.Toggled -= ParticleSwitch_Toggled;
 
-            bool targetState = AppSettings.Get<bool>("IsParticleEffectEnabled", true);
-
-            if (App.CurrentWindow is MainWindow mw && AppSettings.Get<bool?>("IsParticleEffectEnabled", null) == null)
+            bool targetState = AppSettings.Get("IsParticleEffectEnabled", true);
+            if (App.CurrentWindow is MainWindow window && AppSettings.Get<bool?>("IsParticleEffectEnabled", null) == null)
             {
-                targetState = mw.IsParticleEffectEnabled;
+                targetState = window.IsParticleEffectEnabled;
             }
 
             ParticleSwitch.IsOn = targetState;
@@ -84,23 +83,20 @@ namespace BlueSapphire
         private async void SecretVersion_PointerPressed(object sender, PointerRoutedEventArgs e)
         {
             _versionTapCount++;
-
             _clickResetTimer.Stop();
             _clickResetTimer.Start();
 
             if (_versionTapCount < 5)
             {
                 TriggerMicroBounce(VersionTextBlock);
+                return;
             }
-            else
-            {
-                _versionTapCount = 0;
-                _clickResetTimer.Stop();
 
-                await TriggerCyberPulseEffect(VersionTextBlock);
+            _versionTapCount = 0;
+            _clickResetTimer.Stop();
 
-                this.Frame.Navigate(typeof(Views.DevLogPage));
-            }
+            await TriggerCyberPulseEffect(VersionTextBlock);
+            Frame.Navigate(typeof(Views.DevLogPage));
         }
 
         private void TriggerMicroBounce(TextBlock target)
@@ -112,36 +108,34 @@ namespace BlueSapphire
             var storyboard = new Storyboard();
             var easeFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut };
 
-            var scaleXAnim = new DoubleAnimation
+            var scaleXAnimation = new DoubleAnimation
             {
                 To = 1.05,
                 Duration = TimeSpan.FromMilliseconds(50),
                 AutoReverse = true,
                 EasingFunction = easeFunction
             };
-            Storyboard.SetTarget(scaleXAnim, scaleTransform);
-            Storyboard.SetTargetProperty(scaleXAnim, "ScaleX");
+            Storyboard.SetTarget(scaleXAnimation, scaleTransform);
+            Storyboard.SetTargetProperty(scaleXAnimation, "ScaleX");
 
-            var scaleYAnim = new DoubleAnimation
+            var scaleYAnimation = new DoubleAnimation
             {
                 To = 1.05,
                 Duration = TimeSpan.FromMilliseconds(50),
                 AutoReverse = true,
                 EasingFunction = easeFunction
             };
-            Storyboard.SetTarget(scaleYAnim, scaleTransform);
-            Storyboard.SetTargetProperty(scaleYAnim, "ScaleY");
+            Storyboard.SetTarget(scaleYAnimation, scaleTransform);
+            Storyboard.SetTargetProperty(scaleYAnimation, "ScaleY");
 
-            storyboard.Children.Add(scaleXAnim);
-            storyboard.Children.Add(scaleYAnim);
-
+            storyboard.Children.Add(scaleXAnimation);
+            storyboard.Children.Add(scaleYAnimation);
             storyboard.Begin();
         }
 
         private async Task TriggerCyberPulseEffect(TextBlock target)
         {
             var originalBrush = target.Foreground;
-
             target.Foreground = new SolidColorBrush(Microsoft.UI.Colors.White);
 
             target.RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5);
@@ -151,29 +145,28 @@ namespace BlueSapphire
             var storyboard = new Storyboard();
             var easeFunction = new SineEase { EasingMode = EasingMode.EaseInOut };
 
-            var scaleXAnim = new DoubleAnimation
+            var scaleXAnimation = new DoubleAnimation
             {
                 To = 1.15,
                 Duration = TimeSpan.FromMilliseconds(120),
                 AutoReverse = true,
                 EasingFunction = easeFunction
             };
-            Storyboard.SetTarget(scaleXAnim, scaleTransform);
-            Storyboard.SetTargetProperty(scaleXAnim, "ScaleX");
+            Storyboard.SetTarget(scaleXAnimation, scaleTransform);
+            Storyboard.SetTargetProperty(scaleXAnimation, "ScaleX");
 
-            var scaleYAnim = new DoubleAnimation
+            var scaleYAnimation = new DoubleAnimation
             {
                 To = 1.15,
                 Duration = TimeSpan.FromMilliseconds(120),
                 AutoReverse = true,
                 EasingFunction = easeFunction
             };
-            Storyboard.SetTarget(scaleYAnim, scaleTransform);
-            Storyboard.SetTargetProperty(scaleYAnim, "ScaleY");
+            Storyboard.SetTarget(scaleYAnimation, scaleTransform);
+            Storyboard.SetTargetProperty(scaleYAnimation, "ScaleY");
 
-            storyboard.Children.Add(scaleXAnim);
-            storyboard.Children.Add(scaleYAnim);
-
+            storyboard.Children.Add(scaleXAnimation);
+            storyboard.Children.Add(scaleYAnimation);
             storyboard.Begin();
 
             await Task.Delay(300);

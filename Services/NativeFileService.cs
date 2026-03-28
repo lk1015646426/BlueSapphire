@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 
@@ -6,7 +7,6 @@ namespace BlueSapphire.Services
 {
     public class NativeFileService
     {
-        // 定义 Windows Shell API 结构体
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
         public struct SHFILEOPSTRUCT
         {
@@ -24,31 +24,78 @@ namespace BlueSapphire.Services
         }
 
         private const uint FO_DELETE = 0x0003;
-        private const ushort FOF_ALLOWUNDO = 0x0040; // 关键：允许撤销(即放入回收站)
-        private const ushort FOF_NOCONFIRMATION = 0x0010; // 不显示系统确认框(UI层自己处理)
+        private const ushort FOF_ALLOWUNDO = 0x0040;
+        private const ushort FOF_NOCONFIRMATION = 0x0010;
         private const ushort FOF_NOERRORUI = 0x0400;
 
         [DllImport("shell32.dll", CharSet = CharSet.Auto)]
-        private static extern int SHFileOperation(ref SHFILEOPSTRUCT FileOp);
+        private static extern int SHFileOperation(ref SHFILEOPSTRUCT fileOperation);
 
-        /// <summary>
-        /// 安全删除：将文件移动到回收站
-        /// </summary>
         public async Task<bool> MoveToRecycleBinAsync(string filePath)
         {
             return await Task.Run(() =>
             {
                 try
                 {
-                    var shf = new SHFILEOPSTRUCT
+                    var operation = new SHFILEOPSTRUCT
                     {
                         wFunc = FO_DELETE,
-                        pFrom = filePath + "\0\0", // 必须以双 null 结尾
+                        pFrom = filePath + "\0\0",
                         fFlags = FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_NOERRORUI
                     };
-                    return SHFileOperation(ref shf) == 0; // 返回 0 表示成功
+
+                    return SHFileOperation(ref operation) == 0;
                 }
-                catch { return false; }
+                catch
+                {
+                    return false;
+                }
+            });
+        }
+
+        public async Task<bool> RevealInExplorerAsync(string filePath)
+        {
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    var startInfo = new ProcessStartInfo
+                    {
+                        FileName = "explorer.exe",
+                        Arguments = $"/select,\"{filePath}\"",
+                        UseShellExecute = true
+                    };
+
+                    using var process = Process.Start(startInfo);
+                    return process != null;
+                }
+                catch
+                {
+                    return false;
+                }
+            });
+        }
+
+        public async Task<bool> OpenFolderAsync(string folderPath)
+        {
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    var startInfo = new ProcessStartInfo
+                    {
+                        FileName = "explorer.exe",
+                        Arguments = $"\"{folderPath}\"",
+                        UseShellExecute = true
+                    };
+
+                    using var process = Process.Start(startInfo);
+                    return process != null;
+                }
+                catch
+                {
+                    return false;
+                }
             });
         }
     }

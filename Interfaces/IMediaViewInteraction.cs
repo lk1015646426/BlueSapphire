@@ -1,7 +1,8 @@
-﻿using System.Collections.Generic;
+using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Windows.Storage;
-using BlueSapphire.Models; // 确保引用了 Models
+using BlueSapphire.Models;
 
 namespace BlueSapphire.Interfaces
 {
@@ -10,12 +11,17 @@ namespace BlueSapphire.Interfaces
         Task ShowTipAsync(string message);
         Task<bool> ShowDeleteConfirmationAsync(int count);
         Task<StorageFolder?> PickFolderAsync();
+        Task<StorageFile?> PickImageFileAsync();
+        Task<StorageFile?> PickCsvFileAsync();
+        Task<StorageFile?> PickLyricsFileAsync();
+        Task<StorageFile?> PickPlaylistFileAsync();
+        Task SelectItemsByPathsAsync(IReadOnlyCollection<string> paths);
         Task<List<StorageFile>> ShowDuplicateResultsAsync(List<List<StorageFile>> dupes);
-
-        // [新增] 显示重命名预览弹窗
-        // 返回 true 表示用户确认执行，false 表示取消
+        Task ShowDocumentConversionResultsAsync(DocumentConversionBatchReport report);
+        Task<DocumentConversionBatchReport?> ShowDocumentTaskHistoryAsync(IReadOnlyList<DocumentConversionBatchReport> reports);
+        Task<AudioTrimRequest?> ShowAudioTrimDialogAsync(string fileName, TimeSpan? duration, bool isBatch = false);
+        Task<AudioTagEditRequest?> ShowAudioTagEditDialogAsync(AudioTagEditSeed seed);
         Task<bool> ShowRenamePreviewAsync(List<RenamePreviewItem> items, int skippedCount);
-        // [新增] 显示带有输入框的弹窗
         Task<string?> ShowInputPromptAsync(string title, string message, string defaultText);
     }
 }

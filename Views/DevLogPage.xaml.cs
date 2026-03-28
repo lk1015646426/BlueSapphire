@@ -1,5 +1,6 @@
-﻿using BlueSapphire.Models;
+using BlueSapphire.Models;
 using BlueSapphire.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -9,28 +10,35 @@ namespace BlueSapphire.Views
 {
     public sealed partial class DevLogPage : Page
     {
-        public DevLogViewModel ViewModel { get; } = new DevLogViewModel();
+        public DevLogViewModel ViewModel { get; }
 
         public DevLogPage()
         {
-            this.InitializeComponent();
+            InitializeComponent();
+            ViewModel = App.Current.Services.GetRequiredService<DevLogViewModel>();
+            Loaded += DevLogPage_Loaded;
+        }
+
+        private async void DevLogPage_Loaded(object sender, RoutedEventArgs e)
+        {
+            await ViewModel.EnsureInitializedAsync();
         }
 
         private void BackButton_Click(object sender, RoutedEventArgs e)
         {
-            if (this.Frame.CanGoBack)
+            if (Frame.CanGoBack)
             {
-                this.Frame.GoBack();
+                Frame.GoBack();
             }
             else
             {
-                this.Frame.Navigate(typeof(SettingsPage));
+                Frame.Navigate(typeof(SettingsPage));
             }
         }
 
         private async void OpenInputDialog_Click(object sender, RoutedEventArgs e)
         {
-            var dialog = new DevLogInputDialog { XamlRoot = this.XamlRoot };
+            var dialog = new DevLogInputDialog { XamlRoot = XamlRoot };
             var result = await dialog.ShowAsync();
 
             if (result == ContentDialogResult.Primary && !string.IsNullOrWhiteSpace(dialog.NodeTitle))
@@ -39,16 +47,15 @@ namespace BlueSapphire.Views
                     dialog.NodeTitle,
                     dialog.NodeDescription,
                     dialog.NodeVersion,
-                    dialog.NodeUpdateLevel, // 【新增】将你的显式选择传给 ViewModel
+                    dialog.NodeUpdateLevel,
                     dialog.NodeFullContent,
-                    dialog.NodeDate
-                );
+                    dialog.NodeDate);
             }
         }
 
         private void DeleteLog_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Button btn && btn.CommandParameter is DevLogItem item)
+            if (sender is Button button && button.CommandParameter is DevLogItem item)
             {
                 RootPage.IsTabStop = true;
                 RootPage.Focus(FocusState.Programmatic);
@@ -62,12 +69,11 @@ namespace BlueSapphire.Views
 
         private void OpenDetail_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Button btn && btn.CommandParameter is DevLogItem item)
+            if (sender is Button button && button.CommandParameter is DevLogItem item)
             {
                 DetailTitle.Text = item.Title;
                 DetailVersion.Text = $"版本号: {item.Version}  |  更新时间: {item.DisplayTime}";
                 DetailContent.Text = string.IsNullOrWhiteSpace(item.FullContent) ? "暂无详细文档内容。" : item.FullContent;
-
                 DetailOverlay.Visibility = Visibility.Visible;
             }
         }

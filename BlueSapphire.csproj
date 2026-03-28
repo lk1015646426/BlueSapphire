@@ -18,6 +18,8 @@
 		<UseWinUI>true</UseWinUI>
 		<EnableMsixTooling>true</EnableMsixTooling>
 		<Nullable>enable</Nullable>
+		<EnableNETAnalyzers>true</EnableNETAnalyzers>
+		<AnalysisLevel>latest</AnalysisLevel>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 		<WindowsPackageType>None</WindowsPackageType>
 		<ApplicationIcon>BS.ico</ApplicationIcon>
@@ -36,6 +38,13 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<Compile Remove="BlueSapphire.Tests\**\*.cs" />
+		<EmbeddedResource Remove="BlueSapphire.Tests\**\*" />
+		<None Remove="BlueSapphire.Tests\**\*" />
+		<Page Remove="BlueSapphire.Tests\**\*" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<Content Include="Assets\DevMatrixLog.json">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
@@ -48,6 +57,8 @@
 		<PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260209005" />
 		<PackageReference Include="Microsoft.Graphics.Win2D" Version="1.3.2" />
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+		<PackageReference Include="PDFsharp" Version="6.2.4" />
+		<PackageReference Include="TagLibSharp" Version="2.3.0" />
 	</ItemGroup>
 
 	<ItemGroup>

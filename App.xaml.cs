@@ -71,7 +71,6 @@ namespace BlueSapphire
             // 注册工具
             services.AddTransient<HomeTool>();
             services.AddTransient<MediaManagerTool>();
-
             // ✅ 新增：注册我们的重命名业务服务 (使用 Singleton 单例即可，因为它是无状态的工具类)
             services.AddSingleton<BlueSapphire.Services.MediaRenameService>();
 
@@ -80,9 +79,22 @@ namespace BlueSapphire
 
             // 注册我们的本地文件系统服务 (回收站功能)
             services.AddSingleton<BlueSapphire.Services.NativeFileService>();
+            services.AddSingleton<BlueSapphire.Services.DocumentConversionService>();
+            services.AddSingleton<BlueSapphire.Services.PdfDocumentService>();
+            services.AddSingleton<BlueSapphire.Services.ImageProcessingService>();
+            services.AddSingleton<BlueSapphire.Services.ImageMetadataService>();
+            services.AddSingleton<BlueSapphire.Services.MediaTagService>();
+            services.AddSingleton<BlueSapphire.Services.AudioConversionService>();
+            services.AddSingleton<BlueSapphire.Services.AudioCatalogExportService>();
+            services.AddSingleton<BlueSapphire.Services.AudioMetadataService>();
+            services.AddSingleton<BlueSapphire.Services.AudioTagService>();
+            services.AddSingleton<BlueSapphire.Services.AudioPlaylistService>();
+            services.AddTransient<BlueSapphire.Services.AudioPreviewService>();
+            services.AddSingleton<BlueSapphire.Services.DevLogDataService>();
 
             // 注册 ViewModel
             services.AddTransient<MediaManagerViewModel>();
+            services.AddTransient<DevLogViewModel>();
 
             return services.BuildServiceProvider();
         }

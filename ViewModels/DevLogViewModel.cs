@@ -1,18 +1,18 @@
-﻿using System;
+using BlueSapphire.Models;
+using BlueSapphire.Services;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
-using CommunityToolkit.Mvvm.Messaging;
-using BlueSapphire.Models;
-using BlueSapphire.Services;
 
 namespace BlueSapphire.ViewModels
 {
     public partial class DevLogViewModel : ObservableObject
     {
-        private readonly DevLogDataService _dataService = new();
+        private readonly DevLogDataService _dataService;
+        private bool _isInitialized;
 
         private ObservableCollection<DevLogItem> _logs = new();
         public ObservableCollection<DevLogItem> Logs
@@ -28,14 +28,14 @@ namespace BlueSapphire.ViewModels
             set => SetProperty(ref _completionRate, value);
         }
 
-        private int _completedCount = 0;
+        private int _completedCount;
         public int CompletedCount
         {
             get => _completedCount;
             set => SetProperty(ref _completedCount, value);
         }
 
-        private int _totalCount = 0;
+        private int _totalCount;
         public int TotalCount
         {
             get => _totalCount;
@@ -49,31 +49,29 @@ namespace BlueSapphire.ViewModels
             set => SetProperty(ref _isEditable, value);
         }
 
-        public DevLogViewModel()
+        public DevLogViewModel(DevLogDataService dataService)
         {
-            IsEditable = CheckIfUnpackaged();
-            _ = InitializeAsync();
+            _dataService = dataService;
+            IsEditable = dataService.CanWrite;
         }
 
-        private bool CheckIfUnpackaged()
+        public async Task EnsureInitializedAsync()
         {
-#if DEBUG
-            return true;
-#else
-            return false;
-#endif
-        }
+            if (_isInitialized)
+            {
+                return;
+            }
 
-        private async Task InitializeAsync()
-        {
             var loadedLogs = await _dataService.LoadLogsAsync();
 
             Logs.Clear();
-            foreach (var log in loadedLogs)
+            foreach (var log in loadedLogs.OrderByDescending(item => item.Timestamp))
             {
                 Logs.Add(log);
             }
-            UpdateHUD();
+
+            UpdateHud();
+            _isInitialized = true;
         }
 
         public async Task AddNewLogAsync(string title, string description, string version, string updateLevel, string fullContent, DateTime? date = null)
@@ -83,7 +81,7 @@ namespace BlueSapphire.ViewModels
                 Title = title,
                 Description = description,
                 Version = string.IsNullOrWhiteSpace(version) ? "1.0.0" : version,
-                UpdateLevel = string.IsNullOrWhiteSpace(updateLevel) ? "常规迭代" : updateLevel, // 保障必定为中文分级
+                UpdateLevel = string.IsNullOrWhiteSpace(updateLevel) ? "常规迭代" : updateLevel,
                 FullContent = string.IsNullOrWhiteSpace(fullContent) ? "当前版本暂未录入详细架构文档。" : fullContent,
                 Status = DevLogStatus.Completed,
                 Timestamp = date ?? DateTime.Now
@@ -96,45 +94,52 @@ namespace BlueSapphire.ViewModels
         [RelayCommand]
         private async Task DeleteLogAsync(DevLogItem item)
         {
-            if (item != null && Logs.Contains(item))
+            if (item == null || !Logs.Contains(item))
             {
-                Logs.Remove(item);
-                await SaveDataAsync();
+                return;
             }
+
+            Logs.Remove(item);
+            await SaveDataAsync();
         }
 
         [RelayCommand]
         private async Task AdvanceStatusAsync(DevLogItem item)
         {
-            if (item == null) return;
-            bool isChanged = false;
+            if (item == null)
+            {
+                return;
+            }
 
+            bool changed = false;
             if (item.Status == DevLogStatus.Pending)
             {
                 item.Status = DevLogStatus.InProgress;
-                isChanged = true;
+                changed = true;
             }
             else if (item.Status == DevLogStatus.InProgress)
             {
                 item.Status = DevLogStatus.Completed;
-                isChanged = true;
+                changed = true;
             }
 
-            if (isChanged) await SaveDataAsync();
+            if (changed)
+            {
+                await SaveDataAsync();
+            }
         }
 
         public async Task SaveDataAsync()
         {
-            UpdateHUD();
-            var snapShot = Logs.ToList();
-            await _dataService.SaveLogsAsync(snapShot);
+            UpdateHud();
+            await _dataService.SaveLogsAsync(Logs.ToList());
         }
 
-        private void UpdateHUD()
+        private void UpdateHud()
         {
             TotalCount = Logs.Count;
-            CompletedCount = Logs.Count(l => l.Status == DevLogStatus.Completed);
-            CompletionRate = TotalCount == 0 ? "0%" : $"{(CompletedCount * 100 / TotalCount)}%";
+            CompletedCount = Logs.Count(item => item.Status == DevLogStatus.Completed);
+            CompletionRate = TotalCount == 0 ? "0%" : $"{CompletedCount * 100 / TotalCount}%";
         }
     }
 }

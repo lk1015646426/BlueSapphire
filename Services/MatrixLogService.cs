@@ -22,8 +22,8 @@ namespace BlueSapphire.Services
             if (_isInitialized) return;
             _isInitialized = true;
 
-            // 启动一个独立的后台长驻任务来消费日志，完全脱离主线程池
-            Task.Factory.StartNew(ProcessLogsAsync, TaskCreationOptions.LongRunning);
+            // 启动后台消费者，避免在主线程或调用线程上阻塞日志落盘
+            _ = Task.Run(ProcessLogsAsync);
         }
 
         public static void LogError(string context, Exception ex)

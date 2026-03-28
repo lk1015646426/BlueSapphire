@@ -1,98 +1,111 @@
-﻿using System;
+using BlueSapphire.Models;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using BlueSapphire.Models;
 
 namespace BlueSapphire.Services
 {
     public class DevLogDataService
     {
         private const string FileName = "DevMatrixLog.json";
-        private static readonly SemaphoreSlim _fileLock = new SemaphoreSlim(1, 1);
+        private static readonly SemaphoreSlim FileLock = new(1, 1);
 
-        private string DevFilePath
+        public string DataFilePath
         {
             get
             {
-                string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-                string appFolder = Path.Combine(localAppData, "BlueSapphire");
-                if (!Directory.Exists(appFolder)) Directory.CreateDirectory(appFolder);
+                string appFolder = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "BlueSapphire");
+
+                Directory.CreateDirectory(appFolder);
                 return Path.Combine(appFolder, FileName);
             }
         }
 
-        private string PackagedFilePath
-        {
-            get
-            {
-                return Path.Combine(AppContext.BaseDirectory, "Assets", FileName);
-            }
-        }
+        public bool CanWrite => true;
 
-        // 【极度严苛的权限判定】
-        private bool IsPackaged()
-        {
-#if DEBUG
-            // 只有在 Visual Studio 中按 F5 调试运行 (Debug 模式) 时，才视为未打包 (允许读写)
-            return false;
-#else
-            // 一旦通过 Builder 以 Release 模式打包发布，强制判定为已打包，全面锁死为只读！
-            return true;
-#endif
-        }
+        private string SeedFilePath => Path.Combine(AppContext.BaseDirectory, "Assets", FileName);
 
         public async Task<List<DevLogItem>> LoadLogsAsync()
         {
-            await _fileLock.WaitAsync();
+            await FileLock.WaitAsync();
             try
             {
-                string targetPath = IsPackaged() ? PackagedFilePath : DevFilePath;
+                await EnsureSeededAsync();
 
-                if (!File.Exists(targetPath)) return new List<DevLogItem>();
+                if (!File.Exists(DataFilePath))
+                {
+                    return new List<DevLogItem>();
+                }
 
-                string json = await File.ReadAllTextAsync(targetPath);
-                if (string.IsNullOrWhiteSpace(json)) return new List<DevLogItem>();
+                string json = await File.ReadAllTextAsync(DataFilePath);
+                if (string.IsNullOrWhiteSpace(json))
+                {
+                    return new List<DevLogItem>();
+                }
 
                 return JsonSerializer.Deserialize<List<DevLogItem>>(json) ?? new List<DevLogItem>();
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"读取日志报错: {ex.Message}");
+                MatrixLogService.LogError("DevLog_Load", ex);
                 return new List<DevLogItem>();
             }
             finally
             {
-                _fileLock.Release();
+                FileLock.Release();
             }
         }
 
         public async Task SaveLogsAsync(List<DevLogItem> logs)
         {
-            // 发布版本直接拦截，拒绝落盘
-            if (IsPackaged()) return;
-
-            await _fileLock.WaitAsync();
+            await FileLock.WaitAsync();
             try
             {
                 logs ??= new List<DevLogItem>();
                 string json = JsonSerializer.Serialize(logs, new JsonSerializerOptions { WriteIndented = true });
 
-                string targetPath = DevFilePath;
-                string tempFilePath = targetPath + ".tmp";
-
+                string tempFilePath = DataFilePath + ".tmp";
                 await File.WriteAllTextAsync(tempFilePath, json);
-                File.Move(tempFilePath, targetPath, true);
+                File.Move(tempFilePath, DataFilePath, true);
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"保存日志报错: {ex.Message}");
+                MatrixLogService.LogError("DevLog_Save", ex);
             }
             finally
             {
-                _fileLock.Release();
+                FileLock.Release();
+            }
+        }
+
+        private async Task EnsureSeededAsync()
+        {
+            if (File.Exists(DataFilePath))
+            {
+                return;
+            }
+
+            if (!File.Exists(SeedFilePath))
+            {
+                return;
+            }
+
+            try
+            {
+                string seedJson = await File.ReadAllTextAsync(SeedFilePath);
+                if (!string.IsNullOrWhiteSpace(seedJson))
+                {
+                    await File.WriteAllTextAsync(DataFilePath, seedJson);
+                }
+            }
+            catch (Exception ex)
+            {
+                MatrixLogService.LogError("DevLog_Seed", ex);
             }
         }
     }
