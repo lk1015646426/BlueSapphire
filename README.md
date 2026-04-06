@@ -158,17 +158,20 @@ BlueSapphire/
 - `docs/screenshots/media-manager.png`
 - `docs/screenshots/cleaner-assistant.png`
 
-这三个文件位于仓库保留目录中，后续替换成正式截图即可。
+代表界面如下：
 
-现有可直接展示的仓库素材：
+### 首页
 
-![BlueSapphire Logo](Assets/StoreLogo.png)
+![BlueSapphire Home](docs/screenshots/home.png)
 
-推荐最终展示顺序：
+### 清理助手
 
-1. 首页
-2. 媒体管家
-3. 清理助手
+![BlueSapphire Cleaner Assistant](docs/screenshots/cleaner-assistant.png)
+
+补充说明：
+
+- `docs/screenshots/media-manager.png` 已预留在仓库中，后续可以替换成最终版媒体管家展示图
+- `Assets/StoreLogo.png` 继续作为仓库 Logo 资源保留
 
 ## 安装包下载说明
 
