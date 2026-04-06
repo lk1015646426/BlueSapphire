@@ -136,3 +136,61 @@ BlueSapphire/
 ## 配套仓库
 
 - `BlueSapphire-Builder`：本地一键发布工具，负责执行 `dotnet publish -> ISCC -> 安装包`
+
+## 截图展示
+
+当前仓库已经具备正式 README 截图区结构，但还没有同步放入一组最终版界面截图。
+
+现有可直接展示的仓库素材：
+
+![BlueSapphire Logo](Assets/StoreLogo.png)
+
+建议后续把正式截图放到 `docs/screenshots/`，例如：
+
+- `docs/screenshots/home.png`
+- `docs/screenshots/media-manager.png`
+- `docs/screenshots/cleaner-assistant.png`
+
+这样 README 可以稳定展示首页、媒体管家、清理助手三张主图，而不会混入调试过程截图。
+
+## 安装包下载说明
+
+正式安装包统一通过 GitHub Releases 分发：
+
+- 下载地址：[BlueSapphire Releases](https://github.com/lk1015646426/BlueSapphire/releases)
+
+下载建议：
+
+- 普通用户直接下载最新版本里的 `BlueSapphire_Setup_v*.exe`
+- 安装目标机器不需要提前安装 `.NET SDK`
+- 安装目标机器不需要提前安装 `Windows App SDK`
+
+如果你是开发者，需要源码构建而不是安装包：
+
+```powershell
+git clone https://github.com/lk1015646426/BlueSapphire.git
+cd BlueSapphire
+dotnet build BlueSapphire.slnx
+```
+
+## 常见问题 FAQ
+
+### 1. 为什么安装包不再支持直接从仓库根目录打包？
+
+因为正式发布现在强制走 `publish-only` 链路。这样可以避免把 `BlueSapphire.Tests`、`TestData`、`.git`、`obj` 等开发内容一起误打进安装包。
+
+### 2. 安装后还需要额外安装运行环境吗？
+
+不需要。当前正式发布目标是 `win-x64 self-contained`，目标机器不需要额外安装 `.NET SDK`。
+
+### 3. 清理助手为什么有些功能会要求管理员权限？
+
+系统级临时目录、更新缓存、错误报告缓存等路径受权限限制。清理助手默认保守，只有进入管理员模式后才允许处理这些目录。
+
+### 4. 清理助手会直接永久删除所有内容吗？
+
+不会。当前设计强调风险分层、恢复和排除。中风险对象优先走隔离或保守处理，不是“全盘通杀”式删除。
+
+### 5. 媒体管家的文档转换为什么在有些机器上不可用？
+
+文档转换依赖本机可用的 Office 或 WPS 自动化环境。如果运行环境没有这些组件，对应转换能力会不可用，但不会影响其他模块。
