@@ -21,8 +21,6 @@ jobs:
       APP_NAME: BlueSapphire
       APP_PUBLISHER: BlueSapphire Team
       APP_ID: "{{8D43FBFA-A424-4FED-BDE6-6C586D7D13EE}"
-      PUBLISH_DIR: ${{ runner.temp }}\BlueSapphire\publish
-      INSTALLER_DIR: ${{ runner.temp }}\BlueSapphire\installer
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -71,14 +69,15 @@ jobs:
       - name: Publish BlueSapphire
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path "${{ env.PUBLISH_DIR }}" | Out-Null
+          $publishDir = Join-Path $env:RUNNER_TEMP "BlueSapphire\\publish"
+          New-Item -ItemType Directory -Force -Path $publishDir | Out-Null
           dotnet publish BlueSapphire.csproj `
             -c Release `
             -r win-x64 `
             --self-contained true `
             -p:WindowsPackageType=None `
             -p:Version=${{ env.VERSION }} `
-            -o "${{ env.PUBLISH_DIR }}"
+            -o $publishDir
 
       - name: Resolve ISCC path
         shell: pwsh
@@ -98,14 +97,16 @@ jobs:
       - name: Build installer
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path "${{ env.INSTALLER_DIR }}" | Out-Null
+          $publishDir = Join-Path $env:RUNNER_TEMP "BlueSapphire\\publish"
+          $installerDir = Join-Path $env:RUNNER_TEMP "BlueSapphire\\installer"
+          New-Item -ItemType Directory -Force -Path $installerDir | Out-Null
           & "${{ env.ISCC_PATH }}" `
-            "/dSourcePath=${{ env.PUBLISH_DIR }}" `
+            "/dSourcePath=$publishDir" `
             "/dMyAppName=${{ env.APP_NAME }}" `
             "/dMyAppVersion=${{ env.VERSION }}" `
             "/dMyAppPublisher=${{ env.APP_PUBLISHER }}" `
             "/dMyAppId=${{ env.APP_ID }}" `
-            "/O${{ env.INSTALLER_DIR }}" `
+            "/O$installerDir" `
             "/F${{ env.INSTALLER_BASENAME }}" `
             "installer.iss"
 
@@ -114,5 +115,6 @@ jobs:
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           name: BlueSapphire ${{ env.RELEASE_TAG }}
-          files: ${{ env.INSTALLER_DIR }}\${{ env.INSTALLER_BASENAME }}.exe
+          files: ${{ runner.temp }}\BlueSapphire\installer\${{ env.INSTALLER_BASENAME }}.exe
+          overwrite_files: true
           generate_release_notes: true
