@@ -7,6 +7,19 @@ BlueSapphire 是一个面向 Windows 11 的 WinUI 3 工具箱，当前已经包�
 
 项目目标不是做“堆功能的工具集合”，而是做一套风格统一、交互清晰、可长期演进的桌面工具平台。
 
+## 版本信息
+
+- 当前文档版本：`1.0.4`
+- 当前发布形态：`Windows 11 x64` 安装包
+- 当前发布链路：`dotnet publish -> Inno Setup -> GitHub Releases`
+
+### 1.0.4 更新摘要
+
+- 完成 `清理助手` 作为独立模块的接入与稳定性收口
+- 完成 `媒体管家` 与 `清理助手` 的模块级测试和发布前回归
+- 完成 `publish-only` 安装链路切换，阻止仓库根目录误打包
+- 完成 `BlueSapphire-Builder` 与 GitHub Release 的统一发布流程
+
 ## 当前模块
 
 - `主页`：工具导航与整体状态入口
@@ -139,29 +152,34 @@ BlueSapphire/
 
 ## 截图展示
 
-当前仓库已经具备正式 README 截图区结构，但还没有同步放入一组最终版界面截图。
-
-现有可直接展示的仓库素材：
-
-![BlueSapphire Logo](Assets/StoreLogo.png)
-
-建议后续把正式截图放到 `docs/screenshots/`，例如：
+当前仓库已经预留正式截图目录：
 
 - `docs/screenshots/home.png`
 - `docs/screenshots/media-manager.png`
 - `docs/screenshots/cleaner-assistant.png`
 
-这样 README 可以稳定展示首页、媒体管家、清理助手三张主图，而不会混入调试过程截图。
+这三个文件位于仓库保留目录中，后续替换成正式截图即可。
+
+现有可直接展示的仓库素材：
+
+![BlueSapphire Logo](Assets/StoreLogo.png)
+
+推荐最终展示顺序：
+
+1. 首页
+2. 媒体管家
+3. 清理助手
 
 ## 安装包下载说明
 
 正式安装包统一通过 GitHub Releases 分发：
 
 - 下载地址：[BlueSapphire Releases](https://github.com/lk1015646426/BlueSapphire/releases)
+- 建议发布标签：`v1.0.4`
 
 下载建议：
 
-- 普通用户直接下载最新版本里的 `BlueSapphire_Setup_v*.exe`
+- 普通用户直接下载 `BlueSapphire_Setup_v1.0.4.exe` 或更新版本
 - 安装目标机器不需要提前安装 `.NET SDK`
 - 安装目标机器不需要提前安装 `Windows App SDK`
 
@@ -194,3 +212,15 @@ dotnet build BlueSapphire.slnx
 ### 5. 媒体管家的文档转换为什么在有些机器上不可用？
 
 文档转换依赖本机可用的 Office 或 WPS 自动化环境。如果运行环境没有这些组件，对应转换能力会不可用，但不会影响其他模块。
+
+## 已知限制
+
+- README 截图目录已经预留，但最终版界面截图仍需后续替换进 `docs/screenshots/`
+- 文档转换依赖本机 Office/WPS 自动化环境，不属于应用自带能力
+- 系统级清理涉及权限边界，部分路径必须在管理员模式下才可执行
+
+## 后续路线
+
+- 持续扩充清理规则库与发布质量治理
+- 继续完善媒体处理链路的真实场景验证
+- 持续收口安装包、Release 和 Builder 的发版体验
