@@ -164,13 +164,16 @@ BlueSapphire/
 
 ![BlueSapphire Home](docs/screenshots/home.png)
 
+### 媒体管家
+
+![BlueSapphire Media Manager](docs/screenshots/media-manager.png)
+
 ### 清理助手
 
 ![BlueSapphire Cleaner Assistant](docs/screenshots/cleaner-assistant.png)
 
 补充说明：
 
-- `docs/screenshots/media-manager.png` 已预留在仓库中，后续可以替换成最终版媒体管家展示图
 - `Assets/StoreLogo.png` 继续作为仓库 Logo 资源保留
 
 ## 安装包下载说明
