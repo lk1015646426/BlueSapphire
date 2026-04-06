@@ -48,4 +48,14 @@ public class DocumentConversionServiceTests
     {
         Assert.False(_service.CanConvertToTarget(fileName, target));
     }
+
+    [Fact]
+    public async Task GetEnvironmentStatusAsync_ReturnsStableProbeResult()
+    {
+        DocumentConversionEnvironmentStatus status = await _service.GetEnvironmentStatusAsync(forceRefresh: true);
+
+        Assert.NotNull(status);
+        Assert.False(string.IsNullOrWhiteSpace(status.ShortText));
+        Assert.False(string.IsNullOrWhiteSpace(status.DetailText));
+    }
 }

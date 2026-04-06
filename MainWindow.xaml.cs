@@ -80,7 +80,7 @@ namespace BlueSapphire
                 BackgroundCanvas?.Invalidate();
             });
 
-            if (NavView.MenuItems.Count > 0) NavView.SelectedItem = NavView.MenuItems[0];
+            SelectInitialTool();
             CompositionTarget.Rendering += OnRendering;
         }
 
@@ -112,11 +112,13 @@ namespace BlueSapphire
 
         [DynamicDependency(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor, typeof(HomePage))]
         [DynamicDependency(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor, typeof(MediaManagerPage))]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor, typeof(CleanerAssistantPage))]
         [DynamicDependency(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor, typeof(Views.DevLogPage))]
         private void LoadTools()
         {
             RegisterTool(App.Current.Services.GetRequiredService<HomeTool>());
             RegisterTool(App.Current.Services.GetRequiredService<MediaManagerTool>());
+            RegisterTool(App.Current.Services.GetRequiredService<CleanerAssistantTool>());
         }
 
         private void RegisterTool(ITool tool)
@@ -140,6 +142,46 @@ namespace BlueSapphire
                 var tool = _tools.FirstOrDefault(t => t.Id == tag);
                 if (tool != null) ContentFrame.Navigate(tool.ContentPage);
             }
+        }
+
+        private void SelectInitialTool()
+        {
+            string? requestedToolId = ParseRequestedToolId(App.LaunchArguments);
+            if (!string.IsNullOrWhiteSpace(requestedToolId))
+            {
+                NavigationViewItem? match = NavView.MenuItems
+                    .OfType<NavigationViewItem>()
+                    .FirstOrDefault(item => string.Equals(item.Tag as string, requestedToolId, StringComparison.OrdinalIgnoreCase));
+
+                if (match != null)
+                {
+                    NavView.SelectedItem = match;
+                    return;
+                }
+            }
+
+            if (NavView.MenuItems.Count > 0)
+            {
+                NavView.SelectedItem = NavView.MenuItems[0];
+            }
+        }
+
+        private static string? ParseRequestedToolId(string arguments)
+        {
+            if (string.IsNullOrWhiteSpace(arguments))
+            {
+                return null;
+            }
+
+            foreach (string token in arguments.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (token.StartsWith("--tool=", StringComparison.OrdinalIgnoreCase))
+                {
+                    return token["--tool=".Length..].Trim();
+                }
+            }
+
+            return null;
         }
 
         private void OnCreateResources(CanvasControl sender, Microsoft.Graphics.Canvas.UI.CanvasCreateResourcesEventArgs args)

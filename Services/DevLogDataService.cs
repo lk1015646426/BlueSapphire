@@ -12,11 +12,25 @@ namespace BlueSapphire.Services
     {
         private const string FileName = "DevMatrixLog.json";
         private static readonly SemaphoreSlim FileLock = new(1, 1);
+        private readonly string? _rootPathOverride;
+        private readonly string? _seedFilePathOverride;
+
+        public DevLogDataService(string? rootPathOverride = null, string? seedFilePathOverride = null)
+        {
+            _rootPathOverride = rootPathOverride;
+            _seedFilePathOverride = seedFilePathOverride;
+        }
 
         public string DataFilePath
         {
             get
             {
+                if (!string.IsNullOrWhiteSpace(_rootPathOverride))
+                {
+                    Directory.CreateDirectory(_rootPathOverride);
+                    return Path.Combine(_rootPathOverride, FileName);
+                }
+
                 string appFolder = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                     "BlueSapphire");
@@ -28,7 +42,9 @@ namespace BlueSapphire.Services
 
         public bool CanWrite => true;
 
-        private string SeedFilePath => Path.Combine(AppContext.BaseDirectory, "Assets", FileName);
+        private string SeedFilePath => !string.IsNullOrWhiteSpace(_seedFilePathOverride)
+            ? _seedFilePathOverride
+            : Path.Combine(AppContext.BaseDirectory, "Assets", FileName);
 
         public async Task<List<DevLogItem>> LoadLogsAsync()
         {

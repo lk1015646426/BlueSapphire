@@ -14,8 +14,8 @@ namespace BlueSapphire.Views
 
         public DevLogPage()
         {
-            InitializeComponent();
             ViewModel = App.Current.Services.GetRequiredService<DevLogViewModel>();
+            InitializeComponent();
             Loaded += DevLogPage_Loaded;
         }
 

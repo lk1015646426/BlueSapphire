@@ -423,6 +423,38 @@ namespace BlueSapphire.ViewModels
         }
 
         [RelayCommand]
+        private async Task OpenFolderByPath()
+        {
+            string? input = await _view.ShowInputPromptAsync(
+                "导入本地路径",
+                "输入要导入的文件夹路径，支持直接粘贴本地目录。",
+                _currentFolder?.Path ?? string.Empty);
+
+            string? normalizedPath = NormalizeFolderPathInput(input);
+            if (normalizedPath == null)
+            {
+                return;
+            }
+
+            try
+            {
+                if (!Directory.Exists(normalizedPath))
+                {
+                    await _view.ShowTipAsync("指定路径不存在，或当前账户无权访问。");
+                    return;
+                }
+
+                StorageFolder folder = await StorageFolder.GetFolderFromPathAsync(normalizedPath);
+                _currentFolder = folder;
+                await LoadFolderContentAsync(folder);
+            }
+            catch (Exception ex)
+            {
+                await _view.ShowTipAsync($"路径导入失败: {ex.Message}");
+            }
+        }
+
+        [RelayCommand]
         private void ChangeSort(string field)
         {
             CurrentSortField = field;
@@ -3834,6 +3866,22 @@ namespace BlueSapphire.ViewModels
         private static string GetDirectoryPath(string path)
         {
             return Path.GetDirectoryName(path) ?? string.Empty;
+        }
+
+        internal static string? NormalizeFolderPathInput(string? input)
+        {
+            if (string.IsNullOrWhiteSpace(input))
+            {
+                return null;
+            }
+
+            string normalized = Environment.ExpandEnvironmentVariables(input.Trim().Trim('"'));
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                return null;
+            }
+
+            return Path.GetFullPath(normalized);
         }
 
         private static string BuildSiblingPath(string originalPath, string fileName)

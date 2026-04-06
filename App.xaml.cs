@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices.WindowsRuntime;
+using System.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
@@ -35,6 +36,7 @@ namespace BlueSapphire
 
         // ✅ 新增 1：方便全局获取 App 实例
         public new static App Current => (App)Application.Current;
+        public static string LaunchArguments { get; private set; } = string.Empty;
 
         // ✅ 新增 2：定义全局服务提供者 (DI 容器的核心)
         public IServiceProvider Services { get; }
@@ -60,6 +62,8 @@ namespace BlueSapphire
         {
             // ✅ 新增 3：在程序最开始初始化 DI 容器
             Services = ConfigureServices();
+            UnhandledException += App_UnhandledException;
+            AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
             this.InitializeComponent();
         }
 
@@ -71,6 +75,7 @@ namespace BlueSapphire
             // 注册工具
             services.AddTransient<HomeTool>();
             services.AddTransient<MediaManagerTool>();
+            services.AddTransient<CleanerAssistantTool>();
             // ✅ 新增：注册我们的重命名业务服务 (使用 Singleton 单例即可，因为它是无状态的工具类)
             services.AddSingleton<BlueSapphire.Services.MediaRenameService>();
 
@@ -91,10 +96,30 @@ namespace BlueSapphire
             services.AddSingleton<BlueSapphire.Services.AudioPlaylistService>();
             services.AddTransient<BlueSapphire.Services.AudioPreviewService>();
             services.AddSingleton<BlueSapphire.Services.DevLogDataService>();
+            services.AddSingleton<BlueSapphire.Services.CleanerRuleService>();
+            services.AddSingleton<BlueSapphire.Services.CleanerStateStore>();
+            services.AddSingleton<BlueSapphire.Services.CleanerRiskEvaluator>();
+            services.AddSingleton<BlueSapphire.Services.CleanerLockService>();
+            services.AddSingleton<BlueSapphire.Services.CleanerOrphanResidueService>();
+            services.AddSingleton<BlueSapphire.Services.CleanerPrivilegeService>();
+            services.AddSingleton<BlueSapphire.Services.CleanerLaunchActionService>();
+            services.AddSingleton<BlueSapphire.Services.CleanerDriveService>();
+            services.AddSingleton<BlueSapphire.Services.CleanerBoundaryGuard>();
+            services.AddSingleton<BlueSapphire.Services.CleanerAuditService>();
+            services.AddSingleton<BlueSapphire.Services.CleanerProfileService>();
+            services.AddSingleton<BlueSapphire.Services.CleanerAutomationScheduleService>();
+            services.AddSingleton<BlueSapphire.Services.CleanerAutomationService>();
+            services.AddSingleton<BlueSapphire.Services.CleanerTelemetryService>();
+            services.AddSingleton<BlueSapphire.Services.CleanerRecommendationService>();
+            services.AddSingleton<BlueSapphire.Services.CleanerSpaceAnalysisService>();
+            services.AddSingleton<BlueSapphire.Services.CleanerScanService>();
+            services.AddSingleton<BlueSapphire.Services.CleanerDeepScanService>();
+            services.AddSingleton<BlueSapphire.Services.CleanerExecutionService>();
 
             // 注册 ViewModel
             services.AddTransient<MediaManagerViewModel>();
             services.AddTransient<DevLogViewModel>();
+            services.AddTransient<CleanerAssistantViewModel>();
 
             return services.BuildServiceProvider();
         }
@@ -105,6 +130,7 @@ namespace BlueSapphire
         /// <param name="args">Details about the launch request and process.</param>
         protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
         {
+            LaunchArguments = args.Arguments ?? string.Empty;
             // [新增] 启动后台矩阵日志引擎
             BlueSapphire.Services.MatrixLogService.Initialize();
             BlueSapphire.Services.MatrixLogService.LogInfo("App", "Blue Sapphire 引擎点火成功。");
@@ -112,6 +138,51 @@ namespace BlueSapphire
             // 实例化 MainWindow 并赋值给静态属性
             CurrentWindow = new MainWindow();
             CurrentWindow.Activate();
+        }
+
+        private void App_UnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
+        {
+            LogUnhandledException("XamlUnhandledException", e.Exception, e.Message);
+        }
+
+        private void CurrentDomain_UnhandledException(object sender, System.UnhandledExceptionEventArgs e)
+        {
+            LogUnhandledException(
+                "AppDomainUnhandledException",
+                e.ExceptionObject as Exception,
+                e.ExceptionObject?.ToString() ?? "未知异常");
+        }
+
+        private static void LogUnhandledException(string source, Exception? exception, string message)
+        {
+            try
+            {
+                string rootPath = System.IO.Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "BlueSapphire",
+                    "Diagnostics");
+                Directory.CreateDirectory(rootPath);
+
+                string logPath = System.IO.Path.Combine(rootPath, "unhandled-exceptions.log");
+                StringBuilder builder = new();
+                builder.AppendLine("============================================================");
+                builder.AppendLine($"Time: {DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss zzz}");
+                builder.AppendLine($"Source: {source}");
+                builder.AppendLine($"LaunchArguments: {LaunchArguments}");
+                builder.AppendLine($"Message: {message}");
+                if (exception != null)
+                {
+                    builder.AppendLine($"ExceptionType: {exception.GetType().FullName}");
+                    builder.AppendLine("Exception:");
+                    builder.AppendLine(exception.ToString());
+                }
+
+                File.AppendAllText(logPath, builder.ToString(), Encoding.UTF8);
+            }
+            catch
+            {
+                // 异常日志不能再向外抛，否则会遮蔽原始故障。
+            }
         }
     }
 }

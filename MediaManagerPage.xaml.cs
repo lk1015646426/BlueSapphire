@@ -24,9 +24,9 @@ namespace BlueSapphire
 
         public MediaManagerPage()
         {
+            ViewModel = App.Current.Services.GetRequiredService<MediaManagerViewModel>();
             InitializeComponent();
 
-            ViewModel = App.Current.Services.GetRequiredService<MediaManagerViewModel>();
             ViewModel.Initialize(this, DispatcherQueue);
 
             Loaded += MediaManagerPage_Loaded;

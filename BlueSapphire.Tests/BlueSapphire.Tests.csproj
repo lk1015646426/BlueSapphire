@@ -25,4 +25,11 @@
     <ProjectReference Include="..\\BlueSapphire.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="..\\Assets\\CleanerRules.json">
+      <Link>Assets\CleanerRules.json</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

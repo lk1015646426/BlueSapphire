@@ -76,15 +76,32 @@
                 <TextBlock Text="媒体管家" FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource TextMain}" CharacterSpacing="20" Margin="0,2,0,0"/>
             </StackPanel>
 
-            <Button x:Name="ImportSourceButton" Grid.Column="2" Command="{x:Bind ViewModel.OpenFolderCommand}" 
-                    Style="{StaticResource ToolbarButtonStyle}"
-                    Background="{StaticResource ColorAllBg}" BorderBrush="{StaticResource ColorAll}" 
-                    BorderThickness="1" CornerRadius="6" Padding="15,8" VerticalAlignment="Center">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <FontIcon Glyph="&#xE8B5;" Foreground="{StaticResource ColorAll}" FontSize="14"/>
-                    <TextBlock Text="导入数据源" Foreground="{StaticResource ColorAll}" FontSize="13" FontWeight="SemiBold"/>
-                </StackPanel>
-            </Button>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                <Button x:Name="ImportPathButton"
+                        Command="{x:Bind ViewModel.OpenFolderByPathCommand}"
+                        Style="{StaticResource ToolbarButtonStyle}"
+                        Background="Transparent"
+                        BorderBrush="{StaticResource BorderColor}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="14,8"
+                        VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE70F;" Foreground="{StaticResource TextMain}" FontSize="14"/>
+                        <TextBlock Text="输入路径" Foreground="{StaticResource TextMain}" FontSize="13" FontWeight="SemiBold"/>
+                    </StackPanel>
+                </Button>
+
+                <Button x:Name="ImportSourceButton" Command="{x:Bind ViewModel.OpenFolderCommand}" 
+                        Style="{StaticResource ToolbarButtonStyle}"
+                        Background="{StaticResource ColorAllBg}" BorderBrush="{StaticResource ColorAll}" 
+                        BorderThickness="1" CornerRadius="6" Padding="15,8" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE8B5;" Foreground="{StaticResource ColorAll}" FontSize="14"/>
+                        <TextBlock Text="导入数据源" Foreground="{StaticResource ColorAll}" FontSize="13" FontWeight="SemiBold"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
         </Grid>
 
         <StackPanel x:Name="TabsContainer" Grid.Row="1" Orientation="Horizontal" Padding="25,0" BorderBrush="{StaticResource BorderColor}" BorderThickness="0,0,0,1" Spacing="30">
@@ -926,14 +943,14 @@
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="25">
                     <TextBlock Text="OK" FontSize="12" FontWeight="Bold" Foreground="{StaticResource ColorAll}" VerticalAlignment="Center"/>
-                    <TextBlock Text="{x:Bind ViewModel.TabStatusText, Mode=OneWay}" FontSize="12" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="TabStatusTextBlock" Text="{x:Bind ViewModel.TabStatusText, Mode=OneWay}" FontSize="12" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center"/>
                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                         <TextBlock Text="ITEMS:" FontSize="12" Foreground="{StaticResource TextMuted}"/>
-                        <TextBlock Text="{x:Bind ViewModel.CountText, Mode=OneWay}" FontSize="12" Foreground="{StaticResource TextMuted}"/>
+                        <TextBlock x:Name="CountTextBlock" Text="{x:Bind ViewModel.CountText, Mode=OneWay}" FontSize="12" Foreground="{StaticResource TextMuted}"/>
                     </StackPanel>
                 </StackPanel>
 
-                <TextBlock Grid.Column="2" Text="{x:Bind ViewModel.PathText, Mode=OneWay}" FontSize="12" Foreground="{StaticResource TextMuted}" HorizontalAlignment="Right" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                <TextBlock x:Name="PathTextBlock" Grid.Column="2" Text="{x:Bind ViewModel.PathText, Mode=OneWay}" FontSize="12" Foreground="{StaticResource TextMuted}" HorizontalAlignment="Right" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
             </Grid>
         </Grid>
     </Grid>
