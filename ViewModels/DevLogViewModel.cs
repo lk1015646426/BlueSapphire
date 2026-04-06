@@ -46,8 +46,16 @@ namespace BlueSapphire.ViewModels
         public bool IsEditable
         {
             get => _isEditable;
-            set => SetProperty(ref _isEditable, value);
+            set
+            {
+                if (SetProperty(ref _isEditable, value))
+                {
+                    OnPropertyChanged(nameof(IsReadOnlyMode));
+                }
+            }
         }
+
+        public bool IsReadOnlyMode => !IsEditable;
 
         public DevLogViewModel(DevLogDataService dataService)
         {
@@ -76,6 +84,11 @@ namespace BlueSapphire.ViewModels
 
         public async Task AddNewLogAsync(string title, string description, string version, string updateLevel, string fullContent, DateTime? date = null)
         {
+            if (!IsEditable)
+            {
+                return;
+            }
+
             var newItem = new DevLogItem
             {
                 Title = title,
@@ -91,10 +104,29 @@ namespace BlueSapphire.ViewModels
             await SaveDataAsync();
         }
 
+        public async Task UpdateLogAsync(DevLogItem item, string title, string description, string version, string updateLevel, string fullContent, DateTime? date = null)
+        {
+            if (!IsEditable || item == null || !Logs.Contains(item))
+            {
+                return;
+            }
+
+            item.Title = title;
+            item.Description = description;
+            item.Version = string.IsNullOrWhiteSpace(version) ? item.Version : version;
+            item.UpdateLevel = string.IsNullOrWhiteSpace(updateLevel) ? item.UpdateLevel : updateLevel;
+            item.FullContent = string.IsNullOrWhiteSpace(fullContent) ? "当前版本暂未录入详细架构文档。" : fullContent;
+            item.Timestamp = date ?? item.Timestamp;
+
+            ObservableCollection<DevLogItem> reorderedLogs = new(Logs.OrderByDescending(log => log.Timestamp));
+            Logs = reorderedLogs;
+            await SaveDataAsync();
+        }
+
         [RelayCommand]
         private async Task DeleteLogAsync(DevLogItem item)
         {
-            if (item == null || !Logs.Contains(item))
+            if (!IsEditable || item == null || !Logs.Contains(item))
             {
                 return;
             }
@@ -106,7 +138,7 @@ namespace BlueSapphire.ViewModels
         [RelayCommand]
         private async Task AdvanceStatusAsync(DevLogItem item)
         {
-            if (item == null)
+            if (!IsEditable || item == null)
             {
                 return;
             }
@@ -132,6 +164,12 @@ namespace BlueSapphire.ViewModels
         public async Task SaveDataAsync()
         {
             UpdateHud();
+
+            if (!IsEditable)
+            {
+                return;
+            }
+
             await _dataService.SaveLogsAsync(Logs.ToList());
         }
 

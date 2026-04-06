@@ -38,6 +38,11 @@ namespace BlueSapphire.Views
 
         private async void OpenInputDialog_Click(object sender, RoutedEventArgs e)
         {
+            if (!ViewModel.IsEditable)
+            {
+                return;
+            }
+
             var dialog = new DevLogInputDialog { XamlRoot = XamlRoot };
             var result = await dialog.ShowAsync();
 
@@ -55,6 +60,11 @@ namespace BlueSapphire.Views
 
         private void DeleteLog_Click(object sender, RoutedEventArgs e)
         {
+            if (!ViewModel.IsEditable)
+            {
+                return;
+            }
+
             if (sender is Button button && button.CommandParameter is DevLogItem item)
             {
                 RootPage.IsTabStop = true;
@@ -64,6 +74,34 @@ namespace BlueSapphire.Views
                 {
                     ViewModel.DeleteLogCommand.Execute(item);
                 }
+            }
+        }
+
+        private async void EditLog_Click(object sender, RoutedEventArgs e)
+        {
+            if (!ViewModel.IsEditable)
+            {
+                return;
+            }
+
+            if (sender is not Button button || button.CommandParameter is not DevLogItem item)
+            {
+                return;
+            }
+
+            var dialog = new DevLogInputDialog(item) { XamlRoot = XamlRoot };
+            var result = await dialog.ShowAsync();
+
+            if (result == ContentDialogResult.Primary && !string.IsNullOrWhiteSpace(dialog.NodeTitle))
+            {
+                await ViewModel.UpdateLogAsync(
+                    item,
+                    dialog.NodeTitle,
+                    dialog.NodeDescription,
+                    dialog.NodeVersion,
+                    dialog.NodeUpdateLevel,
+                    dialog.NodeFullContent,
+                    dialog.NodeDate);
             }
         }
 

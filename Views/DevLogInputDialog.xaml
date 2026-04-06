@@ -7,7 +7,7 @@
     BorderThickness="1"
     CornerRadius="4"
     RequestedTheme="Dark"
-    PrimaryButtonText="确认添加"
+    PrimaryButtonText="确认保存"
     CloseButtonText="取消"
     PrimaryButtonStyle="{StaticResource AccentButtonStyle}">
 
@@ -16,7 +16,7 @@
     </ContentDialog.Resources>
 
     <StackPanel Spacing="15" Width="500">
-        <TextBlock Text="添加更新记录" Foreground="#00FFFF" FontSize="18" FontWeight="Bold" FontFamily="{StaticResource CyberFont}"/>
+        <TextBlock x:Name="DialogTitleText" Text="添加更新记录" Foreground="#00FFFF" FontSize="18" FontWeight="Bold" FontFamily="{StaticResource CyberFont}"/>
         <Rectangle Height="1" Fill="#3300FFFF" HorizontalAlignment="Stretch" Margin="0,-5,0,5"/>
 
         <TextBox x:Name="TitleInput" Header="更新标题" PlaceholderText="例如：视觉重构与系统级优化" FontFamily="{StaticResource CyberFont}"/>
@@ -46,6 +46,13 @@
             <TextBlock Text="完整技术文档 (支持文本文件导入)" Foreground="Gray" FontSize="12" FontFamily="{StaticResource CyberFont}"/>
             <Button Content="选择本地文档" Click="SelectTxtFile_Click" Background="#2200FFFF" Foreground="#00FFFF" BorderBrush="#00FFFF" BorderThickness="1" HorizontalAlignment="Stretch" FontFamily="{StaticResource CyberFont}"/>
             <TextBlock x:Name="FileStatusText" Text="尚未选择文件" Foreground="DimGray" FontSize="12"/>
+            <TextBox x:Name="FullContentInput"
+                     Header="完整文档正文"
+                     PlaceholderText="可直接输入完整版本说明，或先导入 txt / md 文件后再继续编辑。"
+                     Height="220"
+                     TextWrapping="Wrap"
+                     AcceptsReturn="True"
+                     FontFamily="{StaticResource CyberFont}"/>
         </StackPanel>
 
     </StackPanel>
