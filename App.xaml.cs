@@ -84,17 +84,9 @@ namespace BlueSapphire
 
             // 注册我们的本地文件系统服务 (回收站功能)
             services.AddSingleton<BlueSapphire.Services.NativeFileService>();
-            services.AddSingleton<BlueSapphire.Services.DocumentConversionService>();
-            services.AddSingleton<BlueSapphire.Services.PdfDocumentService>();
             services.AddSingleton<BlueSapphire.Services.ImageProcessingService>();
             services.AddSingleton<BlueSapphire.Services.ImageMetadataService>();
             services.AddSingleton<BlueSapphire.Services.MediaTagService>();
-            services.AddSingleton<BlueSapphire.Services.AudioConversionService>();
-            services.AddSingleton<BlueSapphire.Services.AudioCatalogExportService>();
-            services.AddSingleton<BlueSapphire.Services.AudioMetadataService>();
-            services.AddSingleton<BlueSapphire.Services.AudioTagService>();
-            services.AddSingleton<BlueSapphire.Services.AudioPlaylistService>();
-            services.AddTransient<BlueSapphire.Services.AudioPreviewService>();
             services.AddSingleton<BlueSapphire.Services.DevLogDataService>();
             services.AddSingleton<BlueSapphire.Services.CleanerRuleService>();
             services.AddSingleton<BlueSapphire.Services.CleanerStateStore>();

@@ -15,9 +15,9 @@ public class MediaScanServiceTests
     }
 
     [Fact]
-    public async Task ComputeQuickHeaderFooterHashAsync_ReturnsHashForRealAudioSample()
+    public async Task ComputeQuickHeaderFooterHashAsync_ReturnsHashForRealImageSample()
     {
-        StorageFile file = await StorageFile.GetFileFromPathAsync(GetTestDataPath("sample-audio.wav"));
+        StorageFile file = await StorageFile.GetFileFromPathAsync(GetTestDataPath("sample-image.png"));
 
         string hash = await MediaScanService.ComputeQuickHeaderFooterHashAsync(file);
 
@@ -26,9 +26,9 @@ public class MediaScanServiceTests
     }
 
     [Fact]
-    public async Task ComputeMD5Async_ReturnsHashForRealAudioSample()
+    public async Task ComputeMD5Async_ReturnsHashForRealImageSample()
     {
-        StorageFile file = await StorageFile.GetFileFromPathAsync(GetTestDataPath("sample-audio.wav"));
+        StorageFile file = await StorageFile.GetFileFromPathAsync(GetTestDataPath("sample-image.png"));
 
         string hash = await MediaScanService.ComputeMD5Async(file);
 
@@ -48,15 +48,19 @@ public class MediaScanServiceTests
 
     private static string GetTestDataPath(string fileName)
     {
-        return Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..",
-            "..",
-            "..",
-            "..",
-            "..",
-            "TestData",
-            "MediaRealWorld",
-            fileName));
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+
+        while (directory != null)
+        {
+            string candidatePath = Path.Combine(directory.FullName, "TestData", "MediaRealWorld", fileName);
+            if (File.Exists(candidatePath))
+            {
+                return candidatePath;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new FileNotFoundException($"Test data file was not found: {fileName}");
     }
 }

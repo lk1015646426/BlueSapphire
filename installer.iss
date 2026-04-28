@@ -14,6 +14,9 @@
 #ifndef MyAppId
   #define MyAppId "{{8D43FBFA-A424-4FED-BDE6-6C586D7D13EE}"
 #endif
+#ifndef MySetupIconFile
+  #define MySetupIconFile ""
+#endif
 #ifndef SourcePath
   #error "SourcePath must be provided and must point to a dotnet publish output directory."
 #endif
@@ -69,6 +72,10 @@ SolidCompression=yes
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 WizardStyle=modern
+#if MySetupIconFile != ""
+SetupIconFile={#MySetupIconFile}
+UninstallDisplayIcon={app}\{#MyAppName}.exe
+#endif
 
 [Languages]
 Name: "chinesesimplified"; MessagesFile: "Chinese.isl"

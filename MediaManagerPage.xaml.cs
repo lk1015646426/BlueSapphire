@@ -1,24 +1,24 @@
-using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Hosting;
-using Microsoft.UI.Xaml.Media;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
-using System.Numerics;
 using System.Threading.Tasks;
-using Windows.Storage;
 using BlueSapphire.Interfaces;
 using BlueSapphire.Models;
-using BlueSapphire.Services;
 using BlueSapphire.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.UI.Text;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Windows.Storage;
 
 namespace BlueSapphire
 {
     public sealed partial class MediaManagerPage : Page, IMediaViewInteraction
     {
-        private readonly HashSet<UIElement> _microInteractionElements = new();
+        private IReadOnlyList<Button> _featureCards = Array.Empty<Button>();
+        private IReadOnlyList<(FrameworkElement Section, IReadOnlyList<Button> Cards)> _featureSections =
+            Array.Empty<(FrameworkElement, IReadOnlyList<Button>)>();
 
         public MediaManagerViewModel ViewModel { get; }
 
@@ -26,120 +26,62 @@ namespace BlueSapphire
         {
             ViewModel = App.Current.Services.GetRequiredService<MediaManagerViewModel>();
             InitializeComponent();
-
             ViewModel.Initialize(this, DispatcherQueue);
-
-            Loaded += MediaManagerPage_Loaded;
-            Unloaded += MediaManagerPage_Unloaded;
+            ViewModel.PropertyChanged += ViewModel_PropertyChanged;
+            UpdateWorkspaceLayout();
         }
 
         public async Task<StorageFolder?> PickFolderAsync()
         {
-            var folderPicker = new Windows.Storage.Pickers.FolderPicker();
-            folderPicker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.PicturesLibrary;
+            var folderPicker = new Windows.Storage.Pickers.FolderPicker
+            {
+                SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.PicturesLibrary
+            };
             folderPicker.FileTypeFilter.Add("*");
 
             WinRT.Interop.InitializeWithWindow.Initialize(folderPicker, App.MainWindowHandle);
             return await folderPicker.PickSingleFolderAsync();
         }
 
-        public async Task<StorageFile?> PickImageFileAsync()
+        public async Task SelectItemsByPathsAsync(IReadOnlyCollection<string> paths)
         {
-            var filePicker = new Windows.Storage.Pickers.FileOpenPicker();
-            filePicker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.PicturesLibrary;
-            filePicker.ViewMode = Windows.Storage.Pickers.PickerViewMode.Thumbnail;
-            filePicker.FileTypeFilter.Add(".jpg");
-            filePicker.FileTypeFilter.Add(".jpeg");
-            filePicker.FileTypeFilter.Add(".png");
-            filePicker.FileTypeFilter.Add(".bmp");
-            filePicker.FileTypeFilter.Add(".webp");
-
-            WinRT.Interop.InitializeWithWindow.Initialize(filePicker, App.MainWindowHandle);
-            return await filePicker.PickSingleFileAsync();
-        }
-
-        public async Task<StorageFile?> PickCsvFileAsync()
-        {
-            var filePicker = new Windows.Storage.Pickers.FileOpenPicker();
-            filePicker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary;
-            filePicker.ViewMode = Windows.Storage.Pickers.PickerViewMode.List;
-            filePicker.FileTypeFilter.Add(".csv");
-
-            WinRT.Interop.InitializeWithWindow.Initialize(filePicker, App.MainWindowHandle);
-            return await filePicker.PickSingleFileAsync();
-        }
-
-        public async Task<StorageFile?> PickLyricsFileAsync()
-        {
-            var filePicker = new Windows.Storage.Pickers.FileOpenPicker();
-            filePicker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary;
-            filePicker.ViewMode = Windows.Storage.Pickers.PickerViewMode.List;
-            filePicker.FileTypeFilter.Add(".lrc");
-            filePicker.FileTypeFilter.Add(".txt");
-
-            WinRT.Interop.InitializeWithWindow.Initialize(filePicker, App.MainWindowHandle);
-            return await filePicker.PickSingleFileAsync();
-        }
-
-        public async Task<StorageFile?> PickPlaylistFileAsync()
-        {
-            var filePicker = new Windows.Storage.Pickers.FileOpenPicker();
-            filePicker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.MusicLibrary;
-            filePicker.ViewMode = Windows.Storage.Pickers.PickerViewMode.List;
-            filePicker.FileTypeFilter.Add(".m3u8");
-            filePicker.FileTypeFilter.Add(".m3u");
-
-            WinRT.Interop.InitializeWithWindow.Initialize(filePicker, App.MainWindowHandle);
-            return await filePicker.PickSingleFileAsync();
-        }
-
-        public Task SelectItemsByPathsAsync(IReadOnlyCollection<string> paths)
-        {
-            return RunOnUiThreadAsync(async () =>
+            if (paths.Count == 0)
             {
-                var lookup = new HashSet<string>(
-                    paths?.Where(path => !string.IsNullOrWhiteSpace(path)) ?? Enumerable.Empty<string>(),
-                    StringComparer.OrdinalIgnoreCase);
+                return;
+            }
 
-                ImageGrid.SelectedItems.Clear();
-                if (lookup.Count == 0)
+            var lookup = paths.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            ImageGrid.SelectedItems.Clear();
+
+            while (ViewModel.Images != null)
+            {
+                var loadedPaths = ViewModel.Images
+                    .Where(item => !string.IsNullOrWhiteSpace(item.ImagePath))
+                    .Select(item => item.ImagePath!)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                if (!ViewModel.Images.HasMoreItems || lookup.All(path => loadedPaths.Contains(path)))
                 {
-                    await ViewModel.UpdateAudioPreviewSelectionAsync(ImageGrid.SelectedItems);
-                    return;
+                    break;
                 }
 
-                while (ViewModel.Images != null)
+                await ViewModel.Images.LoadMoreItemsAsync(100);
+            }
+
+            ImageItem? firstItem = null;
+            foreach (var item in ViewModel.Images ?? Enumerable.Empty<ImageItem>())
+            {
+                if (!string.IsNullOrWhiteSpace(item.ImagePath) && lookup.Contains(item.ImagePath))
                 {
-                    var loadedPaths = ViewModel.Images
-                        .Where(item => !string.IsNullOrWhiteSpace(item.ImagePath))
-                        .Select(item => item.ImagePath!)
-                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-                    if (!ViewModel.Images.HasMoreItems || lookup.All(path => loadedPaths.Contains(path)))
-                    {
-                        break;
-                    }
-
-                    await ViewModel.Images.LoadMoreItemsAsync(100);
+                    ImageGrid.SelectedItems.Add(item);
+                    firstItem ??= item;
                 }
+            }
 
-                ImageItem? firstItem = null;
-                foreach (var item in ViewModel.Images ?? Enumerable.Empty<ImageItem>())
-                {
-                    if (!string.IsNullOrWhiteSpace(item.ImagePath) && lookup.Contains(item.ImagePath))
-                    {
-                        ImageGrid.SelectedItems.Add(item);
-                        firstItem ??= item;
-                    }
-                }
-
-                if (firstItem != null)
-                {
-                    ImageGrid.ScrollIntoView(firstItem);
-                }
-
-                await ViewModel.UpdateAudioPreviewSelectionAsync(ImageGrid.SelectedItems);
-            });
+            if (firstItem != null)
+            {
+                ImageGrid.ScrollIntoView(firstItem);
+            }
         }
 
         public async Task<bool> ShowRenamePreviewAsync(List<RenamePreviewItem> items, int skippedCount)
@@ -159,56 +101,11 @@ namespace BlueSapphire
             {
                 XamlRoot = XamlRoot
             };
-            var result = await dialog.ShowAsync();
-
-            if (result == ContentDialogResult.Primary)
-            {
-                return dialog.GetSelectedFiles();
-            }
-
-            return new List<StorageFile>();
-        }
-
-        public async Task ShowDocumentConversionResultsAsync(DocumentConversionBatchReport report)
-        {
-            var dialog = new DocumentConversionResultDialog(report)
-            {
-                XamlRoot = XamlRoot
-            };
-            await dialog.ShowAsync();
-        }
-
-        public async Task<DocumentConversionBatchReport?> ShowDocumentTaskHistoryAsync(IReadOnlyList<DocumentConversionBatchReport> reports)
-        {
-            var dialog = new DocumentTaskHistoryDialog(reports)
-            {
-                XamlRoot = XamlRoot
-            };
 
             var result = await dialog.ShowAsync();
-            return result == ContentDialogResult.Primary ? dialog.SelectedReport : null;
-        }
-
-        public async Task<AudioTrimRequest?> ShowAudioTrimDialogAsync(string fileName, TimeSpan? duration, bool isBatch = false)
-        {
-            var dialog = new AudioTrimDialog(fileName, duration, isBatch)
-            {
-                XamlRoot = XamlRoot
-            };
-
-            var result = await dialog.ShowAsync();
-            return result == ContentDialogResult.Primary ? dialog.Request : null;
-        }
-
-        public async Task<AudioTagEditRequest?> ShowAudioTagEditDialogAsync(AudioTagEditSeed seed)
-        {
-            var dialog = new AudioTagEditDialog(seed)
-            {
-                XamlRoot = XamlRoot
-            };
-
-            var result = await dialog.ShowAsync();
-            return result == ContentDialogResult.Primary ? dialog.Request : null;
+            return result == ContentDialogResult.Primary
+                ? dialog.GetSelectedFiles()
+                : new List<StorageFile>();
         }
 
         public async Task ShowTipAsync(string message)
@@ -216,10 +113,15 @@ namespace BlueSapphire
             var dialog = new ContentDialog
             {
                 Title = "提示",
-                Content = message,
+                Content = new TextBlock
+                {
+                    Text = message,
+                    TextWrapping = TextWrapping.Wrap
+                },
                 CloseButtonText = "确定",
                 XamlRoot = XamlRoot
             };
+
             await dialog.ShowAsync();
         }
 
@@ -227,15 +129,50 @@ namespace BlueSapphire
         {
             var dialog = new ContentDialog
             {
-                Title = "删除确认",
-                Content = $"确定要将这 {count} 个文件移至回收站吗？",
+                Title = "确认删除",
+                Content = $"确定要将选中的 {count} 个图片文件移至回收站吗？",
                 PrimaryButtonText = "删除",
                 CloseButtonText = "取消",
                 DefaultButton = ContentDialogButton.Close,
                 XamlRoot = XamlRoot
             };
+
             var result = await dialog.ShowAsync();
             return result == ContentDialogResult.Primary;
+        }
+
+        public async Task<string?> ShowInputPromptAsync(string title, string message, string defaultText)
+        {
+            var textBox = new TextBox
+            {
+                Text = defaultText,
+                AcceptsReturn = false,
+                MinWidth = 360
+            };
+
+            var panel = new StackPanel
+            {
+                Spacing = 12
+            };
+            panel.Children.Add(new TextBlock
+            {
+                Text = message,
+                TextWrapping = TextWrapping.Wrap
+            });
+            panel.Children.Add(textBox);
+
+            var dialog = new ContentDialog
+            {
+                Title = title,
+                Content = panel,
+                PrimaryButtonText = "确定",
+                CloseButtonText = "取消",
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = XamlRoot
+            };
+
+            var result = await dialog.ShowAsync();
+            return result == ContentDialogResult.Primary ? textBox.Text : null;
         }
 
         private void ImageGrid_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
@@ -254,22 +191,20 @@ namespace BlueSapphire
 
         private async void ImageGrid_DoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
         {
-            if ((e.OriginalSource as FrameworkElement)?.DataContext is ImageItem item)
+            if ((e.OriginalSource as FrameworkElement)?.DataContext is not ImageItem item ||
+                string.IsNullOrWhiteSpace(item.ImagePath))
             {
-                try
-                {
-                    var file = await StorageFile.GetFileFromPathAsync(item.ImagePath);
-                    await Windows.System.Launcher.LaunchFileAsync(file);
-                }
-                catch
-                {
-                }
+                return;
             }
-        }
 
-        private async void ImageGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            await ViewModel.UpdateAudioPreviewSelectionAsync(ImageGrid.SelectedItems);
+            try
+            {
+                var file = await StorageFile.GetFileFromPathAsync(item.ImagePath);
+                await Windows.System.Launcher.LaunchFileAsync(file);
+            }
+            catch
+            {
+            }
         }
 
         private void OnDeleteClicked(object sender, RoutedEventArgs e)
@@ -277,12 +212,69 @@ namespace BlueSapphire
             ViewModel.DeleteSelectedCommand.Execute(ImageGrid.SelectedItems);
         }
 
-        private async void OnDocumentFormatConvertClicked(object sender, RoutedEventArgs e)
+        private async void OnSortCardClicked(object sender, RoutedEventArgs e)
         {
-            if (sender is MenuFlyoutItem menuItem && menuItem.Tag is string targetKey)
-            {
-                await ViewModel.ConvertSelectedDocumentsToTargetAsync(ImageGrid.SelectedItems, targetKey);
-            }
+            await ShowActionDialogAsync(
+                "排序",
+                new ActionOption("名称升序", "\uE8CB", () => ApplySortAsync("NameAsc")),
+                new ActionOption("名称降序", "\uE8CB", () => ApplySortAsync("NameDesc")),
+                new ActionOption("日期升序", "\uE787", () => ApplySortAsync("DateAsc")),
+                new ActionOption("日期降序", "\uE787", () => ApplySortAsync("DateDesc")),
+                new ActionOption("大小升序", "\uE8A9", () => ApplySortAsync("SizeAsc")),
+                new ActionOption("大小降序", "\uE8A9", () => ApplySortAsync("SizeDesc")));
+        }
+
+        private async void OnDuplicateCardClicked(object sender, RoutedEventArgs e)
+        {
+            await ShowActionDialogAsync(
+                "扫描去重",
+                new ActionOption("精确扫描", "\uE721", () => ScanDuplicatesAsync("Exact")),
+                new ActionOption("智能扫描", "\uE721", () => ScanDuplicatesAsync("Similar")));
+        }
+
+        private async void OnFormatCardClicked(object sender, RoutedEventArgs e)
+        {
+            await ShowActionDialogAsync(
+                "格式转换",
+                new ActionOption("转 JPEG", "\uE8B9", () => ViewModel.ConvertSelectedImagesToTargetAsync(ImageGrid.SelectedItems, "Jpeg")),
+                new ActionOption("转 PNG", "\uE8B9", () => ViewModel.ConvertSelectedImagesToTargetAsync(ImageGrid.SelectedItems, "Png")),
+                new ActionOption("转 BMP", "\uE8B9", () => ViewModel.ConvertSelectedImagesToTargetAsync(ImageGrid.SelectedItems, "Bmp")));
+        }
+
+        private async void OnResizeCardClicked(object sender, RoutedEventArgs e)
+        {
+            await ShowActionDialogAsync(
+                "尺寸调整",
+                new ActionOption("长边 1280", "\uE740", () => ViewModel.ResizeSelectedImagesAsync(ImageGrid.SelectedItems, "LongEdge1280")),
+                new ActionOption("长边 1920", "\uE740", () => ViewModel.ResizeSelectedImagesAsync(ImageGrid.SelectedItems, "LongEdge1920")),
+                new ActionOption("长边 2560", "\uE740", () => ViewModel.ResizeSelectedImagesAsync(ImageGrid.SelectedItems, "LongEdge2560")));
+        }
+
+        private async void OnCropCardClicked(object sender, RoutedEventArgs e)
+        {
+            await ShowActionDialogAsync(
+                "裁剪",
+                new ActionOption("1:1", "\uE7A8", () => ViewModel.CropSelectedImagesAsync(ImageGrid.SelectedItems, "Square")),
+                new ActionOption("4:3", "\uE7A8", () => ViewModel.CropSelectedImagesAsync(ImageGrid.SelectedItems, "Ratio4x3")),
+                new ActionOption("16:9", "\uE7A8", () => ViewModel.CropSelectedImagesAsync(ImageGrid.SelectedItems, "Ratio16x9")));
+        }
+
+        private async void OnCompressCardClicked(object sender, RoutedEventArgs e)
+        {
+            await ShowActionDialogAsync(
+                "压缩导出",
+                new ActionOption("轻度压缩", "\uE9D9", () => ViewModel.CompressSelectedImagesAsync(ImageGrid.SelectedItems, "Light")),
+                new ActionOption("均衡压缩", "\uE9D9", () => ViewModel.CompressSelectedImagesAsync(ImageGrid.SelectedItems, "Balanced")),
+                new ActionOption("高压缩", "\uE9D9", () => ViewModel.CompressSelectedImagesAsync(ImageGrid.SelectedItems, "Aggressive")));
+        }
+
+        private async void OnEnhanceCardClicked(object sender, RoutedEventArgs e)
+        {
+            await ShowActionDialogAsync(
+                "AI 增强",
+                new ActionOption("智能增强", "\uE945", () => ViewModel.EnhanceSelectedImagesAsync(ImageGrid.SelectedItems, "SmartFix")),
+                new ActionOption("清晰增强", "\uE945", () => ViewModel.EnhanceSelectedImagesAsync(ImageGrid.SelectedItems, "DetailBoost")),
+                new ActionOption("低光优化", "\uE945", () => ViewModel.EnhanceSelectedImagesAsync(ImageGrid.SelectedItems, "LowLight")));
         }
 
         private async void OnImageFormatConvertClicked(object sender, RoutedEventArgs e)
@@ -325,312 +317,198 @@ namespace BlueSapphire
             }
         }
 
-        private async void OnAudioFormatConvertClicked(object sender, RoutedEventArgs e)
+        private void FunctionSearchBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            if (sender is MenuFlyoutItem menuItem && menuItem.Tag is string targetKey)
-            {
-                await ViewModel.ConvertSelectedAudioToTargetAsync(ImageGrid.SelectedItems, targetKey);
-            }
-        }
-
-        private async void OnAudioMetadataRenameClicked(object sender, RoutedEventArgs e)
-        {
-            if (sender is MenuFlyoutItem menuItem && menuItem.Tag is string patternKey)
-            {
-                await ViewModel.RenameSelectedAudioByMetadataAsync(ImageGrid.SelectedItems, patternKey);
-            }
-        }
-
-        private async void OnAudioFilenameImportClicked(object sender, RoutedEventArgs e)
-        {
-            if (sender is MenuFlyoutItem menuItem && menuItem.Tag is string patternKey)
-            {
-                await ViewModel.ImportSelectedAudioTagsFromFileNameAsync(ImageGrid.SelectedItems, patternKey);
-            }
-        }
-
-        private async void OnAudioCoverApplyClicked(object sender, RoutedEventArgs e)
-        {
-            await ViewModel.ApplySelectedAudioCoverArtCommand.ExecuteAsync(ImageGrid.SelectedItems);
-        }
-
-        private async void OnAudioCoverImportSidecarClicked(object sender, RoutedEventArgs e)
-        {
-            await ViewModel.ImportSelectedAudioCoverArtFromSidecarCommand.ExecuteAsync(ImageGrid.SelectedItems);
-        }
-
-        private async void OnAudioCoverClearClicked(object sender, RoutedEventArgs e)
-        {
-            await ViewModel.ClearSelectedAudioCoverArtCommand.ExecuteAsync(ImageGrid.SelectedItems);
-        }
-
-        private async void OnAudioCoverExportClicked(object sender, RoutedEventArgs e)
-        {
-            await ViewModel.ExportSelectedAudioCoverArtCommand.ExecuteAsync(ImageGrid.SelectedItems);
-        }
-
-        private async void OnAudioLyricsImportClicked(object sender, RoutedEventArgs e)
-        {
-            await ViewModel.ImportSelectedAudioLyricsFromFileCommand.ExecuteAsync(ImageGrid.SelectedItems);
-        }
-
-        private async void OnAudioLyricsImportSidecarClicked(object sender, RoutedEventArgs e)
-        {
-            await ViewModel.ImportSelectedAudioLyricsFromSidecarCommand.ExecuteAsync(ImageGrid.SelectedItems);
-        }
-
-        private async void OnAudioLyricsExportClicked(object sender, RoutedEventArgs e)
-        {
-            await ViewModel.ExportSelectedAudioLyricsCommand.ExecuteAsync(ImageGrid.SelectedItems);
-        }
-
-        private void AudioPreviewSlider_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-        {
-            ViewModel.BeginAudioPreviewSeek();
-        }
-
-        private void AudioPreviewSlider_PointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-        {
-            ViewModel.CommitAudioPreviewSeek(AudioPreviewSlider.Value);
-        }
-
-        private void AudioPreviewSlider_PointerCaptureLost(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-        {
-            ViewModel.CommitAudioPreviewSeek(AudioPreviewSlider.Value);
-        }
-
-        public async Task<string?> ShowInputPromptAsync(string title, string message, string defaultText)
-        {
-            var textBox = new TextBox { Text = defaultText, AcceptsReturn = false };
-            var dialog = new ContentDialog
-            {
-                Title = title,
-                Content = new StackPanel
-                {
-                    Spacing = 10,
-                    Children = { new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap }, textBox }
-                },
-                PrimaryButtonText = "确定",
-                CloseButtonText = "跳过",
-                DefaultButton = ContentDialogButton.Primary,
-                XamlRoot = XamlRoot
-            };
-
-            var result = await dialog.ShowAsync();
-            return result == ContentDialogResult.Primary ? textBox.Text : null;
-        }
-
-        private void Tab_Tapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
-        {
-            if (sender is Border clickedTab && clickedTab.Tag is string mediaType)
-            {
-                ViewModel.ChangeMediaTypeCommand.Execute(mediaType);
-                ResetAllTabsVisuals();
-                clickedTab.Opacity = 1.0;
-
-                var textBlock = (TextBlock)((StackPanel)clickedTab.Child).Children[1];
-                var icon = (FontIcon)((StackPanel)clickedTab.Child).Children[0];
-
-                var brush = mediaType switch
-                {
-                    "Image" => (Microsoft.UI.Xaml.Media.SolidColorBrush)Resources["ColorImage"],
-                    "Audio" => (Microsoft.UI.Xaml.Media.SolidColorBrush)Resources["ColorAudio"],
-                    "Doc" => (Microsoft.UI.Xaml.Media.SolidColorBrush)Resources["ColorDoc"],
-                    _ => (Microsoft.UI.Xaml.Media.SolidColorBrush)Resources["ColorAll"]
-                };
-
-                clickedTab.BorderBrush = brush;
-                textBlock.Foreground = brush;
-                icon.Foreground = brush;
-
-                _ = ViewModel.UpdateAudioPreviewSelectionAsync(ImageGrid.SelectedItems);
-            }
-        }
-
-        private void ResetAllTabsVisuals()
-        {
-            var defaultBrush = (Microsoft.UI.Xaml.Media.SolidColorBrush)Resources["TextMain"];
-
-            Border[] tabs = { TabAll, TabImage, TabAudio, TabDoc };
-            foreach (var tab in tabs)
-            {
-                tab.Opacity = 0.5;
-                tab.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
-
-                var stack = (StackPanel)tab.Child;
-                ((FontIcon)stack.Children[0]).Foreground = defaultBrush;
-                ((TextBlock)stack.Children[1]).Foreground = defaultBrush;
-            }
-        }
-
-        public Microsoft.UI.Xaml.Media.SolidColorBrush GetThemeBrush(string mediaType)
-        {
-            var key = mediaType switch
-            {
-                "Image" => "ColorImage",
-                "Audio" => "ColorAudio",
-                "Doc" => "ColorDoc",
-                _ => "ColorAll"
-            };
-            return (Microsoft.UI.Xaml.Media.SolidColorBrush)Resources[key];
-        }
-
-        public string GetSortButtonText(string sortField)
-        {
-            var name = sortField switch
-            {
-                "Date" => "日期",
-                "Size" => "大小",
-                _ => "名称"
-            };
-            return $"排序: {name}";
+            ApplyFunctionFilter();
         }
 
         private void MediaManagerPage_Loaded(object sender, RoutedEventArgs e)
         {
-            HookMicroInteractions(ImportSourceButton);
-            HookMicroInteractions(ActionToolbar);
-            HookMicroInteractions(AudioPreviewCommandBar);
+            RegisterFeatureCards();
+            ApplyFunctionFilter();
+            UpdateWorkspaceLayout();
+        }
 
-            Border[] tabs = { TabAll, TabImage, TabAudio, TabDoc };
-            foreach (var tab in tabs)
+        private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(MediaManagerViewModel.HasImages))
             {
-                HookMicroInteractions(tab);
+                DispatcherQueue.TryEnqueue(UpdateWorkspaceLayout);
             }
         }
 
-        private void HookMicroInteractions(DependencyObject? root)
+        private void UpdateWorkspaceLayout()
         {
-            if (root == null)
+            if (ViewModel.HasImages)
+            {
+                FunctionPanelRow.Height = GridLength.Auto;
+                FunctionScrollViewer.MaxHeight = 372;
+                ImageGalleryRow.Height = new GridLength(1, GridUnitType.Star);
+                ImageGalleryPanel.Visibility = Visibility.Visible;
+                return;
+            }
+
+            FunctionPanelRow.Height = new GridLength(1, GridUnitType.Star);
+            FunctionScrollViewer.MaxHeight = double.PositiveInfinity;
+            ImageGalleryRow.Height = new GridLength(0);
+            ImageGalleryPanel.Visibility = Visibility.Collapsed;
+        }
+
+        private void RegisterFeatureCards()
+        {
+            if (_featureCards.Count > 0)
             {
                 return;
             }
 
-            if (root is UIElement element && (root is Button || root is DropDownButton || (root is Border border && border.Tag is string)))
+            _featureSections = new (FrameworkElement Section, IReadOnlyList<Button> Cards)[]
             {
-                AttachMicroInteraction(element);
-            }
+                (QuickSection, new[] { ImportSourceCard, SortCard, RenameCard }),
+                (OrganizeSection, new[] { DuplicateCard }),
+                (ProcessSection, new[] { FormatCard, ResizeCard, CropCard, CompressCard, EnhanceCard }),
+                (ManageSection, new[] { OpenLocationCard, ResultCard, TagCard, DeleteCard })
+            };
 
-            int childCount = VisualTreeHelper.GetChildrenCount(root);
-            for (int i = 0; i < childCount; i++)
-            {
-                HookMicroInteractions(VisualTreeHelper.GetChild(root, i));
-            }
+            _featureCards = _featureSections
+                .SelectMany(section => section.Cards)
+                .ToList();
         }
 
-        private void AttachMicroInteraction(UIElement element)
+        private void ApplyFunctionFilter()
         {
-            if (!_microInteractionElements.Add(element))
+            RegisterFeatureCards();
+
+            string query = FunctionSearchBox?.Text?.Trim() ?? string.Empty;
+            bool anyVisible = false;
+
+            foreach (var card in _featureCards)
             {
-                return;
+                bool isVisible = IsFunctionCardMatch(card, query);
+                card.Visibility = isVisible ? Visibility.Visible : Visibility.Collapsed;
+                anyVisible |= isVisible;
             }
 
-            if (element is FrameworkElement frameworkElement)
+            foreach (var section in _featureSections)
             {
-                frameworkElement.Loaded += InteractiveElement_Loaded;
-                frameworkElement.SizeChanged += InteractiveElement_SizeChanged;
+                section.Section.Visibility = section.Cards.Any(card => card.Visibility == Visibility.Visible)
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
             }
 
-            element.PointerEntered += InteractiveElement_PointerEntered;
-            element.PointerExited += InteractiveElement_PointerExited;
-            element.PointerPressed += InteractiveElement_PointerPressed;
-            element.PointerReleased += InteractiveElement_PointerReleased;
-            element.PointerCanceled += InteractiveElement_PointerExited;
-            UpdateInteractiveCenterPoint(element);
+            NoFunctionResultPanel.Visibility = anyVisible ? Visibility.Collapsed : Visibility.Visible;
         }
 
-        private static void InteractiveElement_Loaded(object sender, RoutedEventArgs e)
+        private static bool IsFunctionCardMatch(Button card, string query)
         {
-            if (sender is UIElement element)
+            if (string.IsNullOrWhiteSpace(query))
             {
-                UpdateInteractiveCenterPoint(element);
+                return true;
             }
+
+            string keywords = card.Tag?.ToString() ?? string.Empty;
+            string[] tokens = query.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            return tokens.All(token => keywords.Contains(token, StringComparison.OrdinalIgnoreCase));
         }
 
-        private static void InteractiveElement_SizeChanged(object sender, SizeChangedEventArgs e)
+        private async Task ShowActionDialogAsync(string title, params ActionOption[] options)
         {
-            if (sender is UIElement element)
+            ActionOption? selectedOption = null;
+            var dialog = new ContentDialog
             {
-                UpdateInteractiveCenterPoint(element);
-            }
-        }
+                Title = title,
+                CloseButtonText = "取消",
+                DefaultButton = ContentDialogButton.Close,
+                XamlRoot = XamlRoot
+            };
 
-        private static void InteractiveElement_PointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-        {
-            if (sender is UIElement element)
+            var grid = new Grid
             {
-                AnimateInteractiveScale(element, 1.03f, 140);
-            }
-        }
+                MinWidth = 360,
+                ColumnSpacing = 10,
+                RowSpacing = 10
+            };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        private static void InteractiveElement_PointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-        {
-            if (sender is UIElement element)
+            for (int i = 0; i < options.Length; i++)
             {
-                AnimateInteractiveScale(element, 1.0f, 160);
-            }
-        }
-
-        private static void InteractiveElement_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-        {
-            if (sender is UIElement element)
-            {
-                AnimateInteractiveScale(element, 0.98f, 80);
-            }
-        }
-
-        private static void InteractiveElement_PointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-        {
-            if (sender is UIElement element)
-            {
-                AnimateInteractiveScale(element, 1.03f, 120);
-            }
-        }
-
-        private static void UpdateInteractiveCenterPoint(UIElement element)
-        {
-            var visual = ElementCompositionPreview.GetElementVisual(element);
-            visual.CenterPoint = new Vector3(
-                (float)Math.Max(0, element.RenderSize.Width / 2),
-                (float)Math.Max(0, element.RenderSize.Height / 2),
-                0f);
-        }
-
-        private static void AnimateInteractiveScale(UIElement element, float scale, int durationMilliseconds)
-        {
-            var visual = ElementCompositionPreview.GetElementVisual(element);
-            var animation = visual.Compositor.CreateVector3KeyFrameAnimation();
-            animation.InsertKeyFrame(1f, new Vector3(scale, scale, 1f));
-            animation.Duration = TimeSpan.FromMilliseconds(durationMilliseconds);
-            visual.StartAnimation("Scale", animation);
-        }
-
-        private Task RunOnUiThreadAsync(Func<Task> action)
-        {
-            var tcs = new TaskCompletionSource<object?>();
-            DispatcherQueue.TryEnqueue(async () =>
-            {
-                try
+                int row = i / 2;
+                int column = i % 2;
+                if (grid.RowDefinitions.Count <= row)
                 {
-                    await action();
-                    tcs.SetResult(null);
+                    grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
                 }
-                catch (Exception ex)
+
+                var option = options[i];
+                var button = CreateDialogOptionButton(option);
+                button.Click += (_, _) =>
                 {
-                    tcs.SetException(ex);
-                }
-            });
+                    selectedOption = option;
+                    dialog.Hide();
+                };
 
-            return tcs.Task;
+                Grid.SetRow(button, row);
+                Grid.SetColumn(button, column);
+                grid.Children.Add(button);
+            }
+
+            dialog.Content = grid;
+            await dialog.ShowAsync();
+
+            if (selectedOption != null)
+            {
+                await selectedOption.ExecuteAsync();
+            }
         }
 
-        private void MediaManagerPage_Unloaded(object sender, RoutedEventArgs e)
+        private static Button CreateDialogOptionButton(ActionOption option)
         {
-            Loaded -= MediaManagerPage_Loaded;
-            Unloaded -= MediaManagerPage_Unloaded;
-            ViewModel.ReleaseAudioPreview();
+            var icon = new FontIcon
+            {
+                Glyph = option.Glyph,
+                FontSize = 16,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            var text = new TextBlock
+            {
+                Text = option.Title,
+                FontSize = 13,
+                FontWeight = FontWeights.SemiBold,
+                VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis
+            };
+
+            var content = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 10
+            };
+            content.Children.Add(icon);
+            content.Children.Add(text);
+
+            return new Button
+            {
+                MinHeight = 52,
+                Padding = new Thickness(14, 8, 14, 8),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+                Content = content
+            };
         }
+
+        private Task ApplySortAsync(string option)
+        {
+            ViewModel.ApplySortCommand.Execute(option);
+            return Task.CompletedTask;
+        }
+
+        private Task ScanDuplicatesAsync(string mode)
+        {
+            ViewModel.ScanDuplicatesCommand.Execute(mode);
+            return Task.CompletedTask;
+        }
+
+        private sealed record ActionOption(string Title, string Glyph, Func<Task> ExecuteAsync);
     }
 }
-
-

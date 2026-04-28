@@ -12,49 +12,26 @@ namespace BlueSapphire.Helpers
             ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".heic"
         };
 
-        private static readonly HashSet<string> AudioExtensionSet = new(StringComparer.OrdinalIgnoreCase)
-        {
-            ".mp3", ".wav", ".flac", ".aac", ".m4a"
-        };
-
-        private static readonly HashSet<string> DocumentExtensionSet = new(StringComparer.OrdinalIgnoreCase)
-        {
-            ".txt", ".pdf", ".rtf",
-            ".doc", ".docx", ".docm",
-            ".xls", ".xlsx", ".xlsm", ".xlsb", ".csv",
-            ".ppt", ".pptx", ".pptm"
-        };
-
-        public static IReadOnlyCollection<string> AllSupportedExtensions { get; } =
-            BuildCombinedSet(ImageExtensionSet, AudioExtensionSet, DocumentExtensionSet);
+        public static IReadOnlyCollection<string> AllSupportedExtensions => ImageExtensionSet;
 
         public static IReadOnlyCollection<string> ImageExtensions => ImageExtensionSet;
 
         public static QueryOptions CreateAllMediaQueryOptions()
         {
-            return CreateQueryOptions(AllSupportedExtensions);
+            return CreateImageQueryOptions();
         }
 
         public static QueryOptions CreateImageQueryOptions()
         {
-            return CreateQueryOptions(ImageExtensions);
-        }
-
-        public static bool IsImage(string? fileName) => HasExtension(fileName, ImageExtensionSet);
-
-        public static bool IsAudio(string? fileName) => HasExtension(fileName, AudioExtensionSet);
-
-        public static bool IsDocument(string? fileName) => HasExtension(fileName, DocumentExtensionSet);
-
-        public static bool IsSupported(string? fileName) => HasExtension(fileName, AllSupportedExtensions);
-
-        private static QueryOptions CreateQueryOptions(IEnumerable<string> extensions)
-        {
-            return new QueryOptions(CommonFileQuery.DefaultQuery, extensions)
+            return new QueryOptions(CommonFileQuery.DefaultQuery, ImageExtensionSet)
             {
                 FolderDepth = FolderDepth.Deep
             };
         }
+
+        public static bool IsImage(string? fileName) => HasExtension(fileName, ImageExtensionSet);
+
+        public static bool IsSupported(string? fileName) => IsImage(fileName);
 
         private static bool HasExtension(string? fileName, IEnumerable<string> extensions)
         {
@@ -78,21 +55,6 @@ namespace BlueSapphire.Helpers
             }
 
             return false;
-        }
-
-        private static IReadOnlyCollection<string> BuildCombinedSet(params IEnumerable<string>[] extensionGroups)
-        {
-            var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var group in extensionGroups)
-            {
-                foreach (var extension in group)
-                {
-                    set.Add(extension);
-                }
-            }
-
-            return set;
         }
     }
 }

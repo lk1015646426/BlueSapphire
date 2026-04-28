@@ -4,954 +4,451 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:BlueSapphire"
     xmlns:models="using:BlueSapphire.Models"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    mc:Ignorable="d">
+    Loaded="MediaManagerPage_Loaded">
 
     <Page.Resources>
         <local:BoolToVisibleConverter x:Key="BoolToVisibleConverter"/>
         <local:InverseBoolToVisibleConverter x:Key="InverseBoolToVisibleConverter"/>
 
-        <SolidColorBrush x:Key="BgColor" Color="#080D10"/>
-        <SolidColorBrush x:Key="BorderColor" Color="#1AFFFFFF"/>
-        <SolidColorBrush x:Key="PanelSurface" Color="#0B141A"/>
-        <SolidColorBrush x:Key="PanelSurfaceStrong" Color="#101A22"/>
-        <SolidColorBrush x:Key="PanelStroke" Color="#24FFFFFF"/>
-        <SolidColorBrush x:Key="PanelHighlight" Color="#10FFFFFF"/>
-        <SolidColorBrush x:Key="TextMain" Color="#E2E8F0"/>
-        <SolidColorBrush x:Key="TextMuted" Color="#64748B"/>
+        <SolidColorBrush x:Key="PageBg" Color="#FF101418"/>
+        <SolidColorBrush x:Key="HeaderBg" Color="#FF151B22"/>
+        <SolidColorBrush x:Key="PanelBg" Color="#FF171E26"/>
+        <SolidColorBrush x:Key="CardBg" Color="#FF1E2630"/>
+        <SolidColorBrush x:Key="CardBgHover" Color="#FF25313D"/>
+        <SolidColorBrush x:Key="BorderColor" Color="#334B5563"/>
+        <SolidColorBrush x:Key="TextMain" Color="#FFF8FAFC"/>
+        <SolidColorBrush x:Key="TextMuted" Color="#FFA7B0BD"/>
+        <SolidColorBrush x:Key="AccentGreen" Color="#FF20C878"/>
+        <SolidColorBrush x:Key="AccentGreenBg" Color="#2220C878"/>
+        <SolidColorBrush x:Key="AccentSky" Color="#FF38BDF8"/>
+        <SolidColorBrush x:Key="AccentSkyBg" Color="#2238BDF8"/>
+        <SolidColorBrush x:Key="AccentAmber" Color="#FFF59E0B"/>
+        <SolidColorBrush x:Key="AccentAmberBg" Color="#22F59E0B"/>
+        <SolidColorBrush x:Key="AccentDanger" Color="#FFFB7185"/>
+        <SolidColorBrush x:Key="AccentDangerBg" Color="#22FB7185"/>
 
-        <SolidColorBrush x:Key="ColorAll" Color="#00D28D"/>
-        <SolidColorBrush x:Key="ColorAllBg" Color="#1A00D28D"/>
-        <SolidColorBrush x:Key="ColorImage" Color="#0EA5E9"/>
-        <SolidColorBrush x:Key="ColorImageBg" Color="#140EA5E9"/>
-        <SolidColorBrush x:Key="ColorAudio" Color="#F59E0B"/>
-        <SolidColorBrush x:Key="ColorDoc" Color="#EAB308"/>
-        <SolidColorBrush x:Key="ColorDocBg" Color="#1AEAB308"/>
-
-        <SolidColorBrush x:Key="ColorDanger" Color="#EF4444"/>
-        <SolidColorBrush x:Key="ColorDangerBg" Color="#1AEF4444"/>
-
-        <Style x:Key="ToolbarButtonStyle" TargetType="Button">
-            <Setter Property="MinHeight" Value="38"/>
-            <Setter Property="Padding" Value="12,6"/>
-            <Setter Property="CornerRadius" Value="6"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Background" Value="{StaticResource PanelHighlight}"/>
+        <Style x:Key="HeaderButtonStyle" TargetType="Button">
+            <Setter Property="MinHeight" Value="36"/>
+            <Setter Property="Padding" Value="12,7"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderBrush" Value="{StaticResource BorderColor}"/>
-            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
-            <Setter Property="UseSystemFocusVisuals" Value="False"/>
+            <Setter Property="BorderThickness" Value="1"/>
         </Style>
 
-        <Style x:Key="ToolbarDropDownButtonStyle" TargetType="DropDownButton">
-            <Setter Property="MinHeight" Value="38"/>
-            <Setter Property="Padding" Value="12,6"/>
-            <Setter Property="CornerRadius" Value="6"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Background" Value="{StaticResource PanelHighlight}"/>
+        <Style x:Key="ModuleCardButtonStyle" TargetType="Button">
+            <Setter Property="Height" Value="136"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Background" Value="{StaticResource CardBg}"/>
             <Setter Property="BorderBrush" Value="{StaticResource BorderColor}"/>
-            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
-            <Setter Property="UseSystemFocusVisuals" Value="False"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+        </Style>
+
+        <Style x:Key="FunctionCardButtonStyle" TargetType="Button">
+            <Setter Property="Height" Value="78"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Background" Value="{StaticResource CardBg}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderColor}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+        </Style>
+
+        <Style x:Key="QuickListButtonStyle" TargetType="Button">
+            <Setter Property="Height" Value="64"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="CornerRadius" Value="0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="VerticalContentAlignment" Value="Stretch"/>
         </Style>
     </Page.Resources>
 
-    <Grid Background="{StaticResource BgColor}">
+    <Grid Background="{StaticResource PageBg}">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <Grid Grid.Row="0" Padding="25,15" BorderBrush="{StaticResource BorderColor}" BorderThickness="0,0,0,1">
+        <Grid Grid.Row="0" Padding="24,16" Background="{StaticResource HeaderBg}" BorderBrush="{StaticResource BorderColor}" BorderThickness="0,0,0,1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+            <StackPanel VerticalAlignment="Center">
                 <TextBlock Text="MEDIA MANAGER" FontSize="10" Foreground="{StaticResource TextMuted}" CharacterSpacing="100"/>
-                <TextBlock Text="媒体管家" FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource TextMain}" CharacterSpacing="20" Margin="0,2,0,0"/>
+                <TextBlock Text="媒体管家" FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource TextMain}" Margin="0,2,0,0"/>
             </StackPanel>
 
-            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                <Button x:Name="ImportPathButton"
-                        Command="{x:Bind ViewModel.OpenFolderByPathCommand}"
-                        Style="{StaticResource ToolbarButtonStyle}"
-                        Background="Transparent"
-                        BorderBrush="{StaticResource BorderColor}"
-                        BorderThickness="1"
-                        CornerRadius="6"
-                        Padding="14,8"
-                        VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <FontIcon Glyph="&#xE70F;" Foreground="{StaticResource TextMain}" FontSize="14"/>
-                        <TextBlock Text="输入路径" Foreground="{StaticResource TextMain}" FontSize="13" FontWeight="SemiBold"/>
-                    </StackPanel>
-                </Button>
+            <TextBox x:Name="FunctionSearchBox"
+                     Grid.Column="1"
+                     Width="320"
+                     MinHeight="38"
+                     Margin="16,0,12,0"
+                     PlaceholderText="搜索功能"
+                     TextChanged="FunctionSearchBox_TextChanged"
+                     Visibility="{x:Bind ViewModel.IsImageWorkspaceVisible, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"/>
 
-                <Button x:Name="ImportSourceButton" Command="{x:Bind ViewModel.OpenFolderCommand}" 
-                        Style="{StaticResource ToolbarButtonStyle}"
-                        Background="{StaticResource ColorAllBg}" BorderBrush="{StaticResource ColorAll}" 
-                        BorderThickness="1" CornerRadius="6" Padding="15,8" VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <FontIcon Glyph="&#xE8B5;" Foreground="{StaticResource ColorAll}" FontSize="14"/>
-                        <TextBlock Text="导入数据源" Foreground="{StaticResource ColorAll}" FontSize="13" FontWeight="SemiBold"/>
-                    </StackPanel>
-                </Button>
-            </StackPanel>
+            <Button Grid.Column="2"
+                    Style="{StaticResource HeaderButtonStyle}"
+                    Command="{x:Bind ViewModel.ReturnToMediaHomeCommand}"
+                    Visibility="{x:Bind ViewModel.IsImageWorkspaceVisible, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE72B;" FontSize="14" Foreground="{StaticResource TextMain}"/>
+                    <TextBlock Text="模块" Foreground="{StaticResource TextMain}" FontSize="13" FontWeight="SemiBold"/>
+                </StackPanel>
+            </Button>
         </Grid>
 
-        <StackPanel x:Name="TabsContainer" Grid.Row="1" Orientation="Horizontal" Padding="25,0" BorderBrush="{StaticResource BorderColor}" BorderThickness="0,0,0,1" Spacing="30">
-            <StackPanel.ChildrenTransitions>
-                <TransitionCollection>
-                    <RepositionThemeTransition/>
-                </TransitionCollection>
-            </StackPanel.ChildrenTransitions>
-            <Border x:Name="TabAll" Tapped="Tab_Tapped" Tag="All" Background="Transparent" BorderBrush="{StaticResource ColorAll}" BorderThickness="0,0,0,2" Padding="0,15">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <FontIcon Glyph="&#xE81E;" Foreground="{StaticResource ColorAll}" FontSize="14"/>
-                    <TextBlock Text="全部文件" Foreground="{StaticResource ColorAll}" FontSize="14"/>
-                </StackPanel>
-            </Border>
+        <Grid Grid.Row="1">
+            <Grid Visibility="{x:Bind ViewModel.IsModulePickerVisible, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" HorizontalScrollMode="Disabled">
+                    <Grid Padding="32">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
 
-            <Border x:Name="TabImage" Tapped="Tab_Tapped" Tag="Image" Background="Transparent" BorderThickness="0,0,0,2" Padding="0,15" Opacity="0.5">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <FontIcon Glyph="&#xE8B9;" Foreground="{StaticResource TextMain}" FontSize="14"/>
-                    <TextBlock Text="图片" Foreground="{StaticResource TextMain}" FontSize="14"/>
-                </StackPanel>
-            </Border>
-
-            <Border x:Name="TabAudio" Tapped="Tab_Tapped" Tag="Audio" Background="Transparent" BorderThickness="0,0,0,2" Padding="0,15" Opacity="0.5">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <FontIcon Glyph="&#xE8D6;" Foreground="{StaticResource TextMain}" FontSize="14"/>
-                    <TextBlock Text="音频" Foreground="{StaticResource TextMain}" FontSize="14"/>
-                </StackPanel>
-            </Border>
-
-            <Border x:Name="TabDoc" Tapped="Tab_Tapped" Tag="Doc" Background="Transparent" BorderThickness="0,0,0,2" Padding="0,15" Opacity="0.5">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <FontIcon Glyph="&#xE8A5;" Foreground="{StaticResource TextMain}" FontSize="14"/>
-                    <TextBlock Text="文档" Foreground="{StaticResource TextMain}" FontSize="14"/>
-                </StackPanel>
-            </Border>
-        </StackPanel>
-
-        <Grid Grid.Row="2" Padding="25,15" MinHeight="60">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-
-            <Border Grid.Column="0"
-                    Background="{StaticResource PanelSurface}"
-                    BorderBrush="{StaticResource PanelStroke}"
-                    BorderThickness="1"
-                    CornerRadius="12"
-                    Padding="14,10">
-            <ScrollViewer HorizontalScrollMode="Enabled"
-                          HorizontalScrollBarVisibility="Hidden"
-                          VerticalScrollMode="Disabled"
-                          VerticalScrollBarVisibility="Disabled"
-                          ZoomMode="Disabled"
-                          IsHorizontalRailEnabled="True">
-            <StackPanel x:Name="ActionToolbar" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                <StackPanel.ChildrenTransitions>
-                    <TransitionCollection>
-                        <RepositionThemeTransition />
-                        <AddDeleteThemeTransition />
-                        <EntranceThemeTransition FromHorizontalOffset="18" IsStaggeringEnabled="True"/>
-                    </TransitionCollection>
-                </StackPanel.ChildrenTransitions>
-
-                <DropDownButton Style="{StaticResource ToolbarDropDownButtonStyle}">
-                    <DropDownButton.Content>
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE8CB;" FontSize="12"/>
-                            <TextBlock Text="{x:Bind GetSortButtonText(ViewModel.CurrentSortField), Mode=OneWay}" FontSize="13" VerticalAlignment="Center"/>
-                            <FontIcon Glyph="&#xE0E3;" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextMuted}" Margin="4,0,0,0"/>
+                        <StackPanel Grid.Row="0" Spacing="6" Margin="0,0,0,24">
+                            <TextBlock Text="资产类型" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextMuted}"/>
+                            <TextBlock Text="选择工作台" FontSize="28" FontWeight="SemiBold" Foreground="{StaticResource TextMain}"/>
                         </StackPanel>
-                    </DropDownButton.Content>
-                    <DropDownButton.Flyout>
-                        <MenuFlyout Placement="Bottom">
-                            <MenuFlyoutItem Text="按名称" Command="{x:Bind ViewModel.ChangeSortCommand}" CommandParameter="Name"/>
-                            <MenuFlyoutItem Text="按日期" Command="{x:Bind ViewModel.ChangeSortCommand}" CommandParameter="Date"/>
-                            <MenuFlyoutItem Text="按大小" Command="{x:Bind ViewModel.ChangeSortCommand}" CommandParameter="Size"/>
 
-                            <MenuFlyoutSeparator Background="{StaticResource BorderColor}"/>
-
-                            <MenuFlyoutItem Text="切换 升序/降序" Command="{x:Bind ViewModel.ToggleSortDirectionCommand}">
-                                <MenuFlyoutItem.Icon>
-                                    <FontIcon Glyph="&#xE8CB;"/>
-                                </MenuFlyoutItem.Icon>
-                            </MenuFlyoutItem>
-                        </MenuFlyout>
-                    </DropDownButton.Flyout>
-                </DropDownButton>
-                <Border Width="1" Background="{StaticResource BorderColor}" Margin="5,0"/>
-
-                <Button Style="{StaticResource ToolbarButtonStyle}" Command="{x:Bind ViewModel.RenameSelectedCommand}" CommandParameter="{x:Bind ImageGrid.SelectedItems, Mode=OneWay}">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE8AC;" FontSize="12"/>
-                        <TextBlock Text="重命名" FontSize="13"/>
-                    </StackPanel>
-                </Button>
-
-                <DropDownButton Visibility="{x:Bind ViewModel.IsTypeDoc, Mode=OneWay, Converter={StaticResource InverseBoolToVisibleConverter}}"
-                                Style="{StaticResource ToolbarDropDownButtonStyle}"
-                                Background="{StaticResource ColorAllBg}" BorderBrush="{StaticResource ColorAll}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <DropDownButton.Content>
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE74C;" Foreground="{StaticResource ColorAll}" FontSize="12"/>
-                            <TextBlock Text="扫描去重" Foreground="{StaticResource ColorAll}" FontSize="13"/>
-                        </StackPanel>
-                    </DropDownButton.Content>
-                    <DropDownButton.Flyout>
-                        <MenuFlyout Placement="Bottom">
-                            <MenuFlyoutItem Text="精确扫描" Command="{x:Bind ViewModel.ScanDuplicatesCommand}" CommandParameter="Exact">
-                                <MenuFlyoutItem.Icon>
-                                    <FontIcon Glyph="&#xE8B0;"/>
-                                </MenuFlyoutItem.Icon>
-                            </MenuFlyoutItem>
-                            <MenuFlyoutItem Text="智能扫描" Command="{x:Bind ViewModel.ScanDuplicatesCommand}" CommandParameter="Similar">
-                                <MenuFlyoutItem.Icon>
-                                    <FontIcon Glyph="&#xE824;"/>
-                                </MenuFlyoutItem.Icon>
-                            </MenuFlyoutItem>
-                        </MenuFlyout>
-                    </DropDownButton.Flyout>
-                </DropDownButton>
-
-                <DropDownButton Visibility="{x:Bind ViewModel.IsTypeImage, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                                Style="{StaticResource ToolbarDropDownButtonStyle}"
-                                ToolTipService.ToolTip="常规图片格式转换"
-                                Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorImage}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <DropDownButton.Content>
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE8D5;" FontSize="12"/>
-                            <TextBlock Text="格式转换" FontSize="13"/>
-                        </StackPanel>
-                    </DropDownButton.Content>
-                    <DropDownButton.Flyout>
-                        <MenuFlyout Placement="Bottom">
-                            <MenuFlyoutItem Text="转 JPEG" Tag="Jpeg" Click="OnImageFormatConvertClicked"/>
-                            <MenuFlyoutItem Text="转 PNG" Tag="Png" Click="OnImageFormatConvertClicked"/>
-                            <MenuFlyoutItem Text="转 BMP" Tag="Bmp" Click="OnImageFormatConvertClicked"/>
-                        </MenuFlyout>
-                    </DropDownButton.Flyout>
-                </DropDownButton>
-
-                <DropDownButton Visibility="{x:Bind ViewModel.IsTypeImage, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                                Style="{StaticResource ToolbarDropDownButtonStyle}"
-                                ToolTipService.ToolTip="按长边快速调整图片尺寸"
-                                Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorImage}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <DropDownButton.Content>
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE7C8;" FontSize="12"/>
-                            <TextBlock Text="尺寸调整" FontSize="13"/>
-                        </StackPanel>
-                    </DropDownButton.Content>
-                    <DropDownButton.Flyout>
-                        <MenuFlyout Placement="Bottom">
-                            <MenuFlyoutItem Text="长边 1280" Tag="LongEdge1280" Click="OnImageResizeClicked"/>
-                            <MenuFlyoutItem Text="长边 1920" Tag="LongEdge1920" Click="OnImageResizeClicked"/>
-                            <MenuFlyoutItem Text="长边 2560" Tag="LongEdge2560" Click="OnImageResizeClicked"/>
-                        </MenuFlyout>
-                    </DropDownButton.Flyout>
-                </DropDownButton>
-
-                <DropDownButton Visibility="{x:Bind ViewModel.IsTypeImage, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                                Style="{StaticResource ToolbarDropDownButtonStyle}"
-                                ToolTipService.ToolTip="按常用比例进行中心裁剪"
-                                Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorImage}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <DropDownButton.Content>
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE7A8;" FontSize="12"/>
-                            <TextBlock Text="裁剪" FontSize="13"/>
-                        </StackPanel>
-                    </DropDownButton.Content>
-                    <DropDownButton.Flyout>
-                        <MenuFlyout Placement="Bottom">
-                            <MenuFlyoutItem Text="1:1 中心裁剪" Tag="Square" Click="OnImageCropClicked"/>
-                            <MenuFlyoutItem Text="4:3 中心裁剪" Tag="Ratio4x3" Click="OnImageCropClicked"/>
-                            <MenuFlyoutItem Text="16:9 中心裁剪" Tag="Ratio16x9" Click="OnImageCropClicked"/>
-                        </MenuFlyout>
-                    </DropDownButton.Flyout>
-                </DropDownButton>
-
-                <DropDownButton Visibility="{x:Bind ViewModel.IsTypeImage, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                                Style="{StaticResource ToolbarDropDownButtonStyle}"
-                                ToolTipService.ToolTip="导出更小的 JPEG 文件"
-                                Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorImage}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <DropDownButton.Content>
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE7B8;" FontSize="12"/>
-                            <TextBlock Text="压缩导出" FontSize="13"/>
-                        </StackPanel>
-                    </DropDownButton.Content>
-                    <DropDownButton.Flyout>
-                        <MenuFlyout Placement="Bottom">
-                            <MenuFlyoutItem Text="轻度压缩" Tag="Light" Click="OnImageCompressClicked"/>
-                            <MenuFlyoutItem Text="均衡压缩" Tag="Balanced" Click="OnImageCompressClicked"/>
-                            <MenuFlyoutItem Text="高压缩" Tag="Aggressive" Click="OnImageCompressClicked"/>
-                        </MenuFlyout>
-                    </DropDownButton.Flyout>
-                </DropDownButton>
-
-                <DropDownButton Visibility="{x:Bind ViewModel.IsTypeImage, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                                Style="{StaticResource ToolbarDropDownButtonStyle}"
-                                ToolTipService.ToolTip="智能增强、清晰增强和低光优化"
-                                Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorImage}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <DropDownButton.Content>
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE945;" FontSize="12"/>
-                            <TextBlock Text="AI 增强" FontSize="13"/>
-                        </StackPanel>
-                    </DropDownButton.Content>
-                    <DropDownButton.Flyout>
-                        <MenuFlyout Placement="Bottom">
-                            <MenuFlyoutItem Text="智能增强" Tag="SmartFix" Click="OnImageEnhanceClicked"/>
-                            <MenuFlyoutItem Text="清晰增强" Tag="DetailBoost" Click="OnImageEnhanceClicked"/>
-                            <MenuFlyoutItem Text="低光优化" Tag="LowLight" Click="OnImageEnhanceClicked"/>
-                        </MenuFlyout>
-                    </DropDownButton.Flyout>
-                </DropDownButton>
-
-                <DropDownButton Visibility="{x:Bind ViewModel.IsTypeAudio, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                                Style="{StaticResource ToolbarDropDownButtonStyle}"
-                                ToolTipService.ToolTip="常规音频格式转换"
-                                Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorAudio}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <DropDownButton.Content>
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE8D5;" FontSize="12"/>
-                            <TextBlock Text="格式转换" FontSize="13"/>
-                        </StackPanel>
-                    </DropDownButton.Content>
-                    <DropDownButton.Flyout>
-                        <MenuFlyout Placement="Bottom">
-                            <MenuFlyoutItem Text="转 MP3" Tag="Mp3" Click="OnAudioFormatConvertClicked"/>
-                            <MenuFlyoutItem Text="转 WAV" Tag="Wav" Click="OnAudioFormatConvertClicked"/>
-                            <MenuFlyoutItem Text="转 M4A" Tag="M4a" Click="OnAudioFormatConvertClicked"/>
-                        </MenuFlyout>
-                    </DropDownButton.Flyout>
-                </DropDownButton>
-
-                <DropDownButton Visibility="{x:Bind ViewModel.IsTypeAudio, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                                Style="{StaticResource ToolbarDropDownButtonStyle}"
-                                ToolTipService.ToolTip="按音频元数据自动生成规范文件名"
-                                Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorAudio}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <DropDownButton.Content>
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE8AC;" FontSize="12"/>
-                            <TextBlock Text="元数据重命名" FontSize="13"/>
-                        </StackPanel>
-                    </DropDownButton.Content>
-                    <DropDownButton.Flyout>
-                        <MenuFlyout Placement="Bottom">
-                            <MenuFlyoutItem Text="按标题" Tag="Title" Click="OnAudioMetadataRenameClicked"/>
-                            <MenuFlyoutItem Text="按艺术家 - 标题" Tag="ArtistTitle" Click="OnAudioMetadataRenameClicked"/>
-                            <MenuFlyoutItem Text="按曲序 - 标题" Tag="TrackTitle" Click="OnAudioMetadataRenameClicked"/>
-                            <MenuFlyoutItem Text="按专辑 - 曲序 - 标题" Tag="AlbumTrackTitle" Click="OnAudioMetadataRenameClicked"/>
-                        </MenuFlyout>
-                    </DropDownButton.Flyout>
-                </DropDownButton>
-
-                <DropDownButton Visibility="{x:Bind ViewModel.IsTypeAudio, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                                Style="{StaticResource ToolbarDropDownButtonStyle}"
-                                ToolTipService.ToolTip="按当前文件名规则写入标题、艺术家、专辑和曲序等标签"
-                                Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorAudio}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <DropDownButton.Content>
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE8D4;" FontSize="12"/>
-                            <TextBlock Text="文件名写标签" FontSize="13"/>
-                        </StackPanel>
-                    </DropDownButton.Content>
-                    <DropDownButton.Flyout>
-                        <MenuFlyout Placement="Bottom">
-                            <MenuFlyoutItem Text="标题" Tag="Title" Click="OnAudioFilenameImportClicked"/>
-                            <MenuFlyoutItem Text="艺术家 - 标题" Tag="ArtistTitle" Click="OnAudioFilenameImportClicked"/>
-                            <MenuFlyoutItem Text="曲序 - 标题" Tag="TrackTitle" Click="OnAudioFilenameImportClicked"/>
-                            <MenuFlyoutItem Text="专辑 - 曲序 - 标题" Tag="AlbumTrackTitle" Click="OnAudioFilenameImportClicked"/>
-                        </MenuFlyout>
-                    </DropDownButton.Flyout>
-                </DropDownButton>
-
-                <Button Visibility="{x:Bind ViewModel.IsTypeAudio, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                        Style="{StaticResource ToolbarButtonStyle}"
-                        Command="{x:Bind ViewModel.EditSelectedAudioTagsCommand}"
-                        CommandParameter="{x:Bind ImageGrid.SelectedItems, Mode=OneWay}"
-                        ToolTipService.ToolTip="编辑选中音频的标题、艺术家、专辑、专辑艺术家、流派、作曲、曲序、碟序、年份、备注和歌词"
-                        Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorAudio}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE70F;" FontSize="12"/>
-                        <TextBlock Text="编辑标签" FontSize="13"/>
-                    </StackPanel>
-                </Button>
-
-                <DropDownButton Visibility="{x:Bind ViewModel.IsTypeAudio, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                                Style="{StaticResource ToolbarDropDownButtonStyle}"
-                                ToolTipService.ToolTip="为音频写入、导入、清除或导出内嵌封面"
-                                Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorAudio}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <DropDownButton.Content>
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE91B;" FontSize="12"/>
-                            <TextBlock Text="封面" FontSize="13"/>
-                        </StackPanel>
-                    </DropDownButton.Content>
-                    <DropDownButton.Flyout>
-                        <MenuFlyout Placement="Bottom">
-                            <MenuFlyoutItem Text="设置封面" Click="OnAudioCoverApplyClicked"/>
-                            <MenuFlyoutItem Text="从同名图片导入" Click="OnAudioCoverImportSidecarClicked"/>
-                            <MenuFlyoutItem Text="清除封面" Click="OnAudioCoverClearClicked"/>
-                            <MenuFlyoutItem Text="导出封面" Click="OnAudioCoverExportClicked"/>
-                        </MenuFlyout>
-                    </DropDownButton.Flyout>
-                </DropDownButton>
-
-                <DropDownButton Visibility="{x:Bind ViewModel.IsTypeAudio, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                                Style="{StaticResource ToolbarDropDownButtonStyle}"
-                                ToolTipService.ToolTip="导入或导出音频歌词"
-                                Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorAudio}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <DropDownButton.Content>
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE8A5;" FontSize="12"/>
-                            <TextBlock Text="歌词" FontSize="13"/>
-                        </StackPanel>
-                    </DropDownButton.Content>
-                    <DropDownButton.Flyout>
-                        <MenuFlyout Placement="Bottom">
-                            <MenuFlyoutItem Text="从歌词文件导入" Click="OnAudioLyricsImportClicked"/>
-                            <MenuFlyoutItem Text="从同名歌词导入" Click="OnAudioLyricsImportSidecarClicked"/>
-                            <MenuFlyoutItem Text="导出歌词" Click="OnAudioLyricsExportClicked"/>
-                        </MenuFlyout>
-                    </DropDownButton.Flyout>
-                </DropDownButton>
-
-                <Button Visibility="{x:Bind ViewModel.IsTypeAudio, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                        Style="{StaticResource ToolbarButtonStyle}"
-                        Command="{x:Bind ViewModel.ExportSelectedAudioCatalogCommand}"
-                        CommandParameter="{x:Bind ImageGrid.SelectedItems, Mode=OneWay}"
-                        ToolTipService.ToolTip="将选中音频的元数据导出为 CSV 清单"
-                        Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorAudio}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE9D2;" FontSize="12"/>
-                        <TextBlock Text="导出清单" FontSize="13"/>
-                    </StackPanel>
-                </Button>
-
-                <Button Visibility="{x:Bind ViewModel.IsTypeAudio, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                        Style="{StaticResource ToolbarButtonStyle}"
-                        Command="{x:Bind ViewModel.ImportSelectedAudioCatalogCommand}"
-                        CommandParameter="{x:Bind ImageGrid.SelectedItems, Mode=OneWay}"
-                        ToolTipService.ToolTip="从 CSV 清单批量写回音频标签；空白值将清空对应字段"
-                        Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorAudio}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE8B5;" FontSize="12"/>
-                        <TextBlock Text="导入清单" FontSize="13"/>
-                    </StackPanel>
-                </Button>
-
-                <Button Visibility="{x:Bind ViewModel.IsTypeAudio, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                        Style="{StaticResource ToolbarButtonStyle}"
-                        Command="{x:Bind ViewModel.TrimSelectedAudioCommand}"
-                        CommandParameter="{x:Bind ImageGrid.SelectedItems, Mode=OneWay}"
-                        ToolTipService.ToolTip="裁剪当前选中的单个音频，导出一个新的片段文件"
-                        Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorAudio}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE7C1;" FontSize="12"/>
-                        <TextBlock Text="裁剪" FontSize="13"/>
-                    </StackPanel>
-                </Button>
-
-                <Button Visibility="{x:Bind ViewModel.IsTypeAudio, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                        Style="{StaticResource ToolbarButtonStyle}"
-                        Command="{x:Bind ViewModel.ExportSelectedAudioSegmentsCommand}"
-                        CommandParameter="{x:Bind ImageGrid.SelectedItems, Mode=OneWay}"
-                        ToolTipService.ToolTip="为多个音频统一导出相同时间区间的片段"
-                        Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorAudio}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE7C3;" FontSize="12"/>
-                        <TextBlock Text="批量导出片段" FontSize="13"/>
-                    </StackPanel>
-                </Button>
-
-                <Button Visibility="{x:Bind ViewModel.IsTypeAudio, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                        Style="{StaticResource ToolbarButtonStyle}"
-                        Command="{x:Bind ViewModel.ExportSelectedAudioPlaylistCommand}"
-                        CommandParameter="{x:Bind ImageGrid.SelectedItems, Mode=OneWay}"
-                        ToolTipService.ToolTip="为所选音频导出 M3U8 播放列表"
-                        Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorAudio}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE14C;" FontSize="12"/>
-                        <TextBlock Text="导出播放列表" FontSize="13"/>
-                    </StackPanel>
-                </Button>
-
-                <Button Visibility="{x:Bind ViewModel.IsTypeAudio, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                        Style="{StaticResource ToolbarButtonStyle}"
-                        Command="{x:Bind ViewModel.ImportAudioPlaylistCommand}"
-                        ToolTipService.ToolTip="从 M3U / M3U8 播放列表中定位并选中当前媒体库中的音频"
-                        Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorAudio}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE14B;" FontSize="12"/>
-                        <TextBlock Text="导入播放列表" FontSize="13"/>
-                    </StackPanel>
-                </Button>
-
-                <Button Visibility="{x:Bind ViewModel.IsTypeAudio, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                        Style="{StaticResource ToolbarButtonStyle}"
-                        Command="{x:Bind ViewModel.OpenSelectedLocationCommand}"
-                        CommandParameter="{x:Bind ImageGrid.SelectedItems, Mode=OneWay}"
-                        Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorAudio}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE8DA;" FontSize="12"/>
-                        <TextBlock Text="打开位置" FontSize="13"/>
-                    </StackPanel>
-                </Button>
-
-                <Button Visibility="{x:Bind ViewModel.IsTypeAudio, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                        Style="{StaticResource ToolbarButtonStyle}"
-                        Command="{x:Bind ViewModel.ShowLastAudioConversionResultsCommand}"
-                        IsEnabled="{x:Bind ViewModel.HasAudioConversionResults, Mode=OneWay}"
-                        ToolTipService.ToolTip="{x:Bind ViewModel.LastAudioConversionSummaryText, Mode=OneWay}"
-                        Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorAudio}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE9D9;" FontSize="12"/>
-                        <TextBlock Text="查看结果" FontSize="13"/>
-                    </StackPanel>
-                </Button>
-
-                <Border Visibility="{x:Bind ViewModel.IsTypeAudio, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                        ToolTipService.ToolTip="{x:Bind ViewModel.AudioQueueDetailText, Mode=OneWay}"
-                        Background="#10F59E0B" BorderBrush="#33F59E0B" BorderThickness="1" CornerRadius="4" Padding="10,6">
-                    <TextBlock Text="{x:Bind ViewModel.AudioQueueStatusText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="12"/>
-                </Border>
-
-                <Button Visibility="{x:Bind ViewModel.IsTypeImage, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                        Style="{StaticResource ToolbarButtonStyle}"
-                        Command="{x:Bind ViewModel.OpenSelectedLocationCommand}"
-                        CommandParameter="{x:Bind ImageGrid.SelectedItems, Mode=OneWay}"
-                        Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorImage}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE8DA;" FontSize="12"/>
-                        <TextBlock Text="打开位置" FontSize="13"/>
-                    </StackPanel>
-                </Button>
-
-                <Button Visibility="{x:Bind ViewModel.IsTypeImage, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                        Style="{StaticResource ToolbarButtonStyle}"
-                        Command="{x:Bind ViewModel.ShowLastImageOperationResultsCommand}"
-                        IsEnabled="{x:Bind ViewModel.HasImageOperationResults, Mode=OneWay}"
-                        ToolTipService.ToolTip="{x:Bind ViewModel.LastImageOperationSummaryText, Mode=OneWay}"
-                        Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorImage}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE9D9;" FontSize="12"/>
-                        <TextBlock Text="查看结果" FontSize="13"/>
-                    </StackPanel>
-                </Button>
-
-                <Border Visibility="{x:Bind ViewModel.IsTypeImage, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                        ToolTipService.ToolTip="{x:Bind ViewModel.ImageQueueDetailText, Mode=OneWay}"
-                        Background="{StaticResource ColorImageBg}" BorderBrush="{StaticResource ColorImage}" BorderThickness="1" CornerRadius="4" Padding="10,6">
-                    <TextBlock Text="{x:Bind ViewModel.ImageQueueStatusText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="12"/>
-                </Border>
-
-                <Button Visibility="{x:Bind ViewModel.IsTypeDoc, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                        Command="{x:Bind ViewModel.ConvertSelectedDocumentsToPdfCommand}"
-                        CommandParameter="{x:Bind ImageGrid.SelectedItems, Mode=OneWay}"
-                        IsEnabled="{x:Bind ViewModel.IsDocumentConversionAvailable, Mode=OneWay}"
-                        ToolTipService.ToolTip="{x:Bind ViewModel.DocumentConversionSupportText, Mode=OneWay}"
-                        Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorDoc}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE8A5;" FontSize="12"/>
-                        <TextBlock Text="转 PDF" FontSize="13"/>
-                    </StackPanel>
-                </Button>
-
-                <DropDownButton Visibility="{x:Bind ViewModel.IsTypeDoc, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                                ToolTipService.ToolTip="常规文档格式转换"
-                                Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorDoc}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <DropDownButton.Content>
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE8D5;" FontSize="12"/>
-                            <TextBlock Text="格式转换" FontSize="13"/>
-                        </StackPanel>
-                    </DropDownButton.Content>
-                    <DropDownButton.Flyout>
-                        <MenuFlyout Placement="Bottom">
-                            <MenuFlyoutItem Text="转 Word (DOCX)" Tag="Docx" Click="OnDocumentFormatConvertClicked"/>
-                            <MenuFlyoutItem Text="转 Word (DOC)" Tag="Doc" Click="OnDocumentFormatConvertClicked"/>
-                            <MenuFlyoutItem Text="转富文本 (RTF)" Tag="Rtf" Click="OnDocumentFormatConvertClicked"/>
-                            <MenuFlyoutItem Text="转纯文本 (TXT)" Tag="Txt" Click="OnDocumentFormatConvertClicked"/>
-                            <MenuFlyoutSeparator/>
-                            <MenuFlyoutItem Text="转 Excel (XLSX)" Tag="Xlsx" Click="OnDocumentFormatConvertClicked"/>
-                            <MenuFlyoutItem Text="转 Excel (XLS)" Tag="Xls" Click="OnDocumentFormatConvertClicked"/>
-                            <MenuFlyoutItem Text="转 CSV" Tag="Csv" Click="OnDocumentFormatConvertClicked"/>
-                            <MenuFlyoutSeparator/>
-                            <MenuFlyoutItem Text="转 PowerPoint (PPTX)" Tag="Pptx" Click="OnDocumentFormatConvertClicked"/>
-                            <MenuFlyoutItem Text="转 PowerPoint (PPT)" Tag="Ppt" Click="OnDocumentFormatConvertClicked"/>
-                        </MenuFlyout>
-                    </DropDownButton.Flyout>
-                </DropDownButton>
-
-                <Button Visibility="{x:Bind ViewModel.IsTypeDoc, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                        Command="{x:Bind ViewModel.MergeSelectedPdfFilesCommand}"
-                        CommandParameter="{x:Bind ImageGrid.SelectedItems, Mode=OneWay}"
-                        ToolTipService.ToolTip="选择多个 PDF 后合并为一个新文件"
-                        Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorDoc}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE8C8;" FontSize="12"/>
-                        <TextBlock Text="合并 PDF" FontSize="13"/>
-                    </StackPanel>
-                </Button>
-
-                <Button Visibility="{x:Bind ViewModel.IsTypeDoc, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                        Command="{x:Bind ViewModel.SplitSelectedPdfFilesCommand}"
-                        CommandParameter="{x:Bind ImageGrid.SelectedItems, Mode=OneWay}"
-                        ToolTipService.ToolTip="按页拆分选中的 PDF"
-                        Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorDoc}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE7C3;" FontSize="12"/>
-                        <TextBlock Text="拆分 PDF" FontSize="13"/>
-                    </StackPanel>
-                </Button>
-
-                <Button Visibility="{x:Bind ViewModel.IsTypeDoc, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                        Command="{x:Bind ViewModel.ExtractSelectedPdfPagesCommand}"
-                        CommandParameter="{x:Bind ImageGrid.SelectedItems, Mode=OneWay}"
-                        ToolTipService.ToolTip="从选中的 PDF 中按范围提取页面"
-                        Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorDoc}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE8A5;" FontSize="12"/>
-                        <TextBlock Text="提取页面" FontSize="13"/>
-                    </StackPanel>
-                </Button>
-
-                <Button Visibility="{x:Bind ViewModel.IsTypeDoc, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                        Command="{x:Bind ViewModel.OpenSelectedLocationCommand}"
-                        CommandParameter="{x:Bind ImageGrid.SelectedItems, Mode=OneWay}"
-                        Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorDoc}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE8DA;" FontSize="12"/>
-                        <TextBlock Text="打开位置" FontSize="13"/>
-                    </StackPanel>
-                </Button>
-
-                <Button Visibility="{x:Bind ViewModel.IsTypeDoc, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                        Style="{StaticResource ToolbarButtonStyle}"
-                        Command="{x:Bind ViewModel.ShowLastDocumentConversionResultsCommand}"
-                        IsEnabled="{x:Bind ViewModel.HasDocumentConversionResults, Mode=OneWay}"
-                        ToolTipService.ToolTip="{x:Bind ViewModel.LastDocumentConversionSummaryText, Mode=OneWay}"
-                        Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorDoc}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE9D9;" FontSize="12"/>
-                        <TextBlock Text="查看结果" FontSize="13"/>
-                    </StackPanel>
-                </Button>
-
-                <Button Visibility="{x:Bind ViewModel.IsTypeDoc, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                        Style="{StaticResource ToolbarButtonStyle}"
-                        Command="{x:Bind ViewModel.ShowDocumentTaskHistoryCommand}"
-                        IsEnabled="{x:Bind ViewModel.HasDocumentTaskHistory, Mode=OneWay}"
-                        ToolTipService.ToolTip="查看最近的文档任务记录"
-                        Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorDoc}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE81C;" FontSize="12"/>
-                        <TextBlock Text="任务历史" FontSize="13"/>
-                    </StackPanel>
-                </Button>
-
-                <Button Visibility="{x:Bind ViewModel.IsTypeDoc, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                        Style="{StaticResource ToolbarButtonStyle}"
-                        Command="{x:Bind ViewModel.RetryFailedDocumentItemsCommand}"
-                        IsEnabled="{x:Bind ViewModel.CanRetryFailedDocumentItems, Mode=OneWay}"
-                        ToolTipService.ToolTip="仅重试最近一次文档任务中的失败项"
-                        Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorDoc}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE72C;" FontSize="12"/>
-                        <TextBlock Text="重试失败项" FontSize="13"/>
-                    </StackPanel>
-                </Button>
-
-                <Border Visibility="{x:Bind ViewModel.IsTypeDoc, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                        ToolTipService.ToolTip="{x:Bind ViewModel.DocumentConversionSupportText, Mode=OneWay}"
-                        Background="{StaticResource ColorDocBg}" BorderBrush="{StaticResource ColorDoc}" BorderThickness="1" CornerRadius="4" Padding="10,6">
-                    <TextBlock Text="{x:Bind ViewModel.DocumentConversionStatusText, Mode=OneWay}" Foreground="{StaticResource ColorDoc}" FontSize="12"/>
-                </Border>
-
-                <Border Visibility="{x:Bind ViewModel.IsTypeDoc, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                        ToolTipService.ToolTip="{x:Bind ViewModel.DocumentQueueDetailText, Mode=OneWay}"
-                        Background="#1000FFFF" BorderBrush="#3300FFFF" BorderThickness="1" CornerRadius="4" Padding="10,6">
-                    <TextBlock Text="{x:Bind ViewModel.DocumentQueueStatusText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="12"/>
-                </Border>
-
-                <Button Visibility="{x:Bind ViewModel.IsTypeAll, Mode=OneWay, Converter={StaticResource InverseBoolToVisibleConverter}}"
-                        Command="{x:Bind ViewModel.EditSelectedMediaTagsCommand}"
-                        CommandParameter="{x:Bind ImageGrid.SelectedItems, Mode=OneWay}"
-                        ToolTipService.ToolTip="为当前选中文件写入或清空自定义标签"
-                        Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource TextMain}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE8EC;" FontSize="12"/>
-                        <TextBlock Text="打标签" FontSize="13"/>
-                    </StackPanel>
-                </Button>
-
-                <Button Click="OnDeleteClicked" Background="{StaticResource ColorDangerBg}" BorderBrush="{StaticResource ColorDanger}" BorderThickness="1" CornerRadius="4" Padding="12,6">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE74D;" Foreground="{StaticResource ColorDanger}" FontSize="12"/>
-                        <TextBlock Text="删除" Foreground="{StaticResource ColorDanger}" FontSize="13"/>
-                    </StackPanel>
-                </Button>
-            </StackPanel>
-            </ScrollViewer>
-            </Border>
-
-            <Border Grid.Column="1" BorderBrush="{x:Bind GetThemeBrush(ViewModel.CurrentMediaType), Mode=OneWay}" BorderThickness="1" CornerRadius="12" Padding="12,4" VerticalAlignment="Center">
-                <TextBlock Text="{x:Bind ViewModel.ContextModeText, Mode=OneWay}" Foreground="{x:Bind GetThemeBrush(ViewModel.CurrentMediaType), Mode=OneWay}" FontSize="12"/>
-            </Border>
-        </Grid>
-
-        <Grid Grid.Row="3" Background="Transparent">
-            <Grid.ChildrenTransitions>
-                <TransitionCollection>
-                    <EntranceThemeTransition FromVerticalOffset="20"/>
-                </TransitionCollection>
-            </Grid.ChildrenTransitions>
-
-            <GridView x:Name="ImageGrid" 
-                      ItemsSource="{x:Bind ViewModel.Images, Mode=OneWay}"
-                      ContainerContentChanging="ImageGrid_ContainerContentChanging"
-                      SelectionChanged="ImageGrid_SelectionChanged"
-                      Padding="25,0,25,25" SelectionMode="Multiple" DoubleTapped="ImageGrid_DoubleTapped" IsDoubleTapEnabled="True">
-
-                <GridView.ItemContainerTransitions>
-                    <TransitionCollection>
-                        <AddDeleteThemeTransition/>
-                        <RepositionThemeTransition/>
-                    </TransitionCollection>
-                </GridView.ItemContainerTransitions>
-
-                <GridView.ItemTemplate>
-                    <DataTemplate x:DataType="models:ImageItem">
-                        <Grid x:Name="CardRoot" Width="180" Height="230" Margin="8" Background="{StaticResource PanelHighlight}" CornerRadius="10" BorderBrush="{StaticResource BorderColor}" BorderThickness="1">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="*"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <Grid Grid.Row="0">
-                                <Rectangle Fill="#0AFFFFFF" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="6" RadiusX="4" RadiusY="4"/>
-                                <FontIcon Glyph="{x:Bind PreviewGlyph}" Foreground="{StaticResource TextMuted}" FontSize="34" Opacity="0.5" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                <ProgressRing IsActive="{x:Bind IsImageLoading, Mode=OneWay}" Width="30" Height="30" Foreground="{StaticResource ColorAll}"/>
-                                <Image Source="{x:Bind ImageSource, Mode=OneWay}" Stretch="UniformToFill" Margin="6" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                <Grid Margin="12,12,12,0" VerticalAlignment="Top">
+                        <Grid Grid.Row="1" MaxWidth="560" HorizontalAlignment="Left">
+                            <Button Style="{StaticResource ModuleCardButtonStyle}"
+                                    Command="{x:Bind ViewModel.OpenImageWorkspaceCommand}">
+                                <Grid Padding="22">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <StackPanel Orientation="Horizontal" Spacing="4">
-                                        <Border Visibility="{x:Bind IsImageFile, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                                                Background="#160EA5E9" BorderBrush="#330EA5E9" BorderThickness="1" CornerRadius="999" Padding="8,3">
-                                            <TextBlock Text="{x:Bind MediaTypeLabel}" Foreground="{StaticResource ColorImage}" FontSize="9" FontWeight="SemiBold"/>
-                                        </Border>
-                                        <Border Visibility="{x:Bind IsAudioFile, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                                                Background="#16F59E0B" BorderBrush="#33F59E0B" BorderThickness="1" CornerRadius="999" Padding="8,3">
-                                            <TextBlock Text="{x:Bind MediaTypeLabel}" Foreground="{StaticResource ColorAudio}" FontSize="9" FontWeight="SemiBold"/>
-                                        </Border>
-                                        <Border Visibility="{x:Bind IsDocumentFile, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                                                Background="{StaticResource ColorDocBg}" BorderBrush="{StaticResource ColorDoc}" BorderThickness="1" CornerRadius="999" Padding="8,3">
-                                            <TextBlock Text="{x:Bind MediaTypeLabel}" Foreground="{StaticResource ColorDoc}" FontSize="9" FontWeight="SemiBold"/>
-                                        </Border>
+
+                                    <Border Width="58" Height="58" Background="{StaticResource AccentGreenBg}" BorderBrush="{StaticResource AccentGreen}" BorderThickness="1" CornerRadius="10" VerticalAlignment="Center">
+                                        <FontIcon Glyph="&#xE8B9;" FontSize="27" Foreground="{StaticResource AccentGreen}"/>
+                                    </Border>
+
+                                    <StackPanel Grid.Column="1" Margin="18,0" VerticalAlignment="Center" Spacing="5">
+                                        <TextBlock Text="图片" FontSize="24" FontWeight="SemiBold" Foreground="{StaticResource TextMain}"/>
+                                        <TextBlock Text="{x:Bind ViewModel.CountText, Mode=OneWay}" FontSize="13" Foreground="{StaticResource TextMuted}"/>
                                     </StackPanel>
-                                    <Border Grid.Column="1"
-                                            Background="#A6080D10"
-                                            BorderBrush="#1FFFFFFF"
-                                            BorderThickness="1"
-                                            CornerRadius="999"
-                                            Padding="8,3">
-                                        <TextBlock Text="{x:Bind FileExtensionLabel}" Foreground="{StaticResource TextMain}" FontSize="9" FontWeight="SemiBold"/>
+
+                                    <Border Grid.Column="2" Width="38" Height="38" Background="{StaticResource AccentGreenBg}" CornerRadius="10" VerticalAlignment="Center">
+                                        <FontIcon Glyph="&#xE76C;" FontSize="15" Foreground="{StaticResource AccentGreen}"/>
                                     </Border>
                                 </Grid>
-                                <Rectangle Fill="#30000000" Height="56" VerticalAlignment="Bottom" Margin="6,0,6,6" RadiusX="4" RadiusY="4"/>
-                            </Grid>
-                            <Grid Grid.Row="1" Background="#80000000" Padding="10,8" CornerRadius="0,0,8,8">
-                                <StackPanel>
-                                    <TextBlock Text="{x:Bind FileName}" Foreground="{StaticResource TextMain}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                                    <TextBlock Text="{x:Bind DetailLineText}" Visibility="{x:Bind HasDetailLine, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}" Foreground="{StaticResource TextMuted}" FontSize="10" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
-                                    <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,4,0,0" Visibility="{x:Bind HasAudioAssetBadges, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
-                                        <Border Visibility="{x:Bind HasEmbeddedCoverArt, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                                                Background="#14F59E0B" BorderBrush="#33F59E0B" BorderThickness="1" CornerRadius="999" Padding="6,2">
-                                            <TextBlock Text="封面" Foreground="{StaticResource ColorAudio}" FontSize="9" FontWeight="SemiBold"/>
-                                        </Border>
-                                        <Border Visibility="{x:Bind HasAudioLyrics, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                                                Background="#1400D28D" BorderBrush="#3300D28D" BorderThickness="1" CornerRadius="999" Padding="6,2">
-                                            <TextBlock Text="歌词" Foreground="{StaticResource ColorAll}" FontSize="9" FontWeight="SemiBold"/>
-                                        </Border>
-                                    </StackPanel>
-                                    <Border Visibility="{x:Bind HasCustomTags, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                                            Background="#1400D28D" BorderBrush="#3300D28D" BorderThickness="1" CornerRadius="999" Padding="6,2" Margin="0,4,0,0">
-                                        <TextBlock Text="{x:Bind CustomTagSummaryText}" Foreground="{StaticResource ColorAll}" FontSize="9" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                                    </Border>
-                                    <Grid Margin="0,4,0,0">
-                                        <TextBlock Text="{x:Bind MetadataPrimaryText}" Foreground="{StaticResource TextMuted}" FontSize="10" HorizontalAlignment="Left"/>
-                                        <TextBlock Text="{x:Bind MetadataSecondaryText}" Foreground="{StaticResource ColorAll}" FontSize="10" FontWeight="SemiBold" HorizontalAlignment="Right"/>
-                                    </Grid>
-                                </StackPanel>
-                            </Grid>
-                            <VisualStateManager.VisualStateGroups>
-                                <VisualStateGroup x:Name="CommonStates">
-                                    <VisualState x:Name="Selected">
-                                        <VisualState.Setters>
-                                            <Setter Target="CardRoot.BorderBrush" Value="{StaticResource ColorAll}"/>
-                                            <Setter Target="CardRoot.BorderThickness" Value="2"/>
-                                            <Setter Target="CardRoot.Background" Value="{StaticResource ColorAllBg}"/>
-                                        </VisualState.Setters>
-                                    </VisualState>
-                                    <VisualState x:Name="Normal"/>
-                                </VisualStateGroup>
-                            </VisualStateManager.VisualStateGroups>
+                            </Button>
                         </Grid>
-                    </DataTemplate>
-                </GridView.ItemTemplate>
-            </GridView>
+                    </Grid>
+                </ScrollViewer>
+            </Grid>
 
-            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="20"
-                        Visibility="{x:Bind ViewModel.IsEmptyStateVisible, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
-                <StackPanel.Transitions>
-                    <TransitionCollection>
-                        <EntranceThemeTransition FromVerticalOffset="30" IsStaggeringEnabled="True"/>
-                    </TransitionCollection>
-                </StackPanel.Transitions>
-                <Border Width="80" Height="80" CornerRadius="16" Background="#03FFFFFF" 
-                        BorderBrush="{x:Bind GetThemeBrush(ViewModel.CurrentMediaType), Mode=OneWay}" BorderThickness="1" HorizontalAlignment="Center">
-                    <FontIcon Glyph="{x:Bind ViewModel.EmptyStateIconGlyph, Mode=OneWay}" Foreground="{x:Bind GetThemeBrush(ViewModel.CurrentMediaType), Mode=OneWay}" FontSize="32" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                </Border>
-                <StackPanel Spacing="6">
-                    <TextBlock Text="{x:Bind ViewModel.EmptyStateText, Mode=OneWay}" FontSize="16" Foreground="{x:Bind GetThemeBrush(ViewModel.CurrentMediaType), Mode=OneWay}" HorizontalAlignment="Center"/>
-                    <TextBlock Text="点击右上角「导入数据源」开始。" FontSize="13" Foreground="{StaticResource TextMuted}" HorizontalAlignment="Center"/>
-                </StackPanel>
-            </StackPanel>
+            <Grid Visibility="{x:Bind ViewModel.IsImageWorkspaceVisible, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
+                <Grid.RowDefinitions>
+                    <RowDefinition x:Name="FunctionPanelRow" Height="*"/>
+                    <RowDefinition x:Name="ImageGalleryRow" Height="0"/>
+                </Grid.RowDefinitions>
 
-            <Grid Background="#D905080A" Visibility="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-                <StackPanel Orientation="Vertical" Spacing="15" HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <ProgressRing IsActive="True" Width="50" Height="50" Foreground="{StaticResource ColorAll}"/>
-                    <TextBlock Text="{x:Bind ViewModel.StatusMainText, Mode=OneWay}" FontSize="16" Foreground="{StaticResource ColorAll}" HorizontalAlignment="Center"/>
-                    <TextBlock Text="{x:Bind ViewModel.StatusDetailText, Mode=OneWay}" FontSize="14" Foreground="{StaticResource TextMain}" HorizontalAlignment="Center"/>
-                    <ProgressBar Value="{x:Bind ViewModel.ProgressValue, Mode=OneWay}" Maximum="{x:Bind ViewModel.ProgressMax, Mode=OneWay}"
-                                 Visibility="{x:Bind ViewModel.IsProgressVisible, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                                 Background="#20FFFFFF" Foreground="{StaticResource ColorAll}" Height="4" Width="250" CornerRadius="2"/>
-                </StackPanel>
+                <ScrollViewer x:Name="FunctionScrollViewer"
+                              Grid.Row="0"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              HorizontalScrollMode="Disabled"
+                              Background="{StaticResource PanelBg}">
+                    <StackPanel Padding="24,14,24,22" Spacing="18">
+                        <StackPanel x:Name="FunctionSectionsPanel" Spacing="18">
+                            <Border x:Name="QuickSection" Background="{StaticResource CardBg}" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="10">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <Button x:Name="ImportSourceCard" Grid.Column="0" Style="{StaticResource QuickListButtonStyle}" Command="{x:Bind ViewModel.OpenFolderCommand}" Tag="导入 图片源 文件夹 打开 image source folder">
+                                        <StackPanel Orientation="Horizontal" Spacing="12" Padding="18,0" VerticalAlignment="Center">
+                                            <FontIcon Glyph="&#xE8B7;" FontSize="20" Foreground="{StaticResource AccentGreen}"/>
+                                            <TextBlock Text="导入图片源" Foreground="{StaticResource TextMain}" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+                                    </Button>
+
+                                    <Border Grid.Column="0" BorderBrush="{StaticResource BorderColor}" BorderThickness="0,0,1,0"/>
+
+                                    <Button x:Name="SortCard" Grid.Column="1" Style="{StaticResource QuickListButtonStyle}" Click="OnSortCardClicked" Tag="排序 名称 日期 大小 升序 降序 sort">
+                                        <StackPanel Orientation="Horizontal" Spacing="12" Padding="18,0" VerticalAlignment="Center">
+                                            <FontIcon Glyph="&#xE8CB;" FontSize="20" Foreground="{StaticResource AccentSky}"/>
+                                            <TextBlock Text="排序" Foreground="{StaticResource TextMain}" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+                                    </Button>
+
+                                    <Border Grid.Column="1" BorderBrush="{StaticResource BorderColor}" BorderThickness="0,0,1,0"/>
+
+                                    <Button x:Name="RenameCard" Grid.Column="2" Style="{StaticResource QuickListButtonStyle}" Command="{x:Bind ViewModel.RenameSelectedCommand}" CommandParameter="{x:Bind ImageGrid.SelectedItems}" Tag="重命名 命名 时间 rename">
+                                        <StackPanel Orientation="Horizontal" Spacing="12" Padding="18,0" VerticalAlignment="Center">
+                                            <FontIcon Glyph="&#xE8AC;" FontSize="20" Foreground="{StaticResource AccentAmber}"/>
+                                            <TextBlock Text="重命名" Foreground="{StaticResource TextMain}" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+                                    </Button>
+                                </Grid>
+                            </Border>
+
+                            <StackPanel x:Name="OrganizeSection" Spacing="10">
+                                <TextBlock Text="整理" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextMuted}"/>
+                                <Grid ColumnSpacing="12" RowSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <Button x:Name="DuplicateCard" Grid.Column="0" Style="{StaticResource FunctionCardButtonStyle}" Click="OnDuplicateCardClicked" Tag="扫描 去重 重复 相似 duplicate scan">
+                                        <Grid Padding="14">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="*"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <FontIcon Glyph="&#xE721;" FontSize="22" Foreground="{StaticResource AccentGreen}" HorizontalAlignment="Left"/>
+                                            <TextBlock Grid.Row="1" Text="扫描去重" Foreground="{StaticResource TextMain}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                        </Grid>
+                                    </Button>
+                                </Grid>
+                            </StackPanel>
+
+                            <StackPanel x:Name="ProcessSection" Spacing="10">
+                                <TextBlock Text="处理" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextMuted}"/>
+                                <Grid ColumnSpacing="12" RowSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <Button x:Name="FormatCard" Grid.Column="0" Style="{StaticResource FunctionCardButtonStyle}" Click="OnFormatCardClicked" Tag="格式 转换 jpg jpeg png bmp format convert">
+                                        <Grid Padding="14">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="*"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <FontIcon Glyph="&#xE8B9;" FontSize="22" Foreground="{StaticResource AccentSky}" HorizontalAlignment="Left"/>
+                                            <TextBlock Grid.Row="1" Text="格式转换" Foreground="{StaticResource TextMain}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                        </Grid>
+                                    </Button>
+
+                                    <Button x:Name="ResizeCard" Grid.Column="1" Style="{StaticResource FunctionCardButtonStyle}" Click="OnResizeCardClicked" Tag="尺寸 调整 长边 1280 1920 2560 resize size">
+                                        <Grid Padding="14">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="*"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <FontIcon Glyph="&#xE740;" FontSize="22" Foreground="{StaticResource AccentGreen}" HorizontalAlignment="Left"/>
+                                            <TextBlock Grid.Row="1" Text="尺寸调整" Foreground="{StaticResource TextMain}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                        </Grid>
+                                    </Button>
+
+                                    <Button x:Name="CropCard" Grid.Column="2" Style="{StaticResource FunctionCardButtonStyle}" Click="OnCropCardClicked" Tag="裁剪 比例 1:1 4:3 16:9 crop">
+                                        <Grid Padding="14">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="*"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <FontIcon Glyph="&#xE7A8;" FontSize="22" Foreground="{StaticResource AccentAmber}" HorizontalAlignment="Left"/>
+                                            <TextBlock Grid.Row="1" Text="裁剪" Foreground="{StaticResource TextMain}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                        </Grid>
+                                    </Button>
+
+                                    <Button x:Name="CompressCard" Grid.Column="3" Style="{StaticResource FunctionCardButtonStyle}" Click="OnCompressCardClicked" Tag="压缩 导出 轻度 均衡 高压缩 compress export">
+                                        <Grid Padding="14">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="*"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <FontIcon Glyph="&#xE9D9;" FontSize="22" Foreground="{StaticResource AccentSky}" HorizontalAlignment="Left"/>
+                                            <TextBlock Grid.Row="1" Text="压缩导出" Foreground="{StaticResource TextMain}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                        </Grid>
+                                    </Button>
+
+                                    <Button x:Name="EnhanceCard" Grid.Row="1" Grid.Column="0" Style="{StaticResource FunctionCardButtonStyle}" Click="OnEnhanceCardClicked" Tag="AI 增强 智能 清晰 低光 enhance">
+                                        <Grid Padding="14">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="*"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <FontIcon Glyph="&#xE945;" FontSize="22" Foreground="{StaticResource AccentGreen}" HorizontalAlignment="Left"/>
+                                            <TextBlock Grid.Row="1" Text="AI 增强" Foreground="{StaticResource TextMain}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                        </Grid>
+                                    </Button>
+                                </Grid>
+                            </StackPanel>
+
+                            <StackPanel x:Name="ManageSection" Spacing="10">
+                                <TextBlock Text="管理" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextMuted}"/>
+                                <Grid ColumnSpacing="12" RowSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <Button x:Name="OpenLocationCard" Grid.Column="0" Style="{StaticResource FunctionCardButtonStyle}" Command="{x:Bind ViewModel.OpenSelectedLocationCommand}" CommandParameter="{x:Bind ImageGrid.SelectedItems}" Tag="打开位置 文件夹 资源管理器 location explorer">
+                                        <Grid Padding="14">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="*"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <FontIcon Glyph="&#xE838;" FontSize="22" Foreground="{StaticResource AccentSky}" HorizontalAlignment="Left"/>
+                                            <TextBlock Grid.Row="1" Text="打开位置" Foreground="{StaticResource TextMain}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                        </Grid>
+                                    </Button>
+
+                                    <Button x:Name="ResultCard" Grid.Column="1" Style="{StaticResource FunctionCardButtonStyle}" Command="{x:Bind ViewModel.ShowLastImageOperationResultsCommand}" IsEnabled="{x:Bind ViewModel.HasImageOperationResults, Mode=OneWay}" Tag="查看结果 结果 日志 result">
+                                        <Grid Padding="14">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="*"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <FontIcon Glyph="&#xE9D5;" FontSize="22" Foreground="{StaticResource AccentAmber}" HorizontalAlignment="Left"/>
+                                            <TextBlock Grid.Row="1" Text="查看结果" Foreground="{StaticResource TextMain}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                        </Grid>
+                                    </Button>
+
+                                    <Button x:Name="TagCard" Grid.Column="2" Style="{StaticResource FunctionCardButtonStyle}" Command="{x:Bind ViewModel.EditSelectedMediaTagsCommand}" CommandParameter="{x:Bind ImageGrid.SelectedItems}" Tag="标签 打标签 自定义 标签 tag">
+                                        <Grid Padding="14">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="*"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <FontIcon Glyph="&#xE8EC;" FontSize="22" Foreground="{StaticResource AccentGreen}" HorizontalAlignment="Left"/>
+                                            <TextBlock Grid.Row="1" Text="打标签" Foreground="{StaticResource TextMain}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                        </Grid>
+                                    </Button>
+
+                                    <Button x:Name="DeleteCard" Grid.Column="3" Style="{StaticResource FunctionCardButtonStyle}" Click="OnDeleteClicked" Tag="删除 回收站 delete recycle">
+                                        <Grid Padding="14">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="*"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <FontIcon Glyph="&#xE74D;" FontSize="22" Foreground="{StaticResource AccentDanger}" HorizontalAlignment="Left"/>
+                                            <TextBlock Grid.Row="1" Text="删除" Foreground="{StaticResource AccentDanger}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                        </Grid>
+                                    </Button>
+                                </Grid>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <StackPanel x:Name="NoFunctionResultPanel" Visibility="Collapsed" HorizontalAlignment="Center" Spacing="8" Padding="0,16">
+                            <FontIcon Glyph="&#xE721;" FontSize="26" Foreground="{StaticResource TextMuted}"/>
+                            <TextBlock Text="没有匹配功能" Foreground="{StaticResource TextMuted}" FontSize="13"/>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <Grid x:Name="ImageGalleryPanel"
+                      Grid.Row="1"
+                      Visibility="{x:Bind ViewModel.HasImages, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
+                    <GridView x:Name="ImageGrid"
+                              ItemsSource="{x:Bind ViewModel.Images, Mode=OneWay}"
+                              SelectionMode="Multiple"
+                              IsMultiSelectCheckBoxEnabled="True"
+                              Padding="18"
+                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                              ScrollViewer.HorizontalScrollMode="Disabled"
+                              ScrollViewer.VerticalScrollBarVisibility="Auto"
+                              ContainerContentChanging="ImageGrid_ContainerContentChanging"
+                              DoubleTapped="ImageGrid_DoubleTapped">
+                        <GridView.ItemTemplate>
+                            <DataTemplate x:DataType="models:ImageItem">
+                                <Border Width="180" Height="230" Margin="8" Background="{StaticResource CardBg}" CornerRadius="8" BorderBrush="{StaticResource BorderColor}" BorderThickness="1">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="150"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+
+                                        <Border Grid.Row="0" Background="#FF0C1116" CornerRadius="8,8,0,0">
+                                            <Grid>
+                                                <Image Source="{x:Bind ImageSource, Mode=OneWay}" Stretch="UniformToFill"/>
+                                                <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8" Background="#CC101418" CornerRadius="4" Padding="6,2">
+                                                    <TextBlock Text="{x:Bind MediaTypeLabel}" Foreground="{StaticResource AccentGreen}" FontSize="9" FontWeight="SemiBold"/>
+                                                </Border>
+                                                <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8" Background="#CC101418" CornerRadius="4" Padding="6,2">
+                                                    <TextBlock Text="{x:Bind FileExtensionLabel}" Foreground="{StaticResource TextMain}" FontSize="9" FontWeight="SemiBold"/>
+                                                </Border>
+                                            </Grid>
+                                        </Border>
+
+                                        <StackPanel Grid.Row="1" Padding="10,8" Spacing="4">
+                                            <TextBlock Text="{x:Bind FileName}" Foreground="{StaticResource TextMain}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{x:Bind DetailLineText}" Visibility="{x:Bind HasDetailLine, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}" Foreground="{StaticResource TextMuted}" FontSize="10" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{x:Bind CustomTagSummaryText}" Visibility="{x:Bind HasCustomTags, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}" Foreground="{StaticResource AccentGreen}" FontSize="9" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                            <Grid Margin="0,4,0,0">
+                                                <TextBlock Text="{x:Bind MetadataPrimaryText}" Foreground="{StaticResource TextMuted}" FontSize="10" HorizontalAlignment="Left"/>
+                                                <TextBlock Text="{x:Bind MetadataSecondaryText}" Foreground="{StaticResource AccentGreen}" FontSize="10" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </GridView.ItemTemplate>
+                    </GridView>
+
+                    <StackPanel HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Spacing="10"
+                                Visibility="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
+                        <ProgressRing IsActive="{x:Bind ViewModel.IsBusy, Mode=OneWay}" Width="46" Height="46" Foreground="{StaticResource AccentGreen}"/>
+                        <TextBlock Text="{x:Bind ViewModel.StatusMainText, Mode=OneWay}" FontSize="16" Foreground="{StaticResource AccentGreen}" HorizontalAlignment="Center"/>
+                        <TextBlock Text="{x:Bind ViewModel.StatusDetailText, Mode=OneWay}" FontSize="14" Foreground="{StaticResource TextMain}" HorizontalAlignment="Center"/>
+                        <ProgressBar Width="320"
+                                     Minimum="0"
+                                     Maximum="{x:Bind ViewModel.ProgressMax, Mode=OneWay}"
+                                     Value="{x:Bind ViewModel.ProgressValue, Mode=OneWay}"
+                                     Visibility="{x:Bind ViewModel.IsProgressVisible, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"/>
+                    </StackPanel>
+                </Grid>
             </Grid>
         </Grid>
 
-        <Grid Grid.Row="4" Background="#05080A" BorderBrush="{StaticResource BorderColor}" BorderThickness="0,1,0,0">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="30"/>
-            </Grid.RowDefinitions>
+        <Grid Grid.Row="2"
+              Padding="18,8"
+              BorderBrush="{StaticResource BorderColor}"
+              BorderThickness="0,1,0,0"
+              Background="{StaticResource HeaderBg}"
+              Visibility="{x:Bind ViewModel.IsImageWorkspaceVisible, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
 
-            <Border Grid.Row="0"
-                    Visibility="{x:Bind ViewModel.IsAudioPreviewVisible, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                    BorderBrush="{StaticResource BorderColor}"
-                    BorderThickness="0,0,0,1"
-                    Background="{StaticResource PanelSurfaceStrong}"
-                    Padding="25,12">
-                <Grid ColumnSpacing="14">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="OK" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentGreen}" VerticalAlignment="Center"/>
+                <TextBlock Text="{x:Bind ViewModel.TabStatusText}" FontSize="12" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center"/>
+            </StackPanel>
 
-                    <StackPanel x:Name="AudioPreviewCommandBar" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                        <Button Style="{StaticResource ToolbarButtonStyle}" Command="{x:Bind ViewModel.PreviousAudioPreviewCommand}"
-                                IsEnabled="{x:Bind ViewModel.CanGoToPreviousAudioPreview, Mode=OneWay}"
-                                Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorAudio}" BorderThickness="1" CornerRadius="6" Padding="10,8">
-                            <FontIcon Glyph="&#xE892;" FontSize="12"/>
-                        </Button>
-                        <Button Style="{StaticResource ToolbarButtonStyle}" Command="{x:Bind ViewModel.SkipBackwardAudioPreviewCommand}"
-                                IsEnabled="{x:Bind ViewModel.CanControlAudioPreview, Mode=OneWay}"
-                                Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorAudio}" BorderThickness="1" CornerRadius="6" Padding="10,8">
-                            <FontIcon Glyph="&#xE893;" FontSize="12"/>
-                        </Button>
-                        <Button Style="{StaticResource ToolbarButtonStyle}" Command="{x:Bind ViewModel.ToggleAudioPreviewPlaybackCommand}"
-                                IsEnabled="{x:Bind ViewModel.CanControlAudioPreview, Mode=OneWay}"
-                                Background="{StaticResource ColorAllBg}" BorderBrush="{StaticResource ColorAudio}" Foreground="{StaticResource ColorAudio}" BorderThickness="1" CornerRadius="6" Padding="12,8">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <FontIcon Glyph="{x:Bind ViewModel.AudioPreviewPlayPauseGlyph, Mode=OneWay}" FontSize="12"/>
-                                <TextBlock Text="{x:Bind ViewModel.AudioPreviewPlayPauseText, Mode=OneWay}" FontSize="12" FontWeight="SemiBold"/>
-                            </StackPanel>
-                        </Button>
-                        <Button Style="{StaticResource ToolbarButtonStyle}" Command="{x:Bind ViewModel.SkipForwardAudioPreviewCommand}"
-                                IsEnabled="{x:Bind ViewModel.CanControlAudioPreview, Mode=OneWay}"
-                                Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorAudio}" BorderThickness="1" CornerRadius="6" Padding="10,8">
-                            <FontIcon Glyph="&#xE894;" FontSize="12"/>
-                        </Button>
-                        <Button Style="{StaticResource ToolbarButtonStyle}" Command="{x:Bind ViewModel.NextAudioPreviewCommand}"
-                                IsEnabled="{x:Bind ViewModel.CanGoToNextAudioPreview, Mode=OneWay}"
-                                Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorAudio}" BorderThickness="1" CornerRadius="6" Padding="10,8">
-                            <FontIcon Glyph="&#xE895;" FontSize="12"/>
-                        </Button>
-                        <Button Style="{StaticResource ToolbarButtonStyle}" Command="{x:Bind ViewModel.CycleAudioPreviewLoopModeCommand}"
-                                Background="Transparent" BorderBrush="{StaticResource BorderColor}" Foreground="{StaticResource ColorAudio}" BorderThickness="1" CornerRadius="6" Padding="10,8">
-                            <TextBlock Text="{x:Bind ViewModel.AudioPreviewLoopModeText, Mode=OneWay}" FontSize="12"/>
-                        </Button>
-                    </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" Margin="18,0,0,0">
+                <TextBlock Text="ITEMS:" FontSize="12" Foreground="{StaticResource TextMuted}"/>
+                <TextBlock Text="{x:Bind ViewModel.CountText, Mode=OneWay}" FontSize="12" Foreground="{StaticResource TextMuted}"/>
+            </StackPanel>
 
-                    <StackPanel Grid.Column="1" Spacing="8" VerticalAlignment="Center">
-                        <StackPanel Spacing="2">
-                            <TextBlock Text="{x:Bind ViewModel.AudioPreviewTitleText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                            <TextBlock Text="{x:Bind ViewModel.AudioPreviewSubtitleText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="11" TextTrimming="CharacterEllipsis"/>
-                        </StackPanel>
-                        <Grid ColumnSpacing="10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="{x:Bind ViewModel.AudioPreviewPositionText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="11" VerticalAlignment="Center"/>
-                            <Slider x:Name="AudioPreviewSlider"
-                                    Grid.Column="1"
-                                    Margin="0,-2"
-                                    Minimum="0"
-                                    Maximum="{x:Bind ViewModel.AudioPreviewSeekMaximum, Mode=OneWay}"
-                                    Value="{x:Bind ViewModel.AudioPreviewSeekValue, Mode=OneWay}"
-                                    IsEnabled="{x:Bind ViewModel.CanControlAudioPreview, Mode=OneWay}"
-                                    PointerPressed="AudioPreviewSlider_PointerPressed"
-                                    PointerReleased="AudioPreviewSlider_PointerReleased"
-                                    PointerCaptureLost="AudioPreviewSlider_PointerCaptureLost"/>
-                            <TextBlock Grid.Column="2" Text="{x:Bind ViewModel.AudioPreviewDurationText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="11" VerticalAlignment="Center"/>
-                        </Grid>
-                    </StackPanel>
-
-                    <Border Grid.Column="2" BorderBrush="#33F59E0B" BorderThickness="1" CornerRadius="10" Padding="10,6" VerticalAlignment="Center" Background="#10F59E0B">
-                        <StackPanel>
-                            <TextBlock Text="AUDIO PREVIEW" Foreground="{StaticResource ColorAudio}" FontSize="11" FontWeight="SemiBold"/>
-                            <TextBlock Text="{x:Bind ViewModel.AudioPreviewQueueText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="10" HorizontalAlignment="Right"/>
-                        </StackPanel>
-                    </Border>
-                </Grid>
-            </Border>
-
-            <Grid Grid.Row="1" Padding="25,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="25">
-                    <TextBlock Text="OK" FontSize="12" FontWeight="Bold" Foreground="{StaticResource ColorAll}" VerticalAlignment="Center"/>
-                    <TextBlock x:Name="TabStatusTextBlock" Text="{x:Bind ViewModel.TabStatusText, Mode=OneWay}" FontSize="12" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center"/>
-                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                        <TextBlock Text="ITEMS:" FontSize="12" Foreground="{StaticResource TextMuted}"/>
-                        <TextBlock x:Name="CountTextBlock" Text="{x:Bind ViewModel.CountText, Mode=OneWay}" FontSize="12" Foreground="{StaticResource TextMuted}"/>
-                    </StackPanel>
-                </StackPanel>
-
-                <TextBlock x:Name="PathTextBlock" Grid.Column="2" Text="{x:Bind ViewModel.PathText, Mode=OneWay}" FontSize="12" Foreground="{StaticResource TextMuted}" HorizontalAlignment="Right" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-            </Grid>
+            <TextBlock Grid.Column="2" Text="{x:Bind ViewModel.PathText, Mode=OneWay}" FontSize="12" Foreground="{StaticResource TextMuted}" HorizontalAlignment="Right" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
         </Grid>
     </Grid>
 </Page>

@@ -7,9 +7,11 @@ public class MediaFileCatalogTests
     [Theory]
     [InlineData("photo.JPG")]
     [InlineData("clip.heic")]
+    [InlineData("poster.webp")]
     public void IsImage_RecognizesSupportedExtensions(string fileName)
     {
         Assert.True(MediaFileCatalog.IsImage(fileName));
+        Assert.True(MediaFileCatalog.IsSupported(fileName));
     }
 
     [Theory]
@@ -17,18 +19,12 @@ public class MediaFileCatalogTests
     [InlineData("report.docx")]
     [InlineData("sheet.csv")]
     [InlineData("slides.pptm")]
-    public void IsSupported_RecognizesAllConfiguredTypes(string fileName)
-    {
-        Assert.True(MediaFileCatalog.IsSupported(fileName));
-    }
-
-    [Theory]
     [InlineData("movie.mkv")]
     [InlineData("clip.mp4")]
     [InlineData("archive.zip")]
     [InlineData("")]
     [InlineData(null)]
-    public void IsSupported_RejectsUnknownExtensions(string? fileName)
+    public void IsSupported_RejectsNonImageExtensions(string? fileName)
     {
         Assert.False(MediaFileCatalog.IsSupported(fileName));
     }
