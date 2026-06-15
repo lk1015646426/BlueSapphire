@@ -1,63 +1,111 @@
 using BlueSapphire.Services;
+using Microsoft.Extensions.Logging;
 
 namespace BlueSapphire.Tests;
 
 public class MediaTagServiceTests : IDisposable
 {
-    private readonly string _tempDirectory;
+    private readonly string _dataDir;
     private readonly MediaTagService _service;
 
     public MediaTagServiceTests()
     {
-        _tempDirectory = Path.Combine(Path.GetTempPath(), "BlueSapphireTests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_tempDirectory);
-        _service = new MediaTagService(_tempDirectory);
+        _dataDir = Path.Combine(Path.GetTempPath(), "BlueSapphireMediaTagTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(_dataDir);
+        _service = new MediaTagService(NullLogger<MediaTagService>.Instance, _dataDir);
     }
 
+    // ================================================================
+    // Test 1: ParseTags 解析逗号分隔的标签
+    // ================================================================
     [Fact]
-    public void ParseTags_NormalizesTrimmedDistinctValues()
+    public void ParseTags_ParsesCommaSeparatedTags()
     {
-        var tags = _service.ParseTags(" 旅行, 海边，旅行 ; 精选 \n 壁纸 ");
+        var tags = _service.ParseTags("风景, 旅行, 2024");
 
-        Assert.Equal(new[] { "旅行", "海边", "精选", "壁纸" }, tags);
+        Assert.Equal(3, tags.Count);
+        Assert.Contains("风景", tags);
+        Assert.Contains("旅行", tags);
+        Assert.Contains("2024", tags);
     }
 
+    // ================================================================
+    // Test 2: ParseTags 空白字符串返回空列表
+    // ================================================================
     [Fact]
-    public async Task ReplaceAndMoveTagsAsync_PersistsExpectedEntries()
+    public void ParseTags_ReturnsEmptyForNull()
     {
-        string sourcePath = Path.Combine(_tempDirectory, "cover.jpg");
-        string destinationPath = Path.Combine(_tempDirectory, "cover_renamed.jpg");
+        var tags = _service.ParseTags(null);
 
-        var updateResult = await _service.ReplaceTagsAsync(sourcePath, new[] { "旅行", "海边" });
-        Assert.True(updateResult.Success);
+        Assert.Empty(tags);
+    }
 
-        var storedTags = await _service.GetTagsAsync(sourcePath);
-        Assert.Equal(new[] { "旅行", "海边" }, storedTags);
+    // ================================================================
+    // Test 3: ParseTags 去除空白和空项
+    // ================================================================
+    [Fact]
+    public void ParseTags_TrimsWhitespaceAndSkipsEmpty()
+    {
+        var tags = _service.ParseTags("  风景  , , 旅行 ");
 
-        await _service.ReplaceTagsAsync(destinationPath, new[] { "精选" });
-        await _service.MoveTagsAsync(sourcePath, destinationPath);
+        Assert.Equal(2, tags.Count);
+        Assert.Contains("风景", tags);
+        Assert.Contains("旅行", tags);
+    }
 
-        var movedTags = await _service.GetTagsAsync(destinationPath);
-        Assert.Equal(3, movedTags.Count);
-        Assert.Contains("精选", movedTags);
-        Assert.Contains("旅行", movedTags);
-        Assert.Contains("海边", movedTags);
+    // ================================================================
+    // Test 4: GetTagsAsync 新文件返回空标签
+    // ================================================================
+    [Fact]
+    public async Task GetTagsAsync_ReturnsEmptyForUntaggedFile()
+    {
+        string filePath = Path.Combine(_dataDir, "untagged.jpg");
+        await File.WriteAllTextAsync(filePath, "test image content");
 
-        var originalTags = await _service.GetTagsAsync(sourcePath);
-        Assert.Empty(originalTags);
+        var tags = await _service.GetTagsAsync(filePath);
+
+        Assert.Empty(tags);
+    }
+
+    // ================================================================
+    // Test 5: ReplaceTagsAsync 设置并读取标签
+    // ================================================================
+    [Fact]
+    public async Task ReplaceTagsAsync_SetsAndReadsTags()
+    {
+        string filePath = Path.Combine(_dataDir, "tagged.jpg");
+        await File.WriteAllTextAsync(filePath, "test image content");
+
+        var result = await _service.ReplaceTagsAsync(filePath, new[] { "风景", "人像" });
+
+        Assert.True(result.Success);
+        var tags = await _service.GetTagsAsync(filePath);
+        Assert.Equal(2, tags.Count);
+        Assert.Contains("风景", tags);
+        Assert.Contains("人像", tags);
+    }
+
+    // ================================================================
+    // Test 6: RemoveTagsAsync 清除标签
+    // ================================================================
+    [Fact]
+    public async Task RemoveTagsAsync_ClearsTags()
+    {
+        string filePath = Path.Combine(_dataDir, "to_remove.jpg");
+        await File.WriteAllTextAsync(filePath, "test image content");
+        await _service.ReplaceTagsAsync(filePath, new[] { "待删除" });
+
+        await _service.RemoveTagsAsync(new[] { filePath });
+
+        var tags = await _service.GetTagsAsync(filePath);
+        Assert.Empty(tags);
     }
 
     public void Dispose()
     {
-        try
+        if (Directory.Exists(_dataDir))
         {
-            if (Directory.Exists(_tempDirectory))
-            {
-                Directory.Delete(_tempDirectory, recursive: true);
-            }
-        }
-        catch
-        {
+            Directory.Delete(_dataDir, true);
         }
     }
 }

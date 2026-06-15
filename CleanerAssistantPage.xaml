@@ -1,4 +1,4 @@
-<Page
+﻿<Page
     x:Class="BlueSapphire.CleanerAssistantPage"
     x:Name="RootPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -82,13 +82,13 @@
             </StackPanel>
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                <Button Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.StartQuickScanCommand}">
+                <Button Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.Scan.StartQuickScanCommand}">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon Glyph="&#xE7C3;" Foreground="{StaticResource AccentSafe}"/>
                         <TextBlock Text="快速扫描"/>
                     </StackPanel>
                 </Button>
-                <Button Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.StartDeepScanCommand}">
+                <Button Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.Scan.StartDeepScanCommand}">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon Glyph="&#xE81E;" Foreground="{StaticResource AccentInspect}"/>
                         <TextBlock Text="深度扫描"/>
@@ -98,7 +98,7 @@
                         Command="{x:Bind ViewModel.RunCleanupCommand}"
                         Background="{StaticResource AccentSafeBg}"
                         BorderBrush="{StaticResource AccentSafe}"
-                        IsEnabled="{x:Bind ViewModel.CanRunCleanup, Mode=OneWay}">
+                        IsEnabled="{x:Bind ViewModel.Scan.CanRunCleanup, Mode=OneWay}">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon Glyph="&#xE74D;" Foreground="{StaticResource AccentSafe}"/>
                         <TextBlock Text="执行清理" Foreground="{StaticResource AccentSafe}" FontWeight="SemiBold"/>
@@ -114,7 +114,7 @@
                         <StackPanel Spacing="18">
 
                             <Border Background="{StaticResource PanelSurfaceStrong}" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="16" Padding="16,14"
-                                    Visibility="{x:Bind ViewModel.HasDriveOptions, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
+                                    Visibility="{x:Bind ViewModel.Drive.HasDriveOptions, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
                                 <StackPanel Spacing="12">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -123,20 +123,20 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel>
                                             <TextBlock Text="扫描范围" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold"/>
-                                            <TextBlock Text="{x:Bind ViewModel.SelectedDriveSummaryText, Mode=OneWay}" Foreground="{StaticResource AccentInspect}" FontSize="13" Margin="0,2,0,0"/>
+                                            <TextBlock Text="{x:Bind ViewModel.Drive.SelectedDriveSummaryText, Mode=OneWay}" Foreground="{StaticResource AccentInspect}" FontSize="13" Margin="0,2,0,0"/>
                                         </StackPanel>
                                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                                            <Button Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.UseSystemDriveOnlyCommand}" ToolTipService.ToolTip="仅系统盘">
+                                            <Button Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.Drive.UseSystemDriveOnlyCommand}" ToolTipService.ToolTip="仅系统盘">
                                                 <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE7FA;" FontSize="12"/><TextBlock Text="系统盘" FontSize="12"/></StackPanel>
                                             </Button>
-                                            <Button Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.SelectAllDrivesCommand}" ToolTipService.ToolTip="全选">
+                                            <Button Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.Drive.SelectAllDrivesCommand}" ToolTipService.ToolTip="全选">
                                                 <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE73A;" FontSize="12"/><TextBlock Text="全选" FontSize="12"/></StackPanel>
                                             </Button>
                                         </StackPanel>
                                     </Grid>
                                     
                                     <ScrollViewer HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Enabled" VerticalScrollBarVisibility="Disabled" VerticalScrollMode="Disabled">
-                                        <ItemsControl ItemsSource="{x:Bind ViewModel.DriveOptions, Mode=OneWay}">
+                                        <ItemsControl ItemsSource="{x:Bind ViewModel.Drive.DriveOptions, Mode=OneWay}">
                                             <ItemsControl.ItemsPanel>
                                                 <ItemsPanelTemplate>
                                                     <StackPanel Orientation="Horizontal" Spacing="16"/>
@@ -200,8 +200,8 @@
                                     </Border.Background>
                                     <StackPanel Spacing="8" Padding="16,14">
                                         <TextBlock Text="可安全清理" Foreground="{StaticResource AccentSafe}" FontSize="14" FontWeight="SemiBold"/>
-                                        <TextBlock Text="{x:Bind ViewModel.SafeSpaceText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="24" FontWeight="SemiBold"/>
-                                        <TextBlock Text="{x:Bind ViewModel.SafeCountText, Mode=OneWay}" Foreground="#A022C55E" FontSize="12"/>
+                                        <TextBlock Text="{x:Bind ViewModel.Scan.SafeSpaceText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="24" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{x:Bind ViewModel.Scan.SafeCountText, Mode=OneWay}" Foreground="#A022C55E" FontSize="12"/>
                                     </StackPanel>
                                 </Border>
 
@@ -215,8 +215,8 @@
                                     </Border.Background>
                                     <StackPanel Spacing="8" Padding="16,14">
                                         <TextBlock Text="建议确认后清理" Foreground="{StaticResource AccentReview}" FontSize="14" FontWeight="SemiBold"/>
-                                        <TextBlock Text="{x:Bind ViewModel.ReviewSpaceText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="24" FontWeight="SemiBold"/>
-                                        <TextBlock Text="{x:Bind ViewModel.ReviewCountText, Mode=OneWay}" Foreground="#A0F59E0B" FontSize="12"/>
+                                        <TextBlock Text="{x:Bind ViewModel.Scan.ReviewSpaceText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="24" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{x:Bind ViewModel.Scan.ReviewCountText, Mode=OneWay}" Foreground="#A0F59E0B" FontSize="12"/>
                                     </StackPanel>
                                 </Border>
 
@@ -230,37 +230,37 @@
                                     </Border.Background>
                                     <StackPanel Spacing="8" Padding="16,14">
                                         <TextBlock Text="仅供查看" Foreground="{StaticResource AccentInspect}" FontSize="14" FontWeight="SemiBold"/>
-                                        <TextBlock Text="{x:Bind ViewModel.ViewOnlySpaceText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="24" FontWeight="SemiBold"/>
-                                        <TextBlock Text="{x:Bind ViewModel.ViewOnlyCountText, Mode=OneWay}" Foreground="#A038BDF8" FontSize="12"/>
+                                        <TextBlock Text="{x:Bind ViewModel.Scan.ViewOnlySpaceText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="24" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{x:Bind ViewModel.Scan.ViewOnlyCountText, Mode=OneWay}" Foreground="#A038BDF8" FontSize="12"/>
                                     </StackPanel>
                                 </Border>
                             </Grid>
                     <Border Style="{StaticResource CardBorderStrongStyle}" Padding="18,16">
                         <StackPanel Spacing="6">
-                            <TextBlock Text="{x:Bind ViewModel.StatusMainText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold"/>
-                            <TextBlock Text="{x:Bind ViewModel.StatusDetailText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap"/>
+                            <TextBlock Text="{x:Bind ViewModel.Scan.StatusMainText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold"/>
+                            <TextBlock Text="{x:Bind ViewModel.Scan.StatusDetailText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap"/>
                             <Grid Margin="0,8,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <ProgressBar Value="{x:Bind ViewModel.ProgressValue, Mode=OneWay}" Maximum="{x:Bind ViewModel.ProgressMax, Mode=OneWay}" Height="6" CornerRadius="999"/>
-                                <TextBlock Grid.Column="1" Text="{x:Bind ViewModel.ScanModeText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" Margin="12,0,0,0" VerticalAlignment="Center"/>
+                                <ProgressBar Value="{x:Bind ViewModel.Scan.ProgressValue, Mode=OneWay}" Maximum="{x:Bind ViewModel.Scan.ProgressMax, Mode=OneWay}" Height="6" CornerRadius="999"/>
+                                <TextBlock Grid.Column="1" Text="{x:Bind ViewModel.Scan.ScanModeText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" Margin="12,0,0,0" VerticalAlignment="Center"/>
                                 <Button Grid.Column="2"
                                         Style="{StaticResource ActionButtonStyle}"
-                                        Command="{x:Bind ViewModel.CancelCurrentOperationCommand}"
-                                        Visibility="{x:Bind ViewModel.CanCancelCurrentOperation, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
+                                        Command="{x:Bind ViewModel.Scan.CancelCurrentOperationCommand}"
+                                        Visibility="{x:Bind ViewModel.Scan.CanCancelCurrentOperation, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
                                         Margin="12,0,0,0">
                                     <TextBlock Text="取消"/>
                                 </Button>
                             </Grid>
                         </StackPanel>
                     </Border>
-                    <Expander Visibility="{x:Bind ViewModel.HasSafeItems, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
+                    <Expander Visibility="{x:Bind ViewModel.Scan.HasSafeItems, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
                               Header="可安全清理明细"
                               IsExpanded="False">
-                        <ItemsControl ItemsSource="{x:Bind ViewModel.SafeItems, Mode=OneWay}">
+                        <ItemsControl ItemsSource="{x:Bind ViewModel.Scan.SafeItems, Mode=OneWay}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="models:CleanerScanItem">
                                     <Border Style="{StaticResource ListItemBorderStyle}">
@@ -299,7 +299,7 @@
                                             </StackPanel>
                                             <StackPanel Grid.Column="2" Spacing="8" VerticalAlignment="Top">
                                                 <Button Style="{StaticResource ActionButtonStyle}" Command="{Binding ViewModel.OpenItemLocationCommand, ElementName=RootPage}" CommandParameter="{Binding}"><TextBlock Text="打开位置"/></Button>
-                                                <Button Style="{StaticResource ActionButtonStyle}" Command="{Binding ViewModel.AddToExclusionsCommand, ElementName=RootPage}" CommandParameter="{Binding}"><TextBlock Text="加入排除"/></Button>
+                                                <Button Style="{StaticResource ActionButtonStyle}" Command="{Binding ViewModel.Cleanup.AddToExclusionsCommand, ElementName=RootPage}" CommandParameter="{Binding}"><TextBlock Text="加入排除"/></Button>
                                             </StackPanel>
                                         </Grid>
                                     </Border>
@@ -307,10 +307,10 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </Expander>
-                    <Expander Visibility="{x:Bind ViewModel.HasReviewItems, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
+                    <Expander Visibility="{x:Bind ViewModel.Scan.HasReviewItems, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
                               Header="建议确认后清理明细"
                               IsExpanded="False">
-                        <ItemsControl ItemsSource="{x:Bind ViewModel.ReviewItems, Mode=OneWay}">
+                        <ItemsControl ItemsSource="{x:Bind ViewModel.Scan.ReviewItems, Mode=OneWay}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="models:CleanerScanItem">
                                     <Border Style="{StaticResource ListItemBorderStyle}">
@@ -343,7 +343,7 @@
                                             </StackPanel>
                                             <StackPanel Grid.Column="2" Spacing="8" VerticalAlignment="Top">
                                                 <Button Style="{StaticResource ActionButtonStyle}" Command="{Binding ViewModel.OpenItemLocationCommand, ElementName=RootPage}" CommandParameter="{Binding}"><TextBlock Text="打开位置"/></Button>
-                                                <Button Style="{StaticResource ActionButtonStyle}" Command="{Binding ViewModel.AddToExclusionsCommand, ElementName=RootPage}" CommandParameter="{Binding}"><TextBlock Text="加入排除"/></Button>
+                                                <Button Style="{StaticResource ActionButtonStyle}" Command="{Binding ViewModel.Cleanup.AddToExclusionsCommand, ElementName=RootPage}" CommandParameter="{Binding}"><TextBlock Text="加入排除"/></Button>
                                             </StackPanel>
                                         </Grid>
                                     </Border>
@@ -351,7 +351,7 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </Expander>
-                    <Expander Visibility="{x:Bind ViewModel.HasViewOnlyItems, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
+                    <Expander Visibility="{x:Bind ViewModel.Scan.HasViewOnlyItems, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
                               Header="仅供查看明细"
                               IsExpanded="False">
                         <StackPanel Spacing="12">
@@ -360,7 +360,7 @@
                                    Foreground="{StaticResource TextMuted}"
                                    FontSize="12"
                                    TextWrapping="Wrap"/>
-                        <ItemsControl ItemsSource="{x:Bind ViewModel.ViewOnlyItems, Mode=OneWay}">
+                        <ItemsControl ItemsSource="{x:Bind ViewModel.Scan.ViewOnlyItems, Mode=OneWay}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="models:CleanerScanItem">
                                     <Border Style="{StaticResource ListItemBorderStyle}">
@@ -390,7 +390,7 @@
                                             </StackPanel>
                                             <StackPanel Grid.Column="1" Spacing="8" VerticalAlignment="Top">
                                                 <Button Style="{StaticResource ActionButtonStyle}" Command="{Binding ViewModel.OpenItemLocationCommand, ElementName=RootPage}" CommandParameter="{Binding}"><TextBlock Text="打开位置"/></Button>
-                                                <Button Style="{StaticResource ActionButtonStyle}" Command="{Binding ViewModel.AddToExclusionsCommand, ElementName=RootPage}" CommandParameter="{Binding}"><TextBlock Text="加入排除"/></Button>
+                                                <Button Style="{StaticResource ActionButtonStyle}" Command="{Binding ViewModel.Cleanup.AddToExclusionsCommand, ElementName=RootPage}" CommandParameter="{Binding}"><TextBlock Text="加入排除"/></Button>
                                             </StackPanel>
                                         </Grid>
                                     </Border>
@@ -399,7 +399,7 @@
                         </ItemsControl>
                         </StackPanel>
                     </Expander>
-                    <StackPanel Visibility="{x:Bind ViewModel.HasResults, Mode=OneWay, Converter={StaticResource InverseBoolToVisibleConverter}}" HorizontalAlignment="Center" Margin="0,30,0,0" Spacing="8">
+                    <StackPanel Visibility="{x:Bind ViewModel.Scan.HasResults, Mode=OneWay, Converter={StaticResource InverseBoolToVisibleConverter}}" HorizontalAlignment="Center" Margin="0,30,0,0" Spacing="8">
                         <TextBlock Text="还没有扫描结果" Foreground="{StaticResource TextMain}" FontSize="18" HorizontalAlignment="Center"/>
                         <TextBlock Text="先跑一次快速扫描，把明确可清的空间找出来。" Foreground="{StaticResource TextMuted}" HorizontalAlignment="Center"/>
                     </StackPanel>
@@ -414,21 +414,21 @@
                 <Border Background="{StaticResource PanelSurfaceStrong}" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="16" Padding="16,14">
                     <StackPanel Spacing="8">
                         <TextBlock Text="规则库" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold"/>
-                        <TextBlock Text="{x:Bind ViewModel.RulePackSummaryText, Mode=OneWay}" Foreground="{StaticResource AccentInspect}" FontSize="18" FontWeight="SemiBold"/>
-                        <TextBlock Text="{x:Bind ViewModel.RulePackDetailText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="12" TextWrapping="Wrap"/>
-                        <TextBlock Text="{x:Bind ViewModel.RulePackSourceText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
-                        <TextBlock Text="{x:Bind ViewModel.RulePackRefreshText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12"/>
-                        <TextBlock Text="{x:Bind ViewModel.RulePackRemoteUriText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap"/>
-                        <TextBlock Text="{x:Bind ViewModel.RulePackHintText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
+                        <TextBlock Text="{x:Bind ViewModel.Rule.RulePackSummaryText, Mode=OneWay}" Foreground="{StaticResource AccentInspect}" FontSize="18" FontWeight="SemiBold"/>
+                        <TextBlock Text="{x:Bind ViewModel.Rule.RulePackDetailText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="12" TextWrapping="Wrap"/>
+                        <TextBlock Text="{x:Bind ViewModel.Rule.RulePackSourceText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
+                        <TextBlock Text="{x:Bind ViewModel.Rule.RulePackRefreshText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12"/>
+                        <TextBlock Text="{x:Bind ViewModel.Rule.RulePackRemoteUriText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap"/>
+                        <TextBlock Text="{x:Bind ViewModel.Rule.RulePackHintText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
                         <Grid ColumnSpacing="8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <Button Grid.Column="0" Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.ImportRulePackCommand}">
+                            <Button Grid.Column="0" Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.Rule.ImportRulePackCommand}">
                                 <TextBlock Text="导入规则包"/>
                             </Button>
-                            <Button Grid.Column="1" Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.RefreshRulePackFromUrlCommand}">
+                            <Button Grid.Column="1" Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.Rule.RefreshRulePackFromUrlCommand}">
                                 <TextBlock Text="从链接刷新"/>
                             </Button>
                         </Grid>
@@ -437,13 +437,13 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <Button Grid.Column="0" Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.OpenRulePackDirectoryCommand}">
+                            <Button Grid.Column="0" Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.Rule.OpenRulePackDirectoryCommand}">
                                 <TextBlock Text="打开规则目录"/>
                             </Button>
                             <Button Grid.Column="1"
                                     Style="{StaticResource ActionButtonStyle}"
-                                    Command="{x:Bind ViewModel.ClearExternalRulePackCommand}"
-                                    IsEnabled="{x:Bind ViewModel.HasExternalRulePack, Mode=OneWay}">
+                                    Command="{x:Bind ViewModel.Rule.ClearExternalRulePackCommand}"
+                                    IsEnabled="{x:Bind ViewModel.Rule.HasExternalRulePack, Mode=OneWay}">
                                 <TextBlock Text="恢复内置规则"/>
                             </Button>
                         </Grid>
@@ -456,20 +456,20 @@
                         Padding="16,14">
                     <StackPanel Spacing="10">
                         <TextBlock Text="定时保洁" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold"/>
-                        <TextBlock Text="{x:Bind ViewModel.AutomationSummaryText, Mode=OneWay}" Foreground="{StaticResource AccentSafe}" FontSize="18" FontWeight="SemiBold"/>
-                        <TextBlock Text="{x:Bind ViewModel.AutomationModeText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="12" TextWrapping="Wrap"/>
+                        <TextBlock Text="{x:Bind ViewModel.Automation.AutomationSummaryText, Mode=OneWay}" Foreground="{StaticResource AccentSafe}" FontSize="18" FontWeight="SemiBold"/>
+                        <TextBlock Text="{x:Bind ViewModel.Automation.AutomationModeText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="12" TextWrapping="Wrap"/>
                         <ToggleSwitch Header="到期提醒我进行清理" />
                         <ToggleSwitch Header="到期后自动清理低风险项" />
                         <TextBlock Text="提醒周期" Foreground="{StaticResource TextMuted}" FontSize="12"/>
                         <ComboBox PlaceholderText="选择提醒周期" />
-                        <TextBlock Text="{x:Bind ViewModel.AutomationNextActionText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="12" TextWrapping="Wrap"/>
-                        <TextBlock Text="{x:Bind ViewModel.AutomationLastActionText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
-                        <TextBlock Text="{x:Bind ViewModel.AutomationScheduleText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="12" TextWrapping="Wrap"/>
-                        <TextBlock Text="{x:Bind ViewModel.AutomationScheduleDetailText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
-                        <TextBlock Text="{x:Bind ViewModel.AutomationHintText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
+                        <TextBlock Text="{x:Bind ViewModel.Automation.AutomationNextActionText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="12" TextWrapping="Wrap"/>
+                        <TextBlock Text="{x:Bind ViewModel.Automation.AutomationLastActionText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
+                        <TextBlock Text="{x:Bind ViewModel.Automation.AutomationScheduleText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="12" TextWrapping="Wrap"/>
+                        <TextBlock Text="{x:Bind ViewModel.Automation.AutomationScheduleDetailText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
+                        <TextBlock Text="{x:Bind ViewModel.Automation.AutomationHintText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
                         <Button Style="{StaticResource ActionButtonStyle}"
-                                Command="{x:Bind ViewModel.RunAutomaticLowRiskCleanupNowCommand}"
-                                IsEnabled="{x:Bind ViewModel.CanRunAutomaticLowRiskCleanupNow, Mode=OneWay}">
+                                Command="{x:Bind ViewModel.Automation.RunAutomaticLowRiskCleanupNowCommand}"
+                                IsEnabled="{x:Bind ViewModel.Scan.CanRunAutomaticLowRiskCleanupNow, Mode=OneWay}">
                             <TextBlock Text="立即执行一次低风险保洁"/>
                         </Button>
                     </StackPanel>
@@ -499,9 +499,9 @@
                 <Border Background="{StaticResource PanelSurfaceStrong}" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="16" Padding="16,14">
                     <StackPanel Spacing="10">
                         <TextBlock Text="云端治理" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold"/>
-                        <TextBlock Text="{x:Bind ViewModel.RolloutSummaryText, Mode=OneWay}" Foreground="{StaticResource AccentInspect}" FontSize="18" FontWeight="SemiBold"/>
-                        <TextBlock Text="{x:Bind ViewModel.RolloutDetailText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="12" TextWrapping="Wrap"/>
-                        <TextBlock Text="{x:Bind ViewModel.RolloutHintText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
+                        <TextBlock Text="{x:Bind ViewModel.Rule.RolloutSummaryText, Mode=OneWay}" Foreground="{StaticResource AccentInspect}" FontSize="18" FontWeight="SemiBold"/>
+                        <TextBlock Text="{x:Bind ViewModel.Rule.RolloutDetailText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="12" TextWrapping="Wrap"/>
+                        <TextBlock Text="{x:Bind ViewModel.Rule.RolloutHintText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
                         <TextBlock Text="灰度通道" Foreground="{StaticResource TextMuted}" FontSize="12"/>
                         <Grid ColumnSpacing="8">
                             <Grid.ColumnDefinitions>
@@ -511,28 +511,28 @@
                             </Grid.ColumnDefinitions>
                             <Button Grid.Column="0"
                                     Style="{StaticResource ActionButtonStyle}"
-                                    Command="{x:Bind ViewModel.SetStableRolloutChannelCommand}"
-                                    IsEnabled="{x:Bind ViewModel.CanChooseStableRollout, Mode=OneWay}">
+                                    Command="{x:Bind ViewModel.Rule.SetStableRolloutChannelCommand}"
+                                    IsEnabled="{x:Bind ViewModel.Rule.CanChooseStableRollout, Mode=OneWay}">
                                 <TextBlock Text="Stable"/>
                             </Button>
                             <Button Grid.Column="1"
                                     Style="{StaticResource ActionButtonStyle}"
-                                    Command="{x:Bind ViewModel.SetCanaryRolloutChannelCommand}"
-                                    IsEnabled="{x:Bind ViewModel.CanChooseCanaryRollout, Mode=OneWay}">
+                                    Command="{x:Bind ViewModel.Rule.SetCanaryRolloutChannelCommand}"
+                                    IsEnabled="{x:Bind ViewModel.Rule.CanChooseCanaryRollout, Mode=OneWay}">
                                 <TextBlock Text="Canary"/>
                             </Button>
                             <Button Grid.Column="2"
                                     Style="{StaticResource ActionButtonStyle}"
-                                    Command="{x:Bind ViewModel.SetInternalRolloutChannelCommand}"
-                                    IsEnabled="{x:Bind ViewModel.CanChooseInternalRollout, Mode=OneWay}">
+                                    Command="{x:Bind ViewModel.Rule.SetInternalRolloutChannelCommand}"
+                                    IsEnabled="{x:Bind ViewModel.Rule.CanChooseInternalRollout, Mode=OneWay}">
                                 <TextBlock Text="Internal"/>
                             </Button>
                         </Grid>
-                        <TextBlock Text="{x:Bind ViewModel.TelemetrySummaryText, Mode=OneWay}" Foreground="{StaticResource AccentSafe}" FontSize="16" FontWeight="SemiBold"/>
-                        <TextBlock Text="{x:Bind ViewModel.TelemetryDetailText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="12" TextWrapping="Wrap"/>
+                        <TextBlock Text="{x:Bind ViewModel.Rule.TelemetrySummaryText, Mode=OneWay}" Foreground="{StaticResource AccentSafe}" FontSize="16" FontWeight="SemiBold"/>
+                        <TextBlock Text="{x:Bind ViewModel.Rule.TelemetryDetailText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="12" TextWrapping="Wrap"/>
                         <ToggleSwitch Header="遥测摘要" />
-                        <TextBlock Text="{x:Bind ViewModel.TelemetryEndpointText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
-                        <TextBlock Text="{x:Bind ViewModel.TelemetryLastUploadText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
+                        <TextBlock Text="{x:Bind ViewModel.Rule.TelemetryEndpointText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
+                        <TextBlock Text="{x:Bind ViewModel.Rule.TelemetryLastUploadText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
                         <Grid ColumnSpacing="8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -540,13 +540,13 @@
                             </Grid.ColumnDefinitions>
                             <Button Grid.Column="0"
                                     Style="{StaticResource ActionButtonStyle}"
-                                    Command="{x:Bind ViewModel.ConfigureTelemetryEndpointCommand}">
+                                    Command="{x:Bind ViewModel.Rule.ConfigureTelemetryEndpointCommand}">
                                 <TextBlock Text="配置上传地址"/>
                             </Button>
                             <Button Grid.Column="1"
                                     Style="{StaticResource ActionButtonStyle}"
-                                    Command="{x:Bind ViewModel.UploadTelemetryNowCommand}"
-                                    IsEnabled="{x:Bind ViewModel.CanUploadTelemetryNow, Mode=OneWay}">
+                                    Command="{x:Bind ViewModel.Rule.UploadTelemetryNowCommand}"
+                                    IsEnabled="{x:Bind ViewModel.Rule.CanUploadTelemetryNow, Mode=OneWay}">
                                 <TextBlock Text="立即上传摘要"/>
                             </Button>
                         </Grid>
@@ -579,8 +579,8 @@
                 <Border Background="{StaticResource PanelSurfaceStrong}" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="16" Padding="16,14">
                     <StackPanel Spacing="8">
                         <TextBlock Text="本次计划" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold"/>
-                        <TextBlock Text="{x:Bind ViewModel.SelectedSummaryText, Mode=OneWay}" Foreground="{StaticResource AccentSafe}" FontSize="22" FontWeight="SemiBold"/>
-                        <TextBlock Text="{x:Bind ViewModel.LastScanText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12"/>
+                        <TextBlock Text="{x:Bind ViewModel.Scan.SelectedSummaryText, Mode=OneWay}" Foreground="{StaticResource AccentSafe}" FontSize="22" FontWeight="SemiBold"/>
+                        <TextBlock Text="{x:Bind ViewModel.Scan.LastScanText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12"/>
                         <TextBlock Text="只会执行你当前勾选的项目；高风险对象默认不参与。" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" FontSize="12"/>
                     </StackPanel>
                 </Border>
@@ -640,18 +640,18 @@
                 <Border Background="{StaticResource PanelSurfaceStrong}" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="16" Padding="16,14">
                     <StackPanel Spacing="10">
                         <TextBlock Text="最近一次清理" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold"/>
-                        <TextBlock Text="{x:Bind ViewModel.LatestCleanupSummaryText, Mode=OneWay}" Foreground="{StaticResource TextMain}" TextWrapping="Wrap"/>
-                        <TextBlock Text="{x:Bind ViewModel.LatestCleanupHintText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" FontSize="12"/>
+                        <TextBlock Text="{x:Bind ViewModel.Cleanup.LatestCleanupSummaryText, Mode=OneWay}" Foreground="{StaticResource TextMain}" TextWrapping="Wrap"/>
+                        <TextBlock Text="{x:Bind ViewModel.Cleanup.LatestCleanupHintText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" FontSize="12"/>
                         <Border Background="#0FFFFFFF"
                                 BorderBrush="{StaticResource BorderColor}"
                                 BorderThickness="1"
                                 CornerRadius="12"
                                 Padding="12,10"
-                                Visibility="{x:Bind ViewModel.HasLatestCleanupFailures, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
+                                Visibility="{x:Bind ViewModel.Cleanup.HasLatestCleanupFailures, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
                             <StackPanel Spacing="8">
                                 <TextBlock Text="失败处理建议" Foreground="{StaticResource AccentReview}" FontSize="13" FontWeight="SemiBold"/>
-                                <TextBlock Text="{x:Bind ViewModel.FailureRecoveryHeadlineText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="12" TextWrapping="Wrap"/>
-                                <TextBlock Text="{x:Bind ViewModel.FailureRecoveryDetailText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
+                                <TextBlock Text="{x:Bind ViewModel.Cleanup.FailureRecoveryHeadlineText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="12" TextWrapping="Wrap"/>
+                                <TextBlock Text="{x:Bind ViewModel.Cleanup.FailureRecoveryDetailText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
                                 <TextBlock Text="{x:Bind ViewModel.FailureRecoveryProcessText, Mode=OneWay}"
                                            Visibility="{x:Bind ViewModel.HasFailureRecoveryProcesses, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
                                            Foreground="{StaticResource AccentReview}"
@@ -664,8 +664,8 @@
                                     </Grid.ColumnDefinitions>
                                     <Button Grid.Column="0"
                                             Style="{StaticResource ActionButtonStyle}"
-                                            Command="{x:Bind ViewModel.RetryFailedCleanupEntriesCommand}"
-                                            Visibility="{x:Bind ViewModel.HasRetryableFailures, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
+                                            Command="{x:Bind ViewModel.Cleanup.RetryFailedCleanupEntriesCommand}"
+                                            Visibility="{x:Bind ViewModel.Cleanup.HasRetryableFailures, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
                                         <TextBlock Text="重试失败项"/>
                                     </Button>
                                     <Button Grid.Column="1"
@@ -677,7 +677,7 @@
                                 </Grid>
                             </StackPanel>
                         </Border>
-                        <Button Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.RestoreLatestCleanupCommand}" IsEnabled="{x:Bind ViewModel.HasRestorableBatch, Mode=OneWay}">
+                        <Button Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.Cleanup.RestoreLatestCleanupCommand}" IsEnabled="{x:Bind ViewModel.Cleanup.HasRestorableBatch, Mode=OneWay}">
                             <TextBlock Text="恢复最近一次清理"/>
                         </Button>
                         <Grid ColumnSpacing="8">
@@ -685,17 +685,17 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <Button Grid.Column="0" Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.OpenQuarantineCommand}"><TextBlock Text="打开隔离区"/></Button>
+                            <Button Grid.Column="0" Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.Cleanup.OpenQuarantineCommand}"><TextBlock Text="打开隔离区"/></Button>
                             <Button Grid.Column="1" Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.OpenCleanerWorkspaceCommand}"><TextBlock Text="打开记录目录"/></Button>
                         </Grid>
                     </StackPanel>
                 </Border>
                 <Border Background="{StaticResource PanelSurfaceStrong}" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="16" Padding="16,14"
-                        Visibility="{x:Bind ViewModel.HasLatestCleanupEntries, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
+                        Visibility="{x:Bind ViewModel.Cleanup.HasLatestCleanupEntries, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
                     <StackPanel Spacing="10">
                         <TextBlock Text="最近批次明细" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold"/>
                         <ScrollViewer MaxHeight="320" VerticalScrollBarVisibility="Auto">
-                            <ItemsControl ItemsSource="{x:Bind ViewModel.LatestCleanupEntries, Mode=OneWay}">
+                            <ItemsControl ItemsSource="{x:Bind ViewModel.Cleanup.LatestCleanupEntries, Mode=OneWay}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="models:CleanerCleanupEntry">
                                         <Border Margin="0,0,0,8" Padding="10,9" Background="#0FFFFFFF" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="10">
@@ -722,18 +722,18 @@
                                                         <ColumnDefinition Width="*"/>
                                                         <ColumnDefinition Width="*"/>
                                                     </Grid.ColumnDefinitions>
-                                                    <Button Grid.Column="0" Style="{StaticResource ActionButtonStyle}" Command="{Binding ViewModel.OpenCleanupEntryOriginalPathCommand, ElementName=RootPage}" CommandParameter="{Binding}">
+                                                    <Button Grid.Column="0" Style="{StaticResource ActionButtonStyle}" Command="{Binding ViewModel.Cleanup.OpenCleanupEntryOriginalPathCommand, ElementName=RootPage}" CommandParameter="{Binding}">
                                                         <TextBlock Text="原位置"/>
                                                     </Button>
-                                                    <Button Grid.Column="1" Style="{StaticResource ActionButtonStyle}" Command="{Binding ViewModel.OpenCleanupEntryBackupPathCommand, ElementName=RootPage}" CommandParameter="{Binding}" Visibility="{x:Bind HasBackupPath, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
+                                                    <Button Grid.Column="1" Style="{StaticResource ActionButtonStyle}" Command="{Binding ViewModel.Cleanup.OpenCleanupEntryBackupPathCommand, ElementName=RootPage}" CommandParameter="{Binding}" Visibility="{x:Bind HasBackupPath, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
                                                         <TextBlock Text="隔离区"/>
                                                     </Button>
-                                                    <Button Grid.Column="2" Style="{StaticResource ActionButtonStyle}" Command="{Binding ViewModel.RestoreCleanupEntryCommand, ElementName=RootPage}" CommandParameter="{Binding}" Visibility="{x:Bind CanRestoreEntry, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
+                                                    <Button Grid.Column="2" Style="{StaticResource ActionButtonStyle}" Command="{Binding ViewModel.Cleanup.RestoreCleanupEntryCommand, ElementName=RootPage}" CommandParameter="{Binding}" Visibility="{x:Bind CanRestoreEntry, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
                                                         <TextBlock Text="恢复此项"/>
                                                     </Button>
                                                     <Button Grid.Column="3"
                                                             Style="{StaticResource ActionButtonStyle}"
-                                                            Command="{Binding ViewModel.DisableRuleFromCleanupEntryCommand, ElementName=RootPage}"
+                                                            Command="{Binding ViewModel.Rule.DisableRuleFromCleanupEntryCommand, ElementName=RootPage}"
                                                             CommandParameter="{Binding}"
                                                             Visibility="{x:Bind CanDisableRule, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
                                                         <TextBlock Text="停用规则"/>
@@ -750,22 +750,22 @@
                 <Border Background="{StaticResource PanelSurfaceStrong}" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="16" Padding="16,14">
                     <StackPanel Spacing="8">
                         <TextBlock Text="质量治理" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold"/>
-                        <TextBlock Text="{x:Bind ViewModel.QualityGovernanceHeadlineText, Mode=OneWay}" Foreground="{StaticResource AccentReview}" FontSize="18" FontWeight="SemiBold"/>
-                        <TextBlock Text="{x:Bind ViewModel.QualityGovernanceDetailText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="12" TextWrapping="Wrap"/>
-                        <TextBlock Text="{x:Bind ViewModel.QualityGovernanceHintText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
+                        <TextBlock Text="{x:Bind ViewModel.Rule.QualityGovernanceHeadlineText, Mode=OneWay}" Foreground="{StaticResource AccentReview}" FontSize="18" FontWeight="SemiBold"/>
+                        <TextBlock Text="{x:Bind ViewModel.Rule.QualityGovernanceDetailText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="12" TextWrapping="Wrap"/>
+                        <TextBlock Text="{x:Bind ViewModel.Rule.QualityGovernanceHintText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
                         <Grid ColumnSpacing="8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <Button Grid.Column="0" Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.ExportDiagnosticReportCommand}">
+                            <Button Grid.Column="0" Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.Rule.ExportDiagnosticReportCommand}">
                                 <TextBlock Text="导出诊断报告"/>
                             </Button>
                             <Button Grid.Column="1"
                                     Style="{StaticResource ActionButtonStyle}"
-                                    Command="{x:Bind ViewModel.EnableAllLocallyDisabledRulesCommand}"
-                                    IsEnabled="{x:Bind ViewModel.HasLocallyDisabledRules, Mode=OneWay}">
-                                <TextBlock Text="{x:Bind ViewModel.QualityGovernanceActionText, Mode=OneWay}"/>
+                                    Command="{x:Bind ViewModel.Rule.EnableAllLocallyDisabledRulesCommand}"
+                                    IsEnabled="{x:Bind ViewModel.Rule.HasLocallyDisabledRules, Mode=OneWay}">
+                                <TextBlock Text="{x:Bind ViewModel.Rule.QualityGovernanceActionText, Mode=OneWay}"/>
                             </Button>
                         </Grid>
                     </StackPanel>
@@ -773,8 +773,8 @@
                 <Border Background="{StaticResource PanelSurfaceStrong}" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="16" Padding="16,14">
                     <StackPanel Spacing="10">
                         <TextBlock Text="排除列表" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold"/>
-                        <TextBlock Text="{x:Bind ViewModel.ExclusionSummaryText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12"/>
-                        <ItemsControl ItemsSource="{x:Bind ViewModel.Exclusions, Mode=OneWay}" Visibility="{x:Bind ViewModel.HasExclusions, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
+                        <TextBlock Text="{x:Bind ViewModel.Cleanup.ExclusionSummaryText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12"/>
+                        <ItemsControl ItemsSource="{x:Bind ViewModel.Cleanup.Exclusions, Mode=OneWay}" Visibility="{x:Bind ViewModel.Cleanup.HasExclusions, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="models:CleanerExclusionEntry">
                                     <Border Margin="0,0,0,8" Padding="10,8" Background="#0FFFFFFF" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="10">
@@ -787,7 +787,7 @@
                                                 <TextBlock Text="{x:Bind DisplayName}" Foreground="{StaticResource TextMain}" FontSize="12" FontWeight="SemiBold"/>
                                                 <TextBlock Text="{x:Bind Path}" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap"/>
                                             </StackPanel>
-                                            <Button Grid.Column="1" Style="{StaticResource ActionButtonStyle}" Command="{Binding ViewModel.RemoveExclusionCommand, ElementName=RootPage}" CommandParameter="{Binding}">
+                                            <Button Grid.Column="1" Style="{StaticResource ActionButtonStyle}" Command="{Binding ViewModel.Cleanup.RemoveExclusionCommand, ElementName=RootPage}" CommandParameter="{Binding}">
                                                 <TextBlock Text="移除"/>
                                             </Button>
                                         </Grid>

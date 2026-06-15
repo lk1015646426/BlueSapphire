@@ -14,7 +14,7 @@ namespace BlueSapphire.Views.Dialogs
     public sealed partial class AdvancedImageEditorDialog : ContentDialog
     {
         private readonly IList<string> _imagePaths;
-        private bool _isBatch;
+        private readonly bool _isBatch;
         private double _imageWidth;
         private double _imageHeight;
         private Rect _cropRect;
@@ -36,13 +36,13 @@ namespace BlueSapphire.Views.Dialogs
             }
         }
 
-        private void SetThumbCursor(Thumb thumb, InputSystemCursorShape shape)
+        private static void SetThumbCursor(Thumb thumb, InputSystemCursorShape shape)
         {
             typeof(UIElement).GetProperty("ProtectedCursor", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
                 ?.SetValue(thumb, InputSystemCursor.Create(shape));
         }
 
-        private void ContentDialog_Loaded(object sender, RoutedEventArgs e)
+        private void ContentDialog_Loaded(object _sender, RoutedEventArgs e)
         {
             if (_imagePaths.Count > 0 && !string.IsNullOrEmpty(_imagePaths[0]))
             {
@@ -94,7 +94,7 @@ namespace BlueSapphire.Views.Dialogs
             SetThumbCursor(ThumbR, InputSystemCursorShape.SizeWestEast);
         }
 
-        private string FormatBytes(long bytes)
+        private static string FormatBytes(long bytes)
         {
             if (bytes < 1024) return bytes + " B";
             if (bytes < 1024 * 1024) return (bytes / 1024.0).ToString("0.##") + " KB";
@@ -112,7 +112,7 @@ namespace BlueSapphire.Views.Dialogs
             }
         }
 
-        private void EnableReshapeToggle_Toggled(object sender, RoutedEventArgs e)
+        private void EnableReshapeToggle_Toggled(object _sender, RoutedEventArgs e)
         {
             if (ReshapePanel == null || CropCanvas == null) return;
             
@@ -125,7 +125,7 @@ namespace BlueSapphire.Views.Dialogs
             }
         }
 
-        private void EnableTargetSizeToggle_Toggled(object sender, RoutedEventArgs e)
+        private void EnableTargetSizeToggle_Toggled(object _sender, RoutedEventArgs e)
         {
             if (TargetSizePanel == null) return;
             
@@ -268,7 +268,7 @@ namespace BlueSapphire.Views.Dialogs
             _isUpdatingSizeBoxes = false;
         }
 
-        private void UpdateThumb(Thumb thumb, double x, double y)
+        private static void UpdateThumb(Thumb thumb, double x, double y)
         {
             Canvas.SetLeft(thumb, x - thumb.Width / 2);
             Canvas.SetTop(thumb, y - thumb.Height / 2);
@@ -303,25 +303,25 @@ namespace BlueSapphire.Views.Dialogs
                 double newW = _cropRect.Width;
                 double newH = _cropRect.Height;
 
-                if (tag.Contains("L"))
+                if (tag.Contains('L'))
                 {
                     double dx = Math.Max(-newX, Math.Min(e.HorizontalChange, newW - minSize));
                     newX += dx;
                     newW -= dx;
                 }
-                else if (tag.Contains("R"))
+                else if (tag.Contains('R'))
                 {
                     double dx = Math.Min(PreviewImage.ActualWidth - _cropRect.Right, Math.Max(e.HorizontalChange, minSize - newW));
                     newW += dx;
                 }
 
-                if (tag.Contains("T"))
+                if (tag.Contains('T'))
                 {
                     double dy = Math.Max(-newY, Math.Min(e.VerticalChange, newH - minSize));
                     newY += dy;
                     newH -= dy;
                 }
-                else if (tag.Contains("B"))
+                else if (tag.Contains('B'))
                 {
                     double dy = Math.Min(PreviewImage.ActualHeight - _cropRect.Bottom, Math.Max(e.VerticalChange, minSize - newH));
                     newH += dy;
@@ -335,8 +335,8 @@ namespace BlueSapphire.Views.Dialogs
                     if (newX + newW > PreviewImage.ActualWidth) newW = PreviewImage.ActualWidth - newX;
                     if (newY + newH > PreviewImage.ActualHeight) newH = PreviewImage.ActualHeight - newY;
 
-                    if (tag.Contains("T")) newY = _cropRect.Bottom - newH;
-                    if (tag.Contains("L")) newX = _cropRect.Right - newW;
+                    if (tag.Contains('T')) newY = _cropRect.Bottom - newH;
+                    if (tag.Contains('L')) newX = _cropRect.Right - newW;
                 }
 
                 _cropRect = new Rect(newX, newY, newW, newH);

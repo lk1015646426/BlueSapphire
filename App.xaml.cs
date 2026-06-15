@@ -19,8 +19,10 @@ using Windows.Foundation.Collections;
 
 // ✅ 新增的命名空间，用于依赖注入
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using BlueSapphire.Tools;
 using BlueSapphire.ViewModels;
+using BlueSapphire.Services.Logging;
 
 namespace BlueSapphire
 {
@@ -119,6 +121,8 @@ namespace BlueSapphire
             services.AddTransient<CleanerAssistantViewModel>();
             services.AddTransient<CleanerSettingsViewModel>();
 
+            services.AddHttpClient();
+            services.AddLogging(builder => builder.AddFileLogger());
             return services.BuildServiceProvider();
         }
 
@@ -129,9 +133,9 @@ namespace BlueSapphire
         protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
         {
             LaunchArguments = args.Arguments ?? string.Empty;
-            // [新增] 启动后台矩阵日志引擎
-            BlueSapphire.Services.MatrixLogService.Initialize();
-            BlueSapphire.Services.MatrixLogService.LogInfo("App", "Blue Sapphire 引擎点火成功。");
+            
+            var logger = Services.GetRequiredService<ILogger<App>>();
+            logger.LogInformation("Blue Sapphire 引擎点火成功。");
 
             // 实例化 MainWindow 并赋值给静态属性
             CurrentWindow = new MainWindow();
@@ -184,3 +188,4 @@ namespace BlueSapphire
         }
     }
 }
+

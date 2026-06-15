@@ -1,6 +1,7 @@
 using BlueSapphire.Models;
 using BlueSapphire.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Messaging;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -75,25 +76,39 @@ namespace BlueSapphire.ViewModels
             }
         }
 
-        private async void SaveAutomationSettings()
+        private void SaveAutomationSettings()
         {
             if (_isUpdatingFromStatus) return;
-            try
+            _ = Task.Run(async () =>
             {
-                await _automationService.SaveSettingsAsync(ReminderEnabled, AutoLowRiskCleanupEnabled, ReminderIntervalDays);
-            }
-            catch { }
+                try
+                {
+                    await _automationService.SaveSettingsAsync(ReminderEnabled, AutoLowRiskCleanupEnabled, ReminderIntervalDays);
+                }
+                catch (System.Exception ex)
+                {
+                    WeakReferenceMessenger.Default.Send(
+                        new ShowTipMessage("自动化设置保存失败", ex.Message));
+                }
+            });
         }
 
-        private async void SaveTelemetrySettings()
+        private void SaveTelemetrySettings()
         {
             if (_isUpdatingFromStatus) return;
-            try
+            _ = Task.Run(async () =>
             {
-                var currentStatus = await _telemetryService.LoadStatusAsync();
-                await _telemetryService.SaveSettingsAsync(TelemetryEnabled, currentStatus.Endpoint);
-            }
-            catch { }
+                try
+                {
+                    var currentStatus = await _telemetryService.LoadStatusAsync();
+                    await _telemetryService.SaveSettingsAsync(TelemetryEnabled, currentStatus.Endpoint);
+                }
+                catch (System.Exception ex)
+                {
+                    WeakReferenceMessenger.Default.Send(
+                        new ShowTipMessage("遥测设置保存失败", ex.Message));
+                }
+            });
         }
     }
 }

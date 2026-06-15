@@ -13,6 +13,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI.Dispatching;
 using Windows.Storage;
+using Microsoft.Extensions.Logging;
 
 namespace BlueSapphire.ViewModels
 {
@@ -24,6 +25,7 @@ namespace BlueSapphire.ViewModels
         private readonly ImageProcessingService _imageProcessingService;
         private readonly ImageMetadataService _imageMetadataService;
         private readonly MediaTagService _mediaTagService;
+        private readonly ILogger<MediaManagerViewModel> _logger;
         private readonly List<ImageItem> _cachedAllItems = new();
 
         private IMediaViewInteraction _view = null!;
@@ -182,7 +184,8 @@ namespace BlueSapphire.ViewModels
             NativeFileService nativeFileService,
             ImageProcessingService imageProcessingService,
             ImageMetadataService imageMetadataService,
-            MediaTagService mediaTagService)
+            MediaTagService mediaTagService,
+            ILogger<MediaManagerViewModel> logger)
         {
             _renameService = renameService;
             _deduplicationService = deduplicationService;
@@ -190,6 +193,7 @@ namespace BlueSapphire.ViewModels
             _imageProcessingService = imageProcessingService;
             _imageMetadataService = imageMetadataService;
             _mediaTagService = mediaTagService;
+            _logger = logger;
         }
 
         public void Initialize(IMediaViewInteraction view, DispatcherQueue dispatcherQueue)
@@ -364,7 +368,7 @@ namespace BlueSapphire.ViewModels
                     }
                     catch (Exception ex)
                     {
-                        MatrixLogService.LogError($"Rename_Analyze ({item.FileName ?? item.ImagePath})", ex);
+                        _logger.LogError(ex, "Rename_Analyze ({FileName})", item.FileName ?? item.ImagePath);
                     }
                     finally
                     {
@@ -425,7 +429,7 @@ namespace BlueSapphire.ViewModels
             catch (Exception ex)
             {
                 SetBusy(false);
-                MatrixLogService.LogError("Rename_Process_Critical", ex);
+                _logger.LogError(ex, "Rename_Process_Critical");
                 await _view.ShowTipAsync($"重命名预处理失败: {ex.Message}");
             }
         }
@@ -494,7 +498,7 @@ namespace BlueSapphire.ViewModels
             catch (Exception ex)
             {
                 SetBusy(false);
-                MatrixLogService.LogError("Scan_Duplicates_Critical", ex);
+                _logger.LogError(ex, "Scan_Duplicates_Critical");
                 await _view.ShowTipAsync($"扫描中断: {ex.Message}");
             }
         }
@@ -851,7 +855,7 @@ namespace BlueSapphire.ViewModels
                     }
                     catch (Exception ex)
                     {
-                        MatrixLogService.LogError($"{operationName} ({file.Name})", ex);
+                        _logger.LogError(ex, "{OperationName} ({FileName})", operationName, file.Name);
                         result = ImageProcessResult.Failed(file.Path, ex.Message);
                     }
 
@@ -928,7 +932,7 @@ namespace BlueSapphire.ViewModels
                     }
                     catch (Exception ex)
                     {
-                        MatrixLogService.LogError($"Load_Image ({file.Name})", ex);
+                        _logger.LogError(ex, "Load_Image ({FileName})", file.Name);
                     }
                     finally
                     {
@@ -962,7 +966,7 @@ namespace BlueSapphire.ViewModels
             }
             catch (Exception ex)
             {
-                MatrixLogService.LogError("Load_Folder_Critical", ex);
+                _logger.LogError(ex, "Load_Folder_Critical");
                 await _view.ShowTipAsync($"读取失败: {ex.Message}");
                 IsEmptyStateVisible = true;
             }
@@ -1073,7 +1077,7 @@ namespace BlueSapphire.ViewModels
                 catch (Exception ex)
                 {
                     failCount++;
-                    MatrixLogService.LogError($"Rename_Execute ({item.OriginalName})", ex);
+                    _logger.LogError(ex, "Rename_Execute ({OriginalName})", item.OriginalName);
                 }
 
                 if ((i + 1) % 20 == 0 || i == items.Count - 1)

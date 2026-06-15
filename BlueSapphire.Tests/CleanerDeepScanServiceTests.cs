@@ -1,5 +1,6 @@
 using BlueSapphire.Models;
 using BlueSapphire.Services;
+using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -77,7 +78,8 @@ public class CleanerDeepScanServiceTests : IDisposable
                 maxCandidateDirectoriesPerRoot: 8,
                 maxVisitedDirectories: 64,
                 maxVisitedFiles: 512),
-            new CleanerOrphanResidueService(lockService));
+            new CleanerOrphanResidueService(lockService),
+            NullLogger<CleanerDeepScanService>.Instance);
 
         CleanerDeepScanResult result = await service.ScanAsync(
             new CleanerScanOptions
@@ -141,7 +143,8 @@ public class CleanerDeepScanServiceTests : IDisposable
             new CleanerScanService(ruleService, riskEvaluator, store, lockService, new CleanerPrivilegeService()),
             store,
             new CleanerSpaceAnalysisService(riskEvaluator, lockService, largeDirectoryThresholdBytes: 1, largeFileThresholdBytes: 1),
-            new CleanerOrphanResidueService(lockService));
+            new CleanerOrphanResidueService(lockService),
+            NullLogger<CleanerDeepScanService>.Instance);
 
         CleanerDeepScanResult result = await service.ScanAsync(
             new CleanerScanOptions

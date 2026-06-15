@@ -70,7 +70,7 @@ namespace BlueSapphire.Views
             // Show typing...
             var typingBubble = new ChatBubble { Content = "思考中...", IsUser = false };
             Messages.Add(typingBubble);
-            ScrollToBottom();
+            _ = ScrollToBottomAsync();
 
             await ProcessMessageAsync();
 
@@ -100,6 +100,14 @@ namespace BlueSapphire.Views
                     {
                         Name = "start_smart_cleanup",
                         Description = "Starts the smart system cleanup process. Use this when the user wants to clean up junk files or optimize system storage."
+                    }
+                },
+                new ChatTool
+                {
+                    Function = new ChatFunction
+                    {
+                        Name = "execute_cleanup",
+                        Description = "Executes the cleanup process to free up space. Use this when the user explicitly confirms or asks you to clean up the scanned items."
                     }
                 },
                 new ChatTool
@@ -151,10 +159,10 @@ namespace BlueSapphire.Views
         {
             bool isUser = role == "用户";
             Messages.Add(new ChatBubble { Content = content, IsUser = isUser });
-            ScrollToBottom();
+            _ = ScrollToBottomAsync();
         }
 
-        private async void ScrollToBottom()
+        private async Task ScrollToBottomAsync()
         {
             await Task.Delay(50);
             ChatScrollViewer.ChangeView(null, ChatScrollViewer.ScrollableHeight, null);
@@ -172,3 +180,4 @@ namespace BlueSapphire.Views
             : new SolidColorBrush(Microsoft.UI.Colors.DarkGray) { Opacity = 0.4 };
     }
 }
+

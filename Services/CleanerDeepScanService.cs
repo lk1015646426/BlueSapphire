@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace BlueSapphire.Services
 {
@@ -13,17 +14,20 @@ namespace BlueSapphire.Services
         private readonly CleanerStateStore _stateStore;
         private readonly CleanerSpaceAnalysisService _spaceAnalysisService;
         private readonly CleanerOrphanResidueService _orphanResidueService;
+        private readonly ILogger<CleanerDeepScanService> _logger;
 
         public CleanerDeepScanService(
             CleanerScanService scanService,
             CleanerStateStore stateStore,
             CleanerSpaceAnalysisService spaceAnalysisService,
-            CleanerOrphanResidueService orphanResidueService)
+            CleanerOrphanResidueService orphanResidueService,
+            ILogger<CleanerDeepScanService> logger)
         {
             _scanService = scanService;
             _stateStore = stateStore;
             _spaceAnalysisService = spaceAnalysisService;
             _orphanResidueService = orphanResidueService;
+            _logger = logger;
         }
 
         public async Task<CleanerDeepScanResult> ScanAsync(
@@ -31,13 +35,13 @@ namespace BlueSapphire.Services
             IProgress<CleanerScanProgress>? progress,
             CancellationToken cancellationToken)
         {
-            CleanerDiagnosticsLogger.Trace("DeepScan", "开始深度扫描协调。");
+            _logger.LogInformation("[DeepScan] 开始深度扫描协调。");
             CleanerScanReport coreReport = await _scanService.ScanAsync(
                 CleanerScanScope.Deep,
                 BuildCoreOptions(options),
                 progress,
                 cancellationToken);
-            CleanerDiagnosticsLogger.Trace("DeepScan", $"核心深扫完成，命中 {coreReport.Items.Count} 项。");
+            _logger.LogInformation("[DeepScan] 核心深扫完成，命中 {Count} 项。", coreReport.Items.Count);
 
             HashSet<string> exclusions = await LoadExclusionsAsync();
             List<CleanerScanItem> combinedItems = coreReport.Items.ToList();
@@ -56,9 +60,8 @@ namespace BlueSapphire.Services
                 progress,
                 cancellationToken);
 
-            CleanerDiagnosticsLogger.Trace(
-                "DeepScan",
-                $"附加分析完成，合并后 {combinedItems.Count} 项；抽样补充 {spaceAnalysis.AddedCount}，残留补充 {orphanResidue.AddedCount}。");
+            _logger.LogInformation("[DeepScan] 附加分析完成，合并后 {CombinedCount} 项；抽样补充 {AddedSpaceCount}，残留补充 {AddedOrphanCount}。", 
+                combinedItems.Count, spaceAnalysis.AddedCount, orphanResidue.AddedCount);
 
             return new CleanerDeepScanResult
             {
@@ -105,7 +108,7 @@ namespace BlueSapphire.Services
                     cancellationToken);
 
                 int addedCount = AppendDistinctItems(combinedItems, analysisItems);
-                CleanerDiagnosticsLogger.Trace("DeepScan", $"抽样空间分析完成，新增 {addedCount} 项。");
+                _logger.LogInformation("[DeepScan] 抽样空间分析完成，新增 {Count} 项。", addedCount);
                 progress?.Report(new CleanerScanProgress
                 {
                     StageTitle = "深度扫描",
@@ -128,7 +131,7 @@ namespace BlueSapphire.Services
             }
             catch
             {
-                CleanerDiagnosticsLogger.Trace("DeepScan", "抽样空间分析失败，已跳过。");
+                _logger.LogInformation("[DeepScan] 抽样空间分析失败，已跳过。");
                 progress?.Report(new CleanerScanProgress
                 {
                     StageTitle = "深度扫描",
@@ -169,7 +172,7 @@ namespace BlueSapphire.Services
             {
                 List<CleanerScanItem> orphanItems = await _orphanResidueService.ScanAsync(exclusions, cancellationToken);
                 int addedCount = AppendDistinctItems(combinedItems, orphanItems);
-                CleanerDiagnosticsLogger.Trace("DeepScan", $"疑似残留识别完成，新增 {addedCount} 项。");
+                _logger.LogInformation("[DeepScan] 疑似残留识别完成，新增 {Count} 项。", addedCount);
                 progress?.Report(new CleanerScanProgress
                 {
                     StageTitle = "深度扫描",
@@ -192,7 +195,7 @@ namespace BlueSapphire.Services
             }
             catch
             {
-                CleanerDiagnosticsLogger.Trace("DeepScan", "疑似残留识别失败，已跳过。");
+                _logger.LogInformation("[DeepScan] 疑似残留识别失败，已跳过。");
                 progress?.Report(new CleanerScanProgress
                 {
                     StageTitle = "深度扫描",

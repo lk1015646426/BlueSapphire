@@ -7,18 +7,21 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace BlueSapphire.Services
 {
     public class DevLogDataService
     {
+        private readonly ILogger<DevLogDataService> _logger;
         private const string FileName = "DevMatrixLog.json";
         private static readonly SemaphoreSlim FileLock = new(1, 1);
         private readonly string? _rootPathOverride;
         private readonly string? _seedFilePathOverride;
 
-        public DevLogDataService(string? rootPathOverride = null, string? seedFilePathOverride = null)
+        public DevLogDataService(ILogger<DevLogDataService> logger, string? rootPathOverride = null, string? seedFilePathOverride = null)
         {
+            _logger = logger;
             _rootPathOverride = rootPathOverride;
             _seedFilePathOverride = seedFilePathOverride;
         }
@@ -64,7 +67,7 @@ namespace BlueSapphire.Services
             }
             catch (Exception ex)
             {
-                MatrixLogService.LogError("DevLog_Load", ex);
+                _logger.LogError(ex, "DevLog_Load");
                 return new List<DevLogItem>();
             }
             finally
@@ -82,7 +85,7 @@ namespace BlueSapphire.Services
             }
             catch (Exception ex)
             {
-                MatrixLogService.LogError("DevLog_Save", ex);
+                _logger.LogError(ex, "DevLog_Save");
             }
             finally
             {

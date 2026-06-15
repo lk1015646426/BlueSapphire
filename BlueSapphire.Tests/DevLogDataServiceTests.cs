@@ -1,5 +1,6 @@
 using BlueSapphire.Models;
 using BlueSapphire.Services;
+using Microsoft.Extensions.Logging;
 using System.Text.Json;
 
 namespace BlueSapphire.Tests;
@@ -31,7 +32,7 @@ public sealed class DevLogDataServiceTests : IDisposable
         ];
 
         await File.WriteAllTextAsync(_seedPath, JsonSerializer.Serialize(seedLogs));
-        DevLogDataService service = new(_root, _seedPath);
+        DevLogDataService service = new(NullLogger<DevLogDataService>.Instance, _root, _seedPath);
 
         List<DevLogItem> loaded = await service.LoadLogsAsync();
 
@@ -43,7 +44,7 @@ public sealed class DevLogDataServiceTests : IDisposable
     [Fact]
     public async Task SaveLogsAsync_PersistsRoundTrip()
     {
-        DevLogDataService service = new(_root, _seedPath);
+        DevLogDataService service = new(NullLogger<DevLogDataService>.Instance, _root, _seedPath);
         List<DevLogItem> logs =
         [
             new DevLogItem
@@ -106,7 +107,7 @@ public sealed class DevLogDataServiceTests : IDisposable
         await File.WriteAllTextAsync(dataPath, JsonSerializer.Serialize(existingLogs));
         await File.WriteAllTextAsync(_seedPath, JsonSerializer.Serialize(seedLogs));
 
-        DevLogDataService service = new(_root, _seedPath);
+        DevLogDataService service = new(NullLogger<DevLogDataService>.Instance, _root, _seedPath);
 
         List<DevLogItem> loaded = await service.LoadLogsAsync();
 
@@ -145,7 +146,7 @@ public sealed class DevLogDataServiceTests : IDisposable
         ];
 
         await File.WriteAllTextAsync(_seedPath, JsonSerializer.Serialize(seedLogs));
-        DevLogDataService service = new(_root, _seedPath);
+        DevLogDataService service = new(NullLogger<DevLogDataService>.Instance, _root, _seedPath);
 
         List<DevLogItem> loaded = await service.LoadLogsAsync();
 

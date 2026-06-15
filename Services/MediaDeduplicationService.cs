@@ -7,11 +7,18 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Storage;
+using Microsoft.Extensions.Logging;
 
 namespace BlueSapphire.Services
 {
     public class MediaDeduplicationService
     {
+        private readonly ILogger<MediaDeduplicationService> _logger;
+
+        public MediaDeduplicationService(ILogger<MediaDeduplicationService> logger)
+        {
+            _logger = logger;
+        }
         // ========================= Exact Duplicate Detection (unchanged) =========================
 
         public async Task<List<List<StorageFile>>> FindDuplicatesAsync(
@@ -51,7 +58,7 @@ namespace BlueSapphire.Services
                 }
                 catch (Exception ex)
                 {
-                    MatrixLogService.LogError($"Dedupe_GetSize ({file.Name})", ex);
+                    _logger.LogError(ex, "Dedupe_GetSize ({FileName})", file.Name);
                 }
                 finally
                 {
@@ -199,7 +206,7 @@ namespace BlueSapphire.Services
                     }
                     catch (Exception ex)
                     {
-                        MatrixLogService.LogError($"dHash ({file.Name})", ex);
+                        _logger.LogError(ex, "dHash ({FileName})", file.Name);
                     }
                     finally
                     {

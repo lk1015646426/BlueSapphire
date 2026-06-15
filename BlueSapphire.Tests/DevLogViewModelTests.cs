@@ -1,6 +1,7 @@
 using BlueSapphire.Models;
 using BlueSapphire.Services;
 using BlueSapphire.ViewModels;
+using Microsoft.Extensions.Logging;
 
 namespace BlueSapphire.Tests;
 
@@ -17,7 +18,7 @@ public sealed class DevLogViewModelTests : IDisposable
     public async Task EnsureInitializedAsync_LoadsLogsAndUpdatesHud()
     {
         string seedPath = Path.Combine(_root, "missing-seed.json");
-        DevLogDataService service = new(_root, seedPath);
+        DevLogDataService service = new(NullLogger<DevLogDataService>.Instance, _root, seedPath);
         await service.SaveLogsAsync(
         [
             new DevLogItem
@@ -47,7 +48,7 @@ public sealed class DevLogViewModelTests : IDisposable
     public async Task AddNewLogAsync_InsertsAtTopAndPersists()
     {
         string seedPath = Path.Combine(_root, "missing-seed.json");
-        DevLogDataService service = new(_root, seedPath);
+        DevLogDataService service = new(NullLogger<DevLogDataService>.Instance, _root, seedPath);
         DevLogViewModel viewModel = new(service);
         await viewModel.EnsureInitializedAsync();
 
@@ -65,7 +66,7 @@ public sealed class DevLogViewModelTests : IDisposable
     public async Task AddNewLogAsync_DoesNothingInReadOnlyMode()
     {
         string seedPath = Path.Combine(_root, "missing-seed.json");
-        DevLogDataService service = new(_root, seedPath);
+        DevLogDataService service = new(NullLogger<DevLogDataService>.Instance, _root, seedPath);
         DevLogViewModel viewModel = new(service)
         {
             IsEditable = false
@@ -84,7 +85,7 @@ public sealed class DevLogViewModelTests : IDisposable
     public async Task DeleteLogCommand_DoesNothingInReadOnlyMode()
     {
         string seedPath = Path.Combine(_root, "missing-seed.json");
-        DevLogDataService service = new(_root, seedPath);
+        DevLogDataService service = new(NullLogger<DevLogDataService>.Instance, _root, seedPath);
         await service.SaveLogsAsync(
         [
             new DevLogItem
@@ -114,7 +115,7 @@ public sealed class DevLogViewModelTests : IDisposable
     public async Task UpdateLogAsync_UpdatesExistingEntryAndReordersByTimestamp()
     {
         string seedPath = Path.Combine(_root, "missing-seed.json");
-        DevLogDataService service = new(_root, seedPath);
+        DevLogDataService service = new(NullLogger<DevLogDataService>.Instance, _root, seedPath);
         await service.SaveLogsAsync(
         [
             new DevLogItem

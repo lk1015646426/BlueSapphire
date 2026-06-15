@@ -34,7 +34,7 @@ namespace BlueSapphire
             _isInitialized = true;
             try
             {
-                await ViewModel.InitializeAsync(this, DispatcherQueue);
+                await ViewModel.InitializeAsync(this);
             }
             catch (Exception ex)
             {

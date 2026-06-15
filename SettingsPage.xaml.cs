@@ -73,13 +73,13 @@ namespace BlueSapphire
             ParticleSwitch.Toggled += ParticleSwitch_Toggled;
 
             DeepSeekApiKeyBox.PasswordChanged -= DeepSeekApiKeyBox_PasswordChanged;
-            DeepSeekApiKeyBox.Password = AppSettings.Get("DeepSeekApiKey", string.Empty);
+            DeepSeekApiKeyBox.Password = AppSettings.GetSecret("DeepSeekApiKey") ?? string.Empty;
             DeepSeekApiKeyBox.PasswordChanged += DeepSeekApiKeyBox_PasswordChanged;
         }
 
         private void DeepSeekApiKeyBox_PasswordChanged(object sender, RoutedEventArgs e)
         {
-            AppSettings.Save("DeepSeekApiKey", DeepSeekApiKeyBox.Password);
+            AppSettings.SaveSecret("DeepSeekApiKey", DeepSeekApiKeyBox.Password);
         }
 
         private void ParticleSwitch_Toggled(object sender, RoutedEventArgs e)
@@ -193,3 +193,4 @@ namespace BlueSapphire
         }
     }
 }
+

@@ -38,6 +38,10 @@ namespace BlueSapphire.Services
                     {
                         return await AnalyzeLatestCleanupLogAsync();
                     }
+                    else if (name == "execute_cleanup")
+                    {
+                        return await ExecuteCleanupAsync(args);
+                    }
                     else if (name == "navigate_to_feature")
                     {
                         return await NavigateToFeatureAsync(args);
@@ -61,9 +65,22 @@ namespace BlueSapphire.Services
                 // Wait for the UI and ViewModel to initialize
                 await Task.Delay(500);
 
-                // Send a message to ViewModel to start scan
-                WeakReferenceMessenger.Default.Send(new StartQuickScanMessage());
-                return "已为你切换到清理助手，并自动开始智能扫描！你可以随时查看扫描进度。";
+                // Send a message to ViewModel to start scan and await the result
+                var result = await WeakReferenceMessenger.Default.Send(new StartQuickScanMessage());
+                return $"扫描已完成。扫描结果：\n{result}";
+            }
+            return "无法获取主窗口句柄，导航失败。";
+        }
+
+        private async Task<string> ExecuteCleanupAsync(string args)
+        {
+            if (App.CurrentWindow is MainWindow mainWindow)
+            {
+                mainWindow.NavigateToTool("CleanerAssistantTool");
+                await Task.Delay(500);
+
+                var result = await WeakReferenceMessenger.Default.Send(new RunCleanupMessage());
+                return $"清理已完成。清理结果：\n{result}";
             }
             return "无法获取主窗口句柄，导航失败。";
         }
@@ -107,5 +124,10 @@ namespace BlueSapphire.Services
         }
     }
 
-    public class StartQuickScanMessage { }
+    public class StartQuickScanMessage : CommunityToolkit.Mvvm.Messaging.Messages.AsyncRequestMessage<string> { }
+    public class RunCleanupMessage : CommunityToolkit.Mvvm.Messaging.Messages.AsyncRequestMessage<string> { }
+}
+namespace BlueSapphire.Services
+{
+    public class RunAutomaticLowRiskCleanupMessage : CommunityToolkit.Mvvm.Messaging.Messages.AsyncRequestMessage<string> { }
 }

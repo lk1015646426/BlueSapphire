@@ -9,16 +9,18 @@ BlueSapphire 是一个面向 Windows 11 的 WinUI 3 工具箱，当前已经包�
 
 ## 版本信息
 
-- 当前文档版本：`1.0.4`
+- 当前文档版本：`1.0.5`
 - 当前发布形态：`Windows 11 x64` 安装包
 - 当前发布链路：`dotnet publish -> Inno Setup -> GitHub Releases`
 
-### 1.0.4 更新摘要
+### 1.0.5 更新摘要
 
-- 完成 `清理助手` 作为独立模块的接入与稳定性收口
-- 完成 `媒体管家` 与 `清理助手` 的模块级测试和发布前回归
-- 完成 `publish-only` 安装链路切换，阻止仓库根目录误打包
-- 完成 `BlueSapphire-Builder` 与 GitHub Release 的统一发布流程
+- 消除非事件处理器中的 `async void`，避免静默崩溃风险
+- 拆解 `CleanerAssistantViewModel` 至独立功能模块（扫描、清理、自动化等），大幅提升可维护性
+- 补齐 ViewModel 层与 Media 模块核心业务逻辑的自动化测试用例
+- 采用 `DPAPI` 加密方式实现 `DeepSeek API Key` 安全存储机制
+- 引入 `IHttpClientFactory` 优化 HTTP 请求性能及生命周期管理
+- 统一日志抽象至 `Microsoft.Extensions.Logging`，全盘接管启动和清理相关的输出
 
 ## 当前模块
 
@@ -179,11 +181,11 @@ BlueSapphire/
 正式安装包统一通过 GitHub Releases 分发：
 
 - 下载地址：[BlueSapphire Releases](https://github.com/lk1015646426/BlueSapphire/releases)
-- 建议发布标签：`v1.0.4`
+- 建议发布标签：`v1.0.5`
 
 下载建议：
 
-- 普通用户直接下载 `BlueSapphire_Setup_v1.0.4.exe` 或更新版本
+- 普通用户直接下载 `BlueSapphire_Setup_v1.0.5.exe` 或更新版本
 - 安装目标机器不需要提前安装 `.NET SDK`
 - 安装目标机器不需要提前安装 `Windows App SDK`
 

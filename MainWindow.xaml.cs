@@ -81,6 +81,18 @@ namespace BlueSapphire
                 BackgroundCanvas?.Invalidate();
             });
 
+            WeakReferenceMessenger.Default.Register<ShowTipMessage>(this, async (r, m) =>
+            {
+                var dialog = new ContentDialog
+                {
+                    Title = m.Title,
+                    Content = m.Message,
+                    CloseButtonText = "确定",
+                    XamlRoot = this.Content.XamlRoot
+                };
+                await dialog.ShowAsync();
+            });
+
             SelectInitialTool();
             CompositionTarget.Rendering += OnRendering;
         }

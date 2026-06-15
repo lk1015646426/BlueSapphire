@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.Messaging.Messages;
+using CommunityToolkit.Mvvm.Messaging.Messages;
 
 namespace BlueSapphire.Models
 {
@@ -8,9 +8,32 @@ namespace BlueSapphire.Models
         public DevLogCompletedMessage(string logTitle) : base(logTitle) { }
     }
 
-    // 用于粒子特效开关的消息 (继承自 ValueChangedMessage<bool>)
     public class ToggleParticleMessage : ValueChangedMessage<bool>
     {
         public ToggleParticleMessage(bool isEnabled) : base(isEnabled) { }
+    }
+
+    public class ShowTipMessage
+    {
+        public string Title { get; }
+        public string Message { get; }
+
+        public ShowTipMessage(string title, string message)
+        {
+            Title = title;
+            Message = message;
+        }
+    }
+
+    public class RunAutomaticLowRiskCleanupMessage
+    {
+    }
+
+    public class StartQuickScanMessage
+    {
+    }
+
+    public class RunCleanupMessage
+    {
     }
 }

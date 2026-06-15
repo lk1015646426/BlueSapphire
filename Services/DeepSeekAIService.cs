@@ -12,17 +12,17 @@ namespace BlueSapphire.Services
 {
     public class DeepSeekAIService
     {
-        private readonly HttpClient _httpClient;
+        private readonly IHttpClientFactory _httpClientFactory;
         private const string ApiUrl = "https://api.deepseek.com/v1/chat/completions";
 
-        public DeepSeekAIService()
+        public DeepSeekAIService(IHttpClientFactory httpClientFactory)
         {
-            _httpClient = new HttpClient();
+            _httpClientFactory = httpClientFactory;
         }
 
         public async Task<string> SendChatAsync(List<ChatMessage> messages, List<ChatTool>? tools = null)
         {
-            string apiKey = AppSettings.Get("DeepSeekApiKey", string.Empty);
+            string? apiKey = AppSettings.GetSecret("DeepSeekApiKey");
             if (string.IsNullOrWhiteSpace(apiKey))
             {
                 return "错误：请先在设置中配置 DeepSeek API Key。";
@@ -41,11 +41,12 @@ namespace BlueSapphire.Services
                 Encoding.UTF8,
                 "application/json");
 
-            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+            HttpClient httpClient = _httpClientFactory.CreateClient("DeepSeek");
+            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
 
             try
             {
-                var response = await _httpClient.PostAsync(ApiUrl, jsonContent);
+                var response = await httpClient.PostAsync(ApiUrl, jsonContent);
                 var responseString = await response.Content.ReadAsStringAsync();
 
                 if (!response.IsSuccessStatusCode)
@@ -59,7 +60,6 @@ namespace BlueSapphire.Services
 
                 if (message.TryGetProperty("tool_calls", out var toolCalls) && toolCalls.GetArrayLength() > 0)
                 {
-                    // Handle function call in a basic way: return a special string or serialize
                     return $"[TOOL_CALL] {toolCalls.GetRawText()}";
                 }
 

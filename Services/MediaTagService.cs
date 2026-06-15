@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace BlueSapphire.Services
 {
@@ -29,9 +30,11 @@ namespace BlueSapphire.Services
         private static readonly char[] TagSeparators = [',', '，', ';', '；', '|', '\r', '\n'];
         private readonly string? _dataDirectory;
         private Dictionary<string, List<string>>? _cachedStore;
+        private readonly ILogger<MediaTagService> _logger;
 
-        public MediaTagService(string? dataDirectory = null)
+        public MediaTagService(ILogger<MediaTagService> logger, string? dataDirectory = null)
         {
+            _logger = logger;
             _dataDirectory = dataDirectory;
         }
 
@@ -80,7 +83,7 @@ namespace BlueSapphire.Services
             }
             catch (Exception ex)
             {
-                MatrixLogService.LogError("MediaTags_Get", ex);
+                _logger.LogError(ex, "MediaTags_Get");
                 return Array.Empty<string>();
             }
             finally
@@ -115,7 +118,7 @@ namespace BlueSapphire.Services
             }
             catch (Exception ex)
             {
-                MatrixLogService.LogError($"MediaTags_Replace ({filePath})", ex);
+                _logger.LogError(ex, "MediaTags_Replace ({FilePath})", filePath);
                 return MediaTagUpdateResult.Failed(filePath, ex.Message);
             }
             finally
@@ -152,7 +155,7 @@ namespace BlueSapphire.Services
             }
             catch (Exception ex)
             {
-                MatrixLogService.LogError($"MediaTags_Move ({sourcePath} -> {destinationPath})", ex);
+                _logger.LogError(ex, "MediaTags_Move ({SourcePath} -> {DestinationPath})", sourcePath, destinationPath);
             }
             finally
             {
@@ -189,7 +192,7 @@ namespace BlueSapphire.Services
             }
             catch (Exception ex)
             {
-                MatrixLogService.LogError("MediaTags_Remove", ex);
+                _logger.LogError(ex, "MediaTags_Remove");
             }
             finally
             {
