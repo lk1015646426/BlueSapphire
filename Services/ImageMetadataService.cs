@@ -26,36 +26,19 @@ namespace BlueSapphire.Services
             try
             {
                 var imageProperties = await file.Properties.GetImagePropertiesAsync();
-                using var stream = await file.OpenReadAsync();
-                var decoder = await BitmapDecoder.CreateAsync(stream);
 
-                uint width = imageProperties.Width > 0 ? imageProperties.Width : decoder.PixelWidth;
-                uint height = imageProperties.Height > 0 ? imageProperties.Height : decoder.PixelHeight;
-                DateTimeOffset? dateTaken = imageProperties.DateTaken == default ? null : imageProperties.DateTaken;
-
+                // Skip full file decoding (BitmapDecoder) to massively speed up loading thousands of images.
+                // We sacrifice exact BitDepth detection for instant metadata retrieval.
                 return new ImageMetadataInfo(
-                    width,
-                    height,
+                    imageProperties.Width,
+                    imageProperties.Height,
                     GetFormatDisplayName(file.Name),
-                    GetBitsPerPixel(decoder.BitmapPixelFormat),
-                    dateTaken);
+                    null, // skip bit depth
+                    imageProperties.DateTaken == default ? null : imageProperties.DateTaken);
             }
             catch
             {
-                try
-                {
-                    var imageProperties = await file.Properties.GetImagePropertiesAsync();
-                    return new ImageMetadataInfo(
-                        imageProperties.Width,
-                        imageProperties.Height,
-                        GetFormatDisplayName(file.Name),
-                        null,
-                        imageProperties.DateTaken == default ? null : imageProperties.DateTaken);
-                }
-                catch
-                {
-                    return null;
-                }
+                return null;
             }
         }
 

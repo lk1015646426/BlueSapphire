@@ -111,130 +111,39 @@
             <TabView.TabItems>
                 <TabViewItem Header="扫描与清理" IsClosable="False">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" VerticalScrollMode="Auto" Padding="0,0,16,0">
-                        <StackPanel Spacing="18">
+                <StackPanel Spacing="18">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
 
-                            <Border Background="{StaticResource PanelSurfaceStrong}" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="16" Padding="16,14"
-                                    Visibility="{x:Bind ViewModel.HasDriveOptions, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
-                                <StackPanel Spacing="12">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel>
-                                            <TextBlock Text="扫描范围" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold"/>
-                                            <TextBlock Text="{x:Bind ViewModel.SelectedDriveSummaryText, Mode=OneWay}" Foreground="{StaticResource AccentInspect}" FontSize="13" Margin="0,2,0,0"/>
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                                            <Button Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.UseSystemDriveOnlyCommand}" ToolTipService.ToolTip="仅系统盘">
-                                                <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE7FA;" FontSize="12"/><TextBlock Text="系统盘" FontSize="12"/></StackPanel>
-                                            </Button>
-                                            <Button Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.SelectAllDrivesCommand}" ToolTipService.ToolTip="全选">
-                                                <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE73A;" FontSize="12"/><TextBlock Text="全选" FontSize="12"/></StackPanel>
-                                            </Button>
-                                        </StackPanel>
-                                    </Grid>
-                                    
-                                    <ScrollViewer HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Enabled" VerticalScrollBarVisibility="Disabled" VerticalScrollMode="Disabled">
-                                        <ItemsControl ItemsSource="{x:Bind ViewModel.DriveOptions, Mode=OneWay}">
-                                            <ItemsControl.ItemsPanel>
-                                                <ItemsPanelTemplate>
-                                                    <StackPanel Orientation="Horizontal" Spacing="16"/>
-                                                </ItemsPanelTemplate>
-                                            </ItemsControl.ItemsPanel>
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate x:DataType="models:CleanerDriveOption">
-                                                    <Border Width="260" Padding="16,16,16,14" Background="#0AFFFFFF" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="12">
-                                                        <Grid>
-                                                            <Grid.RowDefinitions>
-                                                                <RowDefinition Height="Auto"/>
-                                                                <RowDefinition Height="Auto"/>
-                                                                <RowDefinition Height="*"/>
-                                                                <RowDefinition Height="Auto"/>
-                                                            </Grid.RowDefinitions>
-                                                            
-                                                            <Grid Grid.Row="0">
-                                                                <Grid.ColumnDefinitions>
-                                                                    <ColumnDefinition Width="*"/>
-                                                                    <ColumnDefinition Width="Auto"/>
-                                                                </Grid.ColumnDefinitions>
-                                                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                                                    <FontIcon Glyph="&#xEDA2;" FontSize="16" Foreground="{StaticResource TextMuted}"/>
-                                                                    <TextBlock Text="{x:Bind TitleText}" Foreground="{StaticResource TextMain}" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                                                                </StackPanel>
-                                                                <CheckBox Grid.Column="1" IsChecked="{x:Bind IsSelected, Mode=TwoWay}" MinWidth="0" MinHeight="0" Margin="0,-4,-4,0" Padding="0"/>
-                                                            </Grid>
-                                                            
-                                                            <TextBlock Grid.Row="1" Text="{x:Bind SubtitleText}" Foreground="{StaticResource TextMuted}" FontSize="12" Margin="24,2,0,16"/>
-                                                            
-                                                            <StackPanel Grid.Row="3" Spacing="8" VerticalAlignment="Bottom">
-                                                                <Grid>
-                                                                    <TextBlock Text="空间使用情况" Foreground="{StaticResource TextMuted}" FontSize="11"/>
-                                                                    <TextBlock Text="{x:Bind UsageText}" Foreground="{StaticResource AccentInspect}" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Right"/>
-                                                                </Grid>
-                                                                <ProgressBar Value="{x:Bind UsedPercentage, Mode=OneWay}" Maximum="100" Height="4" CornerRadius="999" Foreground="{StaticResource AccentInspect}"/>
-                                                            </StackPanel>
-                                                        </Grid>
-                                                    </Border>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </ScrollViewer>
-                                </StackPanel>
-                            </Border>
+                        <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="可安全清理" Foreground="{StaticResource AccentSafe}" FontSize="14" FontWeight="SemiBold"/>
+                                <TextBlock Text="{x:Bind ViewModel.SafeSpaceText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="24" FontWeight="SemiBold"/>
+                                <TextBlock Text="{x:Bind ViewModel.SafeCountText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12"/>
+                            </StackPanel>
+                        </Border>
 
-                            <Grid ColumnSpacing="12">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
+                        <Border Grid.Column="1" Style="{StaticResource CardBorderStyle}">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="建议确认后清理" Foreground="{StaticResource AccentReview}" FontSize="14" FontWeight="SemiBold"/>
+                                <TextBlock Text="{x:Bind ViewModel.ReviewSpaceText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="24" FontWeight="SemiBold"/>
+                                <TextBlock Text="{x:Bind ViewModel.ReviewCountText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12"/>
+                            </StackPanel>
+                        </Border>
 
-                                <!-- 卡片 1: 安全清理 -->
-                                <Border Grid.Column="0" CornerRadius="16" BorderThickness="1" BorderBrush="#3022C55E">
-                                    <Border.Background>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                            <GradientStop Color="#1A22C55E" Offset="0"/>
-                                            <GradientStop Color="#0522C55E" Offset="1"/>
-                                        </LinearGradientBrush>
-                                    </Border.Background>
-                                    <StackPanel Spacing="8" Padding="16,14">
-                                        <TextBlock Text="可安全清理" Foreground="{StaticResource AccentSafe}" FontSize="14" FontWeight="SemiBold"/>
-                                        <TextBlock Text="{x:Bind ViewModel.SafeSpaceText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="24" FontWeight="SemiBold"/>
-                                        <TextBlock Text="{x:Bind ViewModel.SafeCountText, Mode=OneWay}" Foreground="#A022C55E" FontSize="12"/>
-                                    </StackPanel>
-                                </Border>
+                        <Border Grid.Column="2" Style="{StaticResource CardBorderStyle}">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="仅供查看" Foreground="{StaticResource AccentInspect}" FontSize="14" FontWeight="SemiBold"/>
+                                <TextBlock Text="{x:Bind ViewModel.ViewOnlySpaceText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="24" FontWeight="SemiBold"/>
+                                <TextBlock Text="{x:Bind ViewModel.ViewOnlyCountText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
 
-                                <!-- 卡片 2: 建议确认 -->
-                                <Border Grid.Column="1" CornerRadius="16" BorderThickness="1" BorderBrush="#30F59E0B">
-                                    <Border.Background>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                            <GradientStop Color="#1AF59E0B" Offset="0"/>
-                                            <GradientStop Color="#05F59E0B" Offset="1"/>
-                                        </LinearGradientBrush>
-                                    </Border.Background>
-                                    <StackPanel Spacing="8" Padding="16,14">
-                                        <TextBlock Text="建议确认后清理" Foreground="{StaticResource AccentReview}" FontSize="14" FontWeight="SemiBold"/>
-                                        <TextBlock Text="{x:Bind ViewModel.ReviewSpaceText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="24" FontWeight="SemiBold"/>
-                                        <TextBlock Text="{x:Bind ViewModel.ReviewCountText, Mode=OneWay}" Foreground="#A0F59E0B" FontSize="12"/>
-                                    </StackPanel>
-                                </Border>
-
-                                <!-- 卡片 3: 仅查看 -->
-                                <Border Grid.Column="2" CornerRadius="16" BorderThickness="1" BorderBrush="#3038BDF8">
-                                    <Border.Background>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                            <GradientStop Color="#1A38BDF8" Offset="0"/>
-                                            <GradientStop Color="#0538BDF8" Offset="1"/>
-                                        </LinearGradientBrush>
-                                    </Border.Background>
-                                    <StackPanel Spacing="8" Padding="16,14">
-                                        <TextBlock Text="仅供查看" Foreground="{StaticResource AccentInspect}" FontSize="14" FontWeight="SemiBold"/>
-                                        <TextBlock Text="{x:Bind ViewModel.ViewOnlySpaceText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="24" FontWeight="SemiBold"/>
-                                        <TextBlock Text="{x:Bind ViewModel.ViewOnlyCountText, Mode=OneWay}" Foreground="#A038BDF8" FontSize="12"/>
-                                    </StackPanel>
-                                </Border>
-                            </Grid>
                     <Border Style="{StaticResource CardBorderStrongStyle}" Padding="18,16">
                         <StackPanel Spacing="6">
                             <TextBlock Text="{x:Bind ViewModel.StatusMainText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold"/>
@@ -257,6 +166,7 @@
                             </Grid>
                         </StackPanel>
                     </Border>
+
                     <Expander Visibility="{x:Bind ViewModel.HasSafeItems, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
                               Header="可安全清理明细"
                               IsExpanded="False">
@@ -307,6 +217,7 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </Expander>
+
                     <Expander Visibility="{x:Bind ViewModel.HasReviewItems, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
                               Header="建议确认后清理明细"
                               IsExpanded="False">
@@ -351,6 +262,7 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </Expander>
+
                     <Expander Visibility="{x:Bind ViewModel.HasViewOnlyItems, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
                               Header="仅供查看明细"
                               IsExpanded="False">
@@ -399,18 +311,61 @@
                         </ItemsControl>
                         </StackPanel>
                     </Expander>
+
                     <StackPanel Visibility="{x:Bind ViewModel.HasResults, Mode=OneWay, Converter={StaticResource InverseBoolToVisibleConverter}}" HorizontalAlignment="Center" Margin="0,30,0,0" Spacing="8">
                         <TextBlock Text="还没有扫描结果" Foreground="{StaticResource TextMain}" FontSize="18" HorizontalAlignment="Center"/>
                         <TextBlock Text="先跑一次快速扫描，把明确可清的空间找出来。" Foreground="{StaticResource TextMuted}" HorizontalAlignment="Center"/>
                     </StackPanel>
-
-                        </StackPanel>
-                    </ScrollViewer>
+                </StackPanel>
+            </ScrollViewer>
                 </TabViewItem>
 
-                <TabViewItem Header="规则与自动化" IsClosable="False">
+                <TabViewItem Header="高级设置与日志" IsClosable="False">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" VerticalScrollMode="Auto" Padding="0,0,16,0">
                         <StackPanel Spacing="18">
+                <Border Background="{StaticResource PanelSurfaceStrong}" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="16" Padding="16,14"
+                        Visibility="{x:Bind ViewModel.HasDriveOptions, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="磁盘选择" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold"/>
+                        <TextBlock Text="{x:Bind ViewModel.SelectedDriveSummaryText, Mode=OneWay}" Foreground="{StaticResource AccentInspect}" FontSize="14" FontWeight="SemiBold"/>
+                        <TextBlock Text="{x:Bind ViewModel.DriveSelectionHintText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
+                        <Grid ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Grid.Column="0" Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.SelectAllDrivesCommand}">
+                                <TextBlock Text="全选磁盘"/>
+                            </Button>
+                            <Button Grid.Column="1" Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.UseSystemDriveOnlyCommand}">
+                                <TextBlock Text="仅系统盘"/>
+                            </Button>
+                        </Grid>
+                        <ItemsControl ItemsSource="{x:Bind ViewModel.DriveOptions, Mode=OneWay}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="models:CleanerDriveOption">
+                                    <Border Margin="0,0,0,8" Padding="10,9" Background="#0FFFFFFF" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="10">
+                                        <Grid ColumnSpacing="8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <CheckBox IsChecked="{x:Bind IsSelected, Mode=TwoWay}" VerticalAlignment="Top"/>
+                                            <StackPanel Grid.Column="1" Spacing="3">
+                                                <TextBlock Text="{x:Bind TitleText}" Foreground="{StaticResource TextMain}" FontSize="12" FontWeight="SemiBold"/>
+                                                <TextBlock Text="{x:Bind SubtitleText}" Foreground="{StaticResource TextMuted}" FontSize="11"/>
+                                                <TextBlock Text="{x:Bind CapacityText}" Foreground="{StaticResource TextMuted}" FontSize="11"/>
+                                                <ProgressBar Value="{x:Bind UsedPercentage, Mode=OneWay}" Maximum="100" Height="5" CornerRadius="999" Margin="0,3,0,0"/>
+                                                <TextBlock Text="{x:Bind UsageText}" Foreground="{StaticResource AccentInspect}" FontSize="11"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
                 <Border Background="{StaticResource PanelSurfaceStrong}" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="16" Padding="16,14">
                     <StackPanel Spacing="8">
                         <TextBlock Text="规则库" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold"/>
@@ -449,53 +404,7 @@
                         </Grid>
                     </StackPanel>
                 </Border>
-                <Border Background="{StaticResource PanelSurfaceStrong}"
-                        BorderBrush="{StaticResource BorderColor}"
-                        BorderThickness="1"
-                        CornerRadius="16"
-                        Padding="16,14">
-                    <StackPanel Spacing="10">
-                        <TextBlock Text="定时保洁" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold"/>
-                        <TextBlock Text="{x:Bind ViewModel.AutomationSummaryText, Mode=OneWay}" Foreground="{StaticResource AccentSafe}" FontSize="18" FontWeight="SemiBold"/>
-                        <TextBlock Text="{x:Bind ViewModel.AutomationModeText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="12" TextWrapping="Wrap"/>
-                        <ToggleSwitch Header="到期提醒我进行清理" />
-                        <ToggleSwitch Header="到期后自动清理低风险项" />
-                        <TextBlock Text="提醒周期" Foreground="{StaticResource TextMuted}" FontSize="12"/>
-                        <ComboBox PlaceholderText="选择提醒周期" />
-                        <TextBlock Text="{x:Bind ViewModel.AutomationNextActionText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="12" TextWrapping="Wrap"/>
-                        <TextBlock Text="{x:Bind ViewModel.AutomationLastActionText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
-                        <TextBlock Text="{x:Bind ViewModel.AutomationScheduleText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="12" TextWrapping="Wrap"/>
-                        <TextBlock Text="{x:Bind ViewModel.AutomationScheduleDetailText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
-                        <TextBlock Text="{x:Bind ViewModel.AutomationHintText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
-                        <Button Style="{StaticResource ActionButtonStyle}"
-                                Command="{x:Bind ViewModel.RunAutomaticLowRiskCleanupNowCommand}"
-                                IsEnabled="{x:Bind ViewModel.CanRunAutomaticLowRiskCleanupNow, Mode=OneWay}">
-                            <TextBlock Text="立即执行一次低风险保洁"/>
-                        </Button>
-                    </StackPanel>
-                </Border>
-                <Border Background="{StaticResource PanelSurfaceStrong}" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="16" Padding="16,14">
-                    <StackPanel Spacing="10">
-                        <TextBlock Text="智能推荐" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold"/>
-                        <TextBlock Text="{x:Bind ViewModel.RecommendationHeadlineText, Mode=OneWay}" Foreground="{StaticResource AccentSafe}" FontSize="18" FontWeight="SemiBold"/>
-                        <TextBlock Text="{x:Bind ViewModel.RecommendationDetailText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="12" TextWrapping="Wrap"/>
-                        <TextBlock Text="{x:Bind ViewModel.RecommendationProfileText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
-                        <ItemsControl ItemsSource="{x:Bind ViewModel.RecommendationEntries, Mode=OneWay}"
-                                      Visibility="{x:Bind ViewModel.HasRecommendationEntries, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="models:CleanerRecommendationEntry">
-                                    <Border Margin="0,0,0,8" Padding="10,9" Background="#0FFFFFFF" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="10">
-                                        <StackPanel Spacing="4">
-                                            <TextBlock Text="{x:Bind Title}" Foreground="{StaticResource TextMain}" FontSize="12" FontWeight="SemiBold"/>
-                                            <TextBlock Text="{x:Bind Detail}" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap"/>
-                                            <TextBlock Text="{x:Bind ActionText}" Foreground="{StaticResource AccentInspect}" FontSize="11" TextWrapping="Wrap"/>
-                                        </StackPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                </Border>
+
                 <Border Background="{StaticResource PanelSurfaceStrong}" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="16" Padding="16,14">
                     <StackPanel Spacing="10">
                         <TextBlock Text="云端治理" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold"/>
@@ -552,6 +461,7 @@
                         </Grid>
                     </StackPanel>
                 </Border>
+
                 <Border Background="{StaticResource PanelSurfaceStrong}" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="16" Padding="16,14">
                     <StackPanel Spacing="8">
                         <TextBlock Text="权限模式" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold"/>
@@ -569,13 +479,6 @@
                     </StackPanel>
                 </Border>
 
-                        </StackPanel>
-                    </ScrollViewer>
-                </TabViewItem>
-
-                <TabViewItem Header="历史与审计" IsClosable="False">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" VerticalScrollMode="Auto" Padding="0,0,16,0">
-                        <StackPanel Spacing="18">
                 <Border Background="{StaticResource PanelSurfaceStrong}" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="16" Padding="16,14">
                     <StackPanel Spacing="8">
                         <TextBlock Text="本次计划" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold"/>
@@ -584,6 +487,7 @@
                         <TextBlock Text="只会执行你当前勾选的项目；高风险对象默认不参与。" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" FontSize="12"/>
                     </StackPanel>
                 </Border>
+
                 <Border Background="{StaticResource PanelSurfaceStrong}" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="16" Padding="16,14">
                     <StackPanel Spacing="8">
                         <TextBlock Text="运行摘要" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold"/>
@@ -595,6 +499,54 @@
                         <TextBlock Text="{x:Bind ViewModel.AuditFailureSummaryText, Mode=OneWay}" Foreground="{StaticResource AccentReview}" FontSize="12" TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>
+
+                <Border Background="{StaticResource PanelSurfaceStrong}" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="16" Padding="16,14">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="质量治理" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold"/>
+                        <TextBlock Text="{x:Bind ViewModel.QualityGovernanceHeadlineText, Mode=OneWay}" Foreground="{StaticResource AccentReview}" FontSize="18" FontWeight="SemiBold"/>
+                        <TextBlock Text="{x:Bind ViewModel.QualityGovernanceDetailText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="12" TextWrapping="Wrap"/>
+                        <TextBlock Text="{x:Bind ViewModel.QualityGovernanceHintText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
+                        <Grid ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Grid.Column="0" Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.ExportDiagnosticReportCommand}">
+                                <TextBlock Text="导出诊断报告"/>
+                            </Button>
+                            <Button Grid.Column="1"
+                                    Style="{StaticResource ActionButtonStyle}"
+                                    Command="{x:Bind ViewModel.EnableAllLocallyDisabledRulesCommand}"
+                                    IsEnabled="{x:Bind ViewModel.HasLocallyDisabledRules, Mode=OneWay}">
+                                <TextBlock Text="{x:Bind ViewModel.QualityGovernanceActionText, Mode=OneWay}"/>
+                            </Button>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <Border Background="{StaticResource PanelSurfaceStrong}" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="16" Padding="16,14">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="智能推荐" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold"/>
+                        <TextBlock Text="{x:Bind ViewModel.RecommendationHeadlineText, Mode=OneWay}" Foreground="{StaticResource AccentSafe}" FontSize="18" FontWeight="SemiBold"/>
+                        <TextBlock Text="{x:Bind ViewModel.RecommendationDetailText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="12" TextWrapping="Wrap"/>
+                        <TextBlock Text="{x:Bind ViewModel.RecommendationProfileText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
+                        <ItemsControl ItemsSource="{x:Bind ViewModel.RecommendationEntries, Mode=OneWay}"
+                                      Visibility="{x:Bind ViewModel.HasRecommendationEntries, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="models:CleanerRecommendationEntry">
+                                    <Border Margin="0,0,0,8" Padding="10,9" Background="#0FFFFFFF" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="10">
+                                        <StackPanel Spacing="4">
+                                            <TextBlock Text="{x:Bind Title}" Foreground="{StaticResource TextMain}" FontSize="12" FontWeight="SemiBold"/>
+                                            <TextBlock Text="{x:Bind Detail}" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap"/>
+                                            <TextBlock Text="{x:Bind ActionText}" Foreground="{StaticResource AccentInspect}" FontSize="11" TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
                 <Border Background="{StaticResource PanelSurfaceStrong}"
                         BorderBrush="{StaticResource BorderColor}"
                         BorderThickness="1"
@@ -637,6 +589,33 @@
                         </ItemsControl>
                     </StackPanel>
                 </Border>
+
+                <Border Background="{StaticResource PanelSurfaceStrong}"
+                        BorderBrush="{StaticResource BorderColor}"
+                        BorderThickness="1"
+                        CornerRadius="16"
+                        Padding="16,14">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="定时保洁" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold"/>
+                        <TextBlock Text="{x:Bind ViewModel.AutomationSummaryText, Mode=OneWay}" Foreground="{StaticResource AccentSafe}" FontSize="18" FontWeight="SemiBold"/>
+                        <TextBlock Text="{x:Bind ViewModel.AutomationModeText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="12" TextWrapping="Wrap"/>
+                        <ToggleSwitch Header="到期提醒我进行清理" />
+                        <ToggleSwitch Header="到期后自动清理低风险项" />
+                        <TextBlock Text="提醒周期" Foreground="{StaticResource TextMuted}" FontSize="12"/>
+                        <ComboBox PlaceholderText="选择提醒周期" />
+                        <TextBlock Text="{x:Bind ViewModel.AutomationNextActionText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="12" TextWrapping="Wrap"/>
+                        <TextBlock Text="{x:Bind ViewModel.AutomationLastActionText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
+                        <TextBlock Text="{x:Bind ViewModel.AutomationScheduleText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="12" TextWrapping="Wrap"/>
+                        <TextBlock Text="{x:Bind ViewModel.AutomationScheduleDetailText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
+                        <TextBlock Text="{x:Bind ViewModel.AutomationHintText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
+                        <Button Style="{StaticResource ActionButtonStyle}"
+                                Command="{x:Bind ViewModel.RunAutomaticLowRiskCleanupNowCommand}"
+                                IsEnabled="{x:Bind ViewModel.CanRunAutomaticLowRiskCleanupNow, Mode=OneWay}">
+                            <TextBlock Text="立即执行一次低风险保洁"/>
+                        </Button>
+                    </StackPanel>
+                </Border>
+
                 <Border Background="{StaticResource PanelSurfaceStrong}" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="16" Padding="16,14">
                     <StackPanel Spacing="10">
                         <TextBlock Text="最近一次清理" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold"/>
@@ -690,6 +669,7 @@
                         </Grid>
                     </StackPanel>
                 </Border>
+
                 <Border Background="{StaticResource PanelSurfaceStrong}" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="16" Padding="16,14"
                         Visibility="{x:Bind ViewModel.HasLatestCleanupEntries, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
                     <StackPanel Spacing="10">
@@ -747,29 +727,7 @@
                         </ScrollViewer>
                     </StackPanel>
                 </Border>
-                <Border Background="{StaticResource PanelSurfaceStrong}" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="16" Padding="16,14">
-                    <StackPanel Spacing="8">
-                        <TextBlock Text="质量治理" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold"/>
-                        <TextBlock Text="{x:Bind ViewModel.QualityGovernanceHeadlineText, Mode=OneWay}" Foreground="{StaticResource AccentReview}" FontSize="18" FontWeight="SemiBold"/>
-                        <TextBlock Text="{x:Bind ViewModel.QualityGovernanceDetailText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="12" TextWrapping="Wrap"/>
-                        <TextBlock Text="{x:Bind ViewModel.QualityGovernanceHintText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
-                        <Grid ColumnSpacing="8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Button Grid.Column="0" Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.ExportDiagnosticReportCommand}">
-                                <TextBlock Text="导出诊断报告"/>
-                            </Button>
-                            <Button Grid.Column="1"
-                                    Style="{StaticResource ActionButtonStyle}"
-                                    Command="{x:Bind ViewModel.EnableAllLocallyDisabledRulesCommand}"
-                                    IsEnabled="{x:Bind ViewModel.HasLocallyDisabledRules, Mode=OneWay}">
-                                <TextBlock Text="{x:Bind ViewModel.QualityGovernanceActionText, Mode=OneWay}"/>
-                            </Button>
-                        </Grid>
-                    </StackPanel>
-                </Border>
+
                 <Border Background="{StaticResource PanelSurfaceStrong}" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="16" Padding="16,14">
                     <StackPanel Spacing="10">
                         <TextBlock Text="排除列表" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold"/>
@@ -798,7 +756,6 @@
                         <TextBlock Text="在任意清理项上点击“加入排除”后，后续扫描将跳过该路径。" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" FontSize="12"/>
                     </StackPanel>
                 </Border>
-
                         </StackPanel>
                     </ScrollViewer>
                 </TabViewItem>

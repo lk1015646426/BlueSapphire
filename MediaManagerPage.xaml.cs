@@ -6,19 +6,19 @@ using System.Threading.Tasks;
 using BlueSapphire.Interfaces;
 using BlueSapphire.Models;
 using BlueSapphire.ViewModels;
+using BlueSapphire.Views.Dialogs;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Windows.Storage;
+using Windows.System;
 
 namespace BlueSapphire
 {
     public sealed partial class MediaManagerPage : Page, IMediaViewInteraction
     {
-        private IReadOnlyList<Button> _featureCards = Array.Empty<Button>();
-        private IReadOnlyList<(FrameworkElement Section, IReadOnlyList<Button> Cards)> _featureSections =
-            Array.Empty<(FrameworkElement, IReadOnlyList<Button>)>();
+
 
         public MediaManagerViewModel ViewModel { get; }
 
@@ -27,8 +27,6 @@ namespace BlueSapphire
             ViewModel = App.Current.Services.GetRequiredService<MediaManagerViewModel>();
             InitializeComponent();
             ViewModel.Initialize(this, DispatcherQueue);
-            ViewModel.PropertyChanged += ViewModel_PropertyChanged;
-            UpdateWorkspaceLayout();
         }
 
         public async Task<StorageFolder?> PickFolderAsync()
@@ -105,7 +103,7 @@ namespace BlueSapphire
             var result = await dialog.ShowAsync();
             return result == ContentDialogResult.Primary
                 ? dialog.GetSelectedFiles()
-                : new List<StorageFile>();
+                : [];
         }
 
         public async Task ShowTipAsync(string message)
@@ -212,202 +210,58 @@ namespace BlueSapphire
             ViewModel.DeleteSelectedCommand.Execute(ImageGrid.SelectedItems);
         }
 
-        private async void OnSortCardClicked(object sender, RoutedEventArgs e)
+        private void OnSortFlyoutItemClicked(object sender, RoutedEventArgs e)
         {
-            await ShowActionDialogAsync(
-                "排序",
-                new ActionOption("名称升序", "\uE8CB", () => ApplySortAsync("NameAsc")),
-                new ActionOption("名称降序", "\uE8CB", () => ApplySortAsync("NameDesc")),
-                new ActionOption("日期升序", "\uE787", () => ApplySortAsync("DateAsc")),
-                new ActionOption("日期降序", "\uE787", () => ApplySortAsync("DateDesc")),
-                new ActionOption("大小升序", "\uE8A9", () => ApplySortAsync("SizeAsc")),
-                new ActionOption("大小降序", "\uE8A9", () => ApplySortAsync("SizeDesc")));
-        }
-
-        private async void OnDuplicateCardClicked(object sender, RoutedEventArgs e)
-        {
-            await ShowActionDialogAsync(
-                "扫描去重",
-                new ActionOption("精确扫描", "\uE721", () => ScanDuplicatesAsync("Exact")),
-                new ActionOption("智能扫描", "\uE721", () => ScanDuplicatesAsync("Similar")));
-        }
-
-        private async void OnFormatCardClicked(object sender, RoutedEventArgs e)
-        {
-            await ShowActionDialogAsync(
-                "格式转换",
-                new ActionOption("转 JPEG", "\uE8B9", () => ViewModel.ConvertSelectedImagesToTargetAsync(ImageGrid.SelectedItems, "Jpeg")),
-                new ActionOption("转 PNG", "\uE8B9", () => ViewModel.ConvertSelectedImagesToTargetAsync(ImageGrid.SelectedItems, "Png")),
-                new ActionOption("转 BMP", "\uE8B9", () => ViewModel.ConvertSelectedImagesToTargetAsync(ImageGrid.SelectedItems, "Bmp")));
-        }
-
-        private async void OnResizeCardClicked(object sender, RoutedEventArgs e)
-        {
-            await ShowActionDialogAsync(
-                "尺寸调整",
-                new ActionOption("长边 1280", "\uE740", () => ViewModel.ResizeSelectedImagesAsync(ImageGrid.SelectedItems, "LongEdge1280")),
-                new ActionOption("长边 1920", "\uE740", () => ViewModel.ResizeSelectedImagesAsync(ImageGrid.SelectedItems, "LongEdge1920")),
-                new ActionOption("长边 2560", "\uE740", () => ViewModel.ResizeSelectedImagesAsync(ImageGrid.SelectedItems, "LongEdge2560")));
-        }
-
-        private async void OnCropCardClicked(object sender, RoutedEventArgs e)
-        {
-            await ShowActionDialogAsync(
-                "裁剪",
-                new ActionOption("1:1", "\uE7A8", () => ViewModel.CropSelectedImagesAsync(ImageGrid.SelectedItems, "Square")),
-                new ActionOption("4:3", "\uE7A8", () => ViewModel.CropSelectedImagesAsync(ImageGrid.SelectedItems, "Ratio4x3")),
-                new ActionOption("16:9", "\uE7A8", () => ViewModel.CropSelectedImagesAsync(ImageGrid.SelectedItems, "Ratio16x9")));
-        }
-
-        private async void OnCompressCardClicked(object sender, RoutedEventArgs e)
-        {
-            await ShowActionDialogAsync(
-                "压缩导出",
-                new ActionOption("轻度压缩", "\uE9D9", () => ViewModel.CompressSelectedImagesAsync(ImageGrid.SelectedItems, "Light")),
-                new ActionOption("均衡压缩", "\uE9D9", () => ViewModel.CompressSelectedImagesAsync(ImageGrid.SelectedItems, "Balanced")),
-                new ActionOption("高压缩", "\uE9D9", () => ViewModel.CompressSelectedImagesAsync(ImageGrid.SelectedItems, "Aggressive")));
-        }
-
-        private async void OnEnhanceCardClicked(object sender, RoutedEventArgs e)
-        {
-            await ShowActionDialogAsync(
-                "AI 增强",
-                new ActionOption("智能增强", "\uE945", () => ViewModel.EnhanceSelectedImagesAsync(ImageGrid.SelectedItems, "SmartFix")),
-                new ActionOption("清晰增强", "\uE945", () => ViewModel.EnhanceSelectedImagesAsync(ImageGrid.SelectedItems, "DetailBoost")),
-                new ActionOption("低光优化", "\uE945", () => ViewModel.EnhanceSelectedImagesAsync(ImageGrid.SelectedItems, "LowLight")));
-        }
-
-        private async void OnImageFormatConvertClicked(object sender, RoutedEventArgs e)
-        {
-            if (sender is MenuFlyoutItem menuItem && menuItem.Tag is string targetKey)
+            if (sender is MenuFlyoutItem menuItem && menuItem.Tag is string option)
             {
-                await ViewModel.ConvertSelectedImagesToTargetAsync(ImageGrid.SelectedItems, targetKey);
+                ApplySortAsync(option);
             }
         }
 
-        private async void OnImageResizeClicked(object sender, RoutedEventArgs e)
+        private void OnDuplicateFlyoutItemClicked(object sender, RoutedEventArgs e)
         {
-            if (sender is MenuFlyoutItem menuItem && menuItem.Tag is string presetKey)
+            if (sender is MenuFlyoutItem menuItem && menuItem.Tag is string mode)
             {
-                await ViewModel.ResizeSelectedImagesAsync(ImageGrid.SelectedItems, presetKey);
+                ScanDuplicatesAsync(mode);
             }
         }
 
-        private async void OnImageCropClicked(object sender, RoutedEventArgs e)
+        private void ScrollViewer_PointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
-            if (sender is MenuFlyoutItem menuItem && menuItem.Tag is string presetKey)
+            if (sender is ScrollViewer scrollViewer)
             {
-                await ViewModel.CropSelectedImagesAsync(ImageGrid.SelectedItems, presetKey);
+                var properties = e.GetCurrentPoint(scrollViewer).Properties;
+                if (properties.IsHorizontalMouseWheel) return;
+
+                double delta = properties.MouseWheelDelta;
+                scrollViewer.ChangeView(scrollViewer.HorizontalOffset - delta, null, null);
+                e.Handled = true;
             }
         }
 
-        private async void OnImageCompressClicked(object sender, RoutedEventArgs e)
+        public async Task<FormatConvertOptions?> ShowFormatConvertDialogAsync()
         {
-            if (sender is MenuFlyoutItem menuItem && menuItem.Tag is string presetKey)
-            {
-                await ViewModel.CompressSelectedImagesAsync(ImageGrid.SelectedItems, presetKey);
-            }
+            var dialog = new FormatConvertDialog { XamlRoot = this.XamlRoot };
+            var result = await dialog.ShowAsync();
+            return result == ContentDialogResult.Primary ? dialog.Options : null;
         }
 
-        private async void OnImageEnhanceClicked(object sender, RoutedEventArgs e)
+        public async Task<AdvancedEditOptions?> ShowAdvancedEditorDialogAsync(IList<string> previewImagePaths)
         {
-            if (sender is MenuFlyoutItem menuItem && menuItem.Tag is string presetKey)
-            {
-                await ViewModel.EnhanceSelectedImagesAsync(ImageGrid.SelectedItems, presetKey);
-            }
+            var dialog = new AdvancedImageEditorDialog(previewImagePaths) { XamlRoot = this.XamlRoot };
+            var result = await dialog.ShowAsync();
+            return result == ContentDialogResult.Primary ? dialog.Options : null;
         }
 
-        private void FunctionSearchBox_TextChanged(object sender, TextChangedEventArgs e)
+        public async Task<EnhanceOptions?> ShowEnhanceDialogAsync(string? previewImagePath)
         {
-            ApplyFunctionFilter();
+            var dialog = new EnhanceImageDialog(previewImagePath) { XamlRoot = this.XamlRoot };
+            var result = await dialog.ShowAsync();
+            return result == ContentDialogResult.Primary ? dialog.Options : null;
         }
 
         private void MediaManagerPage_Loaded(object sender, RoutedEventArgs e)
         {
-            RegisterFeatureCards();
-            ApplyFunctionFilter();
-            UpdateWorkspaceLayout();
-        }
-
-        private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
-        {
-            if (e.PropertyName == nameof(MediaManagerViewModel.HasImages))
-            {
-                DispatcherQueue.TryEnqueue(UpdateWorkspaceLayout);
-            }
-        }
-
-        private void UpdateWorkspaceLayout()
-        {
-            if (ViewModel.HasImages)
-            {
-                FunctionPanelRow.Height = GridLength.Auto;
-                FunctionScrollViewer.MaxHeight = 372;
-                ImageGalleryRow.Height = new GridLength(1, GridUnitType.Star);
-                ImageGalleryPanel.Visibility = Visibility.Visible;
-                return;
-            }
-
-            FunctionPanelRow.Height = new GridLength(1, GridUnitType.Star);
-            FunctionScrollViewer.MaxHeight = double.PositiveInfinity;
-            ImageGalleryRow.Height = new GridLength(0);
-            ImageGalleryPanel.Visibility = Visibility.Collapsed;
-        }
-
-        private void RegisterFeatureCards()
-        {
-            if (_featureCards.Count > 0)
-            {
-                return;
-            }
-
-            _featureSections = new (FrameworkElement Section, IReadOnlyList<Button> Cards)[]
-            {
-                (QuickSection, new[] { ImportSourceCard, SortCard, RenameCard }),
-                (OrganizeSection, new[] { DuplicateCard }),
-                (ProcessSection, new[] { FormatCard, ResizeCard, CropCard, CompressCard, EnhanceCard }),
-                (ManageSection, new[] { OpenLocationCard, ResultCard, TagCard, DeleteCard })
-            };
-
-            _featureCards = _featureSections
-                .SelectMany(section => section.Cards)
-                .ToList();
-        }
-
-        private void ApplyFunctionFilter()
-        {
-            RegisterFeatureCards();
-
-            string query = FunctionSearchBox?.Text?.Trim() ?? string.Empty;
-            bool anyVisible = false;
-
-            foreach (var card in _featureCards)
-            {
-                bool isVisible = IsFunctionCardMatch(card, query);
-                card.Visibility = isVisible ? Visibility.Visible : Visibility.Collapsed;
-                anyVisible |= isVisible;
-            }
-
-            foreach (var section in _featureSections)
-            {
-                section.Section.Visibility = section.Cards.Any(card => card.Visibility == Visibility.Visible)
-                    ? Visibility.Visible
-                    : Visibility.Collapsed;
-            }
-
-            NoFunctionResultPanel.Visibility = anyVisible ? Visibility.Collapsed : Visibility.Visible;
-        }
-
-        private static bool IsFunctionCardMatch(Button card, string query)
-        {
-            if (string.IsNullOrWhiteSpace(query))
-            {
-                return true;
-            }
-
-            string keywords = card.Tag?.ToString() ?? string.Empty;
-            string[] tokens = query.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            return tokens.All(token => keywords.Contains(token, StringComparison.OrdinalIgnoreCase));
         }
 
         private async Task ShowActionDialogAsync(string title, params ActionOption[] options)

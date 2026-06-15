@@ -1,4 +1,4 @@
-﻿using BlueSapphire.Helpers;
+using BlueSapphire.Helpers;
 using BlueSapphire.Interfaces;
 using BlueSapphire.Models;
 using BlueSapphire.Tools;
@@ -23,6 +23,7 @@ namespace BlueSapphire
     {
         public bool IsParticleEffectEnabled { get; private set; } = true;
 
+        public System.Collections.Generic.IReadOnlyList<ITool> Tools => _tools;
         private List<ITool> _tools = new List<ITool>();
         private List<Particle> _particles = new List<Particle>();
         private Random _random = new Random();
@@ -114,11 +115,13 @@ namespace BlueSapphire
         [DynamicDependency(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor, typeof(MediaManagerPage))]
         [DynamicDependency(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor, typeof(CleanerAssistantPage))]
         [DynamicDependency(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor, typeof(Views.DevLogPage))]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor, typeof(Views.AICopilotPage))]
         private void LoadTools()
         {
             RegisterTool(App.Current.Services.GetRequiredService<HomeTool>());
             RegisterTool(App.Current.Services.GetRequiredService<MediaManagerTool>());
             RegisterTool(App.Current.Services.GetRequiredService<CleanerAssistantTool>());
+            RegisterTool(App.Current.Services.GetRequiredService<AICopilotTool>());
         }
 
         private void RegisterTool(ITool tool)
@@ -141,6 +144,21 @@ namespace BlueSapphire
             {
                 var tool = _tools.FirstOrDefault(t => t.Id == tag);
                 if (tool != null) ContentFrame.Navigate(tool.ContentPage);
+            }
+        }
+
+        public void NavigateToTool(string tag)
+        {
+            if (string.Equals(tag, "Settings", StringComparison.OrdinalIgnoreCase))
+            {
+                NavView.SelectedItem = NavView.SettingsItem;
+                return;
+            }
+
+            var item = NavView.MenuItems.OfType<NavigationViewItem>().FirstOrDefault(i => string.Equals(i.Tag as string, tag, StringComparison.OrdinalIgnoreCase));
+            if (item != null)
+            {
+                NavView.SelectedItem = item;
             }
         }
 

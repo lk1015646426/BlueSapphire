@@ -3,6 +3,7 @@ using BlueSapphire.Models;
 using BlueSapphire.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.UI.Dispatching;
 using System;
 using System.Collections.Generic;
@@ -51,15 +52,10 @@ namespace BlueSapphire.ViewModels
         private CleanerRecommendationSummary _recommendationSummary = new();
         private CleanerScanScope _lastScope = CleanerScanScope.Quick;
         private bool _isUpdatingDriveSelection;
-        private bool _isUpdatingAutomationSettings;
-        private bool _isUpdatingTelemetrySettings;
         private int _dashboardRefreshSuspendCount;
         private bool _dashboardRefreshPending;
 
-        private bool _reminderEnabled;
-        private bool _autoLowRiskCleanupEnabled;
-        private bool _telemetryEnabled;
-        private int _reminderIntervalDays = 7;
+        public CleanerSettingsViewModel Settings { get; }
 
         public ObservableCollection<CleanerScanItem> SafeItems { get; } = new();
         public ObservableCollection<CleanerScanItem> ReviewItems { get; } = new();
@@ -117,60 +113,12 @@ namespace BlueSapphire.ViewModels
             set => SetProperty(ref _progressValue, value);
         }
 
-        private double _progressMax = 100;
+        private double _progressMax = 100.0;
+
         public double ProgressMax
         {
             get => _progressMax;
             set => SetProperty(ref _progressMax, value);
-        }
-
-        public bool ReminderEnabled
-        {
-            get => _reminderEnabled;
-            set
-            {
-                if (SetProperty(ref _reminderEnabled, value))
-                {
-                    OnAutomationSettingsChanged();
-                }
-            }
-        }
-
-        public bool AutoLowRiskCleanupEnabled
-        {
-            get => _autoLowRiskCleanupEnabled;
-            set
-            {
-                if (SetProperty(ref _autoLowRiskCleanupEnabled, value))
-                {
-                    OnAutomationSettingsChanged();
-                }
-            }
-        }
-
-        public int ReminderIntervalDays
-        {
-            get => _reminderIntervalDays;
-            set
-            {
-                int normalized = CleanerAutomationService.NormalizeInterval(value);
-                if (SetProperty(ref _reminderIntervalDays, normalized))
-                {
-                    OnAutomationSettingsChanged();
-                }
-            }
-        }
-
-        public bool TelemetryEnabled
-        {
-            get => _telemetryEnabled;
-            set
-            {
-                if (SetProperty(ref _telemetryEnabled, value))
-                {
-                    OnTelemetrySettingsChanged();
-                }
-            }
         }
 
         public bool HasResults => _allItems.Count > 0;
@@ -194,14 +142,6 @@ namespace BlueSapphire.ViewModels
              GetEffectiveFailureReason(entry) == CleanerFailureReason.AccessDenied));
         public bool HasFailureRecoveryProcesses => GetFailureRecoveryProcesses().Count > 0;
         public bool CanRunAutomaticLowRiskCleanupNow => !IsBusy;
-        public bool IsDailyReminderSelected => ReminderIntervalDays == 1;
-        public bool Is3DayReminderSelected => ReminderIntervalDays == 3;
-        public bool Is7DayReminderSelected => ReminderIntervalDays == 7;
-        public bool Is14DayReminderSelected => ReminderIntervalDays == 14;
-        public bool CanChooseDailyReminder => !IsDailyReminderSelected;
-        public bool CanChoose3DayReminder => !Is3DayReminderSelected;
-        public bool CanChoose7DayReminder => !Is7DayReminderSelected;
-        public bool CanChoose14DayReminder => !Is14DayReminderSelected;
         public bool IsStableRolloutSelected => string.Equals(_profileState.RolloutChannel, "stable", StringComparison.OrdinalIgnoreCase);
         public bool IsCanaryRolloutSelected => string.Equals(_profileState.RolloutChannel, "canary", StringComparison.OrdinalIgnoreCase);
         public bool IsInternalRolloutSelected => string.Equals(_profileState.RolloutChannel, "internal", StringComparison.OrdinalIgnoreCase);
@@ -237,22 +177,22 @@ namespace BlueSapphire.ViewModels
             }
         }
         public string DriveSelectionHintText => "深度扫描会按这里选中的磁盘做空间分析；系统与应用规则仍按真实安装位置识别。";
-        public string AutomationSummaryText => $"每 {ReminderIntervalDays} 天检查一次";
+        public string AutomationSummaryText => $"每 {Settings.ReminderIntervalDays} 天检查一次";
         public string AutomationModeText
         {
             get
             {
-                if (AutoLowRiskCleanupEnabled && ReminderEnabled)
+                if (Settings.AutoLowRiskCleanupEnabled && Settings.ReminderEnabled)
                 {
                     return "到期后先执行自动低风险清理，同时刷新提醒周期。";
                 }
 
-                if (AutoLowRiskCleanupEnabled)
+                if (Settings.AutoLowRiskCleanupEnabled)
                 {
                     return "到期后会自动执行一次快速低风险清理。";
                 }
 
-                if (ReminderEnabled)
+                if (Settings.ReminderEnabled)
                 {
                     return "到期后只提醒，不会自动删除。";
                 }
@@ -264,7 +204,7 @@ namespace BlueSapphire.ViewModels
         {
             get
             {
-                if (AutoLowRiskCleanupEnabled)
+                if (Settings.AutoLowRiskCleanupEnabled)
                 {
                     if (_automationStatus.IsAutoCleanupDue)
                     {
@@ -276,7 +216,7 @@ namespace BlueSapphire.ViewModels
                         : $"自动保洁：下次 {FormatScheduleTime(_automationStatus.NextAutoCleanupAt)}";
                 }
 
-                if (ReminderEnabled)
+                if (Settings.ReminderEnabled)
                 {
                     if (_automationStatus.IsReminderDue)
                     {
@@ -390,12 +330,12 @@ namespace BlueSapphire.ViewModels
             }
         }
         public string RolloutHintText => "Stable 适合正式使用；Canary 用于小流量验证；Internal 预留给更激进的实验规则。";
-        public string TelemetrySummaryText => TelemetryEnabled ? "云端遥测：已启用" : "云端遥测：已关闭";
+        public string TelemetrySummaryText => Settings.TelemetryEnabled ? "云端遥测：已启用" : "云端遥测：已关闭";
         public string TelemetryDetailText
         {
             get
             {
-                if (!TelemetryEnabled)
+                if (!Settings.TelemetryEnabled)
                 {
                     return "当前不会上传扫描、清理和规则质量摘要。启用后仍只会上报摘要，不会读取用户文件内容。";
                 }
@@ -706,7 +646,8 @@ namespace BlueSapphire.ViewModels
             CleanerDeepScanService deepScanService,
             CleanerProfileService profileService,
             CleanerTelemetryService telemetryService,
-            CleanerRecommendationService recommendationService)
+            CleanerRecommendationService recommendationService,
+            CleanerSettingsViewModel settings)
         {
             _scanService = scanService;
             _executionService = executionService;
@@ -722,6 +663,7 @@ namespace BlueSapphire.ViewModels
             _profileService = profileService;
             _telemetryService = telemetryService;
             _recommendationService = recommendationService;
+            Settings = settings;
 
             SafeItems.CollectionChanged += OnCollectionChanged;
             ReviewItems.CollectionChanged += OnCollectionChanged;
@@ -734,7 +676,18 @@ namespace BlueSapphire.ViewModels
         public async Task InitializeAsync(ICleanerAssistantViewInteraction view, DispatcherQueue dispatcherQueue)
         {
             _view = view;
-            _dispatcherQueue = dispatcherQueue;
+            _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
+
+            // Register for AI triggers
+            WeakReferenceMessenger.Default.Unregister<StartQuickScanMessage>(this);
+            WeakReferenceMessenger.Default.Register<StartQuickScanMessage>(this, async (r, m) => 
+            {
+                if (!IsBusy)
+                {
+                    await StartQuickScan();
+                }
+            });
+
             await ReloadPersistentStateAsync();
             await HandleLaunchActionsAsync();
             await HandleAutomationAsync();
@@ -830,7 +783,7 @@ namespace BlueSapphire.ViewModels
 
             try
             {
-                ApplyTelemetryStatus(await _telemetryService.SaveSettingsAsync(TelemetryEnabled, endpoint));
+                ApplyTelemetryStatus(await _telemetryService.SaveSettingsAsync(Settings.TelemetryEnabled, endpoint));
                 RaiseDashboardProperties();
                 await _view.ShowTipAsync("遥测地址已更新", string.IsNullOrWhiteSpace(endpoint) ? "已清空遥测上传地址。" : "新的遥测上传地址已保存。");
             }
@@ -1652,14 +1605,6 @@ namespace BlueSapphire.ViewModels
             OnPropertyChanged(nameof(CanElevateAndRetryFailures));
             OnPropertyChanged(nameof(HasFailureRecoveryProcesses));
             OnPropertyChanged(nameof(CanRunAutomaticLowRiskCleanupNow));
-            OnPropertyChanged(nameof(IsDailyReminderSelected));
-            OnPropertyChanged(nameof(Is3DayReminderSelected));
-            OnPropertyChanged(nameof(Is7DayReminderSelected));
-            OnPropertyChanged(nameof(Is14DayReminderSelected));
-            OnPropertyChanged(nameof(CanChooseDailyReminder));
-            OnPropertyChanged(nameof(CanChoose3DayReminder));
-            OnPropertyChanged(nameof(CanChoose7DayReminder));
-            OnPropertyChanged(nameof(CanChoose14DayReminder));
             OnPropertyChanged(nameof(IsStableRolloutSelected));
             OnPropertyChanged(nameof(IsCanaryRolloutSelected));
             OnPropertyChanged(nameof(IsInternalRolloutSelected));
@@ -1879,39 +1824,17 @@ namespace BlueSapphire.ViewModels
         private void ApplyAutomationStatus(CleanerAutomationStatus status)
         {
             _automationStatus = status;
-            _isUpdatingAutomationSettings = true;
-            try
-            {
-                ReminderEnabled = status.ReminderEnabled;
-                AutoLowRiskCleanupEnabled = status.AutoLowRiskCleanupEnabled;
-                ReminderIntervalDays = status.ReminderIntervalDays;
-            }
-            finally
-            {
-                _isUpdatingAutomationSettings = false;
-            }
+            Settings.UpdateFromAutomationStatus(status);
         }
 
         private void ApplyTelemetryStatus(CleanerTelemetryStatus status)
         {
             _telemetryStatus = status;
-            _isUpdatingTelemetrySettings = true;
-            try
-            {
-                TelemetryEnabled = status.Enabled;
-            }
-            finally
-            {
-                _isUpdatingTelemetrySettings = false;
-            }
+            Settings.UpdateFromTelemetryStatus(status);
         }
 
         private void OnAutomationSettingsChanged()
         {
-            if (_isUpdatingAutomationSettings)
-            {
-                return;
-            }
 
             _ = PersistAutomationSettingsAsync();
             RaiseDashboardProperties();
@@ -1919,10 +1842,6 @@ namespace BlueSapphire.ViewModels
 
         private void OnTelemetrySettingsChanged()
         {
-            if (_isUpdatingTelemetrySettings)
-            {
-                return;
-            }
 
             _ = PersistTelemetrySettingsAsync();
             RaiseDashboardProperties();
@@ -1933,9 +1852,9 @@ namespace BlueSapphire.ViewModels
             try
             {
                 _automationStatus = await _automationService.SaveSettingsAsync(
-                    ReminderEnabled,
-                    AutoLowRiskCleanupEnabled,
-                    ReminderIntervalDays);
+                    Settings.ReminderEnabled,
+                    Settings.AutoLowRiskCleanupEnabled,
+                    Settings.ReminderIntervalDays);
                 await PersistDriveSelectionAsync();
                 RaiseDashboardProperties();
             }
@@ -1952,7 +1871,7 @@ namespace BlueSapphire.ViewModels
         {
             try
             {
-                ApplyTelemetryStatus(await _telemetryService.SaveSettingsAsync(TelemetryEnabled, _telemetryStatus.Endpoint));
+                ApplyTelemetryStatus(await _telemetryService.SaveSettingsAsync(Settings.TelemetryEnabled, _telemetryStatus.Endpoint));
                 RaiseDashboardProperties();
             }
             catch (Exception ex)
@@ -1973,7 +1892,7 @@ namespace BlueSapphire.ViewModels
 
         private Task SetReminderIntervalCoreAsync(int days)
         {
-            ReminderIntervalDays = days;
+            Settings.ReminderIntervalDays = days;
             return Task.CompletedTask;
         }
 
@@ -2125,7 +2044,7 @@ namespace BlueSapphire.ViewModels
                 RaiseDashboardProperties();
                 await _view.ShowTipAsync(
                     "清理提醒",
-                    $"已到你设置的 {ReminderIntervalDays} 天周期。建议先执行一次快速扫描，确认当前低风险缓存和日志占用。");
+                    $"已到你设置的 {Settings.ReminderIntervalDays} 天周期。建议先执行一次快速扫描，确认当前低风险缓存和日志占用。");
             }
         }
 
@@ -2386,9 +2305,9 @@ namespace BlueSapphire.ViewModels
                     .Select(option => NormalizePath(option.RootPath))
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList(),
-                ReminderEnabled = ReminderEnabled,
-                AutoLowRiskCleanupEnabled = AutoLowRiskCleanupEnabled,
-                ReminderIntervalDays = ReminderIntervalDays,
+                ReminderEnabled = Settings.ReminderEnabled,
+                AutoLowRiskCleanupEnabled = Settings.AutoLowRiskCleanupEnabled,
+                ReminderIntervalDays = Settings.ReminderIntervalDays,
                 LastReminderAt = _automationStatus.LastReminderAt,
                 LastAutoCleanupAt = _automationStatus.LastAutoCleanupAt
             };

@@ -2,6 +2,7 @@ using BlueSapphire.Helpers;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,6 +12,8 @@ namespace BlueSapphire.Services
 {
     public class MediaDeduplicationService
     {
+        // ========================= Exact Duplicate Detection (unchanged) =========================
+
         public async Task<List<List<StorageFile>>> FindDuplicatesAsync(
             StorageFolder folder,
             IProgress<(double Value, string Message, string Detail)> progress,
@@ -56,7 +59,8 @@ namespace BlueSapphire.Services
                     int current = Interlocked.Increment(ref processed);
                     if (current % 200 == 0 || current == allFiles.Count)
                     {
-                        progress?.Report((current, "阶段 1/3: 按大小分组...", $"{current} / {allFiles.Count}"));
+                        double percent = allFiles.Count > 0 ? (double)current / allFiles.Count * 100 : 0;
+                        progress?.Report((percent, "阶段 1/3: 按大小分组...", $"{current} / {allFiles.Count}"));
                     }
                 }
             });
@@ -108,7 +112,8 @@ namespace BlueSapphire.Services
                     scanned++;
                     if (scanned % 10 == 0 || scanned == totalSuspects)
                     {
-                        progress?.Report((scanned, "正在深度校验 (Tier 2/3)...", $"{scanned} / {totalSuspects}"));
+                        double percent = totalSuspects > 0 ? (double)scanned / totalSuspects * 100 : 0;
+                        progress?.Report((percent, "正在深度校验 (Tier 2/3)...", $"{scanned} / {totalSuspects}"));
                     }
                 }
 
@@ -137,98 +142,116 @@ namespace BlueSapphire.Services
             return result;
         }
 
+        // ========================= Similar Image Detection (full rewrite) =========================
+
+        /// <summary>
+        /// Detects visually similar images using a two-phase approach:
+        /// <para>
+        /// Phase 1: Extract 64-bit dHash fingerprints for all images in parallel.
+        /// Uses EXIF thumbnail fast path (~1-5ms/file for JPEG) with full-decode fallback.
+        /// </para>
+        /// <para>
+        /// Phase 2: Cluster images by Hamming distance (≤5 bits = similar).
+        /// Groups are sorted by file size descending (largest/highest-quality first).
+        /// </para>
+        /// </summary>
         public async Task<List<List<StorageFile>>> FindSimilarImagesAsync(
             StorageFolder folder,
             IProgress<(double Value, string Message, string Detail)> progress,
             CancellationToken token)
         {
-            progress?.Report((0, "正在初始化智能扫描...", "仅分析图片文件"));
+            progress?.Report((0, "正在枚举图片文件...", string.Empty));
 
-            var allFiles = await folder.CreateFileQueryWithOptions(MediaFileCatalog.CreateImageQueryOptions()).GetFilesAsync();
+            var allFiles = await folder.CreateFileQueryWithOptions(
+                MediaFileCatalog.CreateImageQueryOptions()).GetFilesAsync();
+
             if (allFiles.Count < 2)
             {
                 return new List<List<StorageFile>>();
             }
 
-            progress?.Report((0, "阶段 1/2: 提取视觉指纹 (pHash)...", "计算量较大，请稍候"));
+            // ========== Phase 1: Parallel dHash extraction ==========
+            progress?.Report((0, "阶段 1/2: 极速提取视觉指纹...", $"0 / {allFiles.Count}"));
 
-            var hashList = new ConcurrentBag<(StorageFile File, ulong Hash, ulong Size)>();
+            var hashResults = new ConcurrentBag<(StorageFile File, ulong Hash, ulong Size)>();
             int processed = 0;
-            using var semaphore = new SemaphoreSlim(Environment.ProcessorCount);
+            int total = allFiles.Count;
 
-            var hashTasks = allFiles.Select(async file =>
-            {
-                if (token.IsCancellationRequested)
+            await Parallel.ForEachAsync(
+                allFiles,
+                new ParallelOptions
                 {
-                    return;
-                }
-
-                await semaphore.WaitAsync(token);
-                try
+                    MaxDegreeOfParallelism = Math.Max(4, Environment.ProcessorCount),
+                    CancellationToken = token
+                },
+                async (file, ct) =>
                 {
-                    var hash = await MediaScanService.ComputePHashAsync(file);
-                    if (hash.HasValue)
+                    try
                     {
-                        var props = await file.GetBasicPropertiesAsync();
-                        hashList.Add((file, hash.Value, props.Size));
+                        var hash = await MediaScanService.ComputeDHashAsync(file.Path);
+                        if (hash.HasValue)
+                        {
+                            // Use pure .NET FileInfo instead of WinRT GetBasicPropertiesAsync
+                            ulong fileSize = 0;
+                            try { fileSize = (ulong)new FileInfo(file.Path).Length; } catch { }
+                            hashResults.Add((file, hash.Value, fileSize));
+                        }
                     }
-                }
-                catch (Exception ex)
-                {
-                    MatrixLogService.LogError($"pHash_Compute ({file.Name})", ex);
-                }
-                finally
-                {
-                    semaphore.Release();
-                    int current = Interlocked.Increment(ref processed);
-                    if (current % 10 == 0 || current == allFiles.Count)
+                    catch (Exception ex)
                     {
-                        progress?.Report((current, "阶段 1/2: 提取视觉指纹...", $"{current} / {allFiles.Count}"));
+                        MatrixLogService.LogError($"dHash ({file.Name})", ex);
                     }
-                }
-            });
+                    finally
+                    {
+                        int cur = Interlocked.Increment(ref processed);
+                        if (cur % 50 == 0 || cur == total)
+                        {
+                            progress?.Report(((double)cur / total * 100,
+                                "阶段 1/2: 极速提取视觉指纹...",
+                                $"{cur} / {total}"));
+                        }
+                    }
+                });
 
-            await Task.WhenAll(hashTasks);
             if (token.IsCancellationRequested)
             {
                 return new List<List<StorageFile>>();
             }
 
-            progress?.Report((0, "阶段 2/2: 智能聚类与画质分析...", "正在寻找相似照片"));
+            // ========== Phase 2: Hamming distance clustering ==========
+            progress?.Report((95, "阶段 2/2: 聚类分析...", "正在匹配相似照片"));
 
-            var result = new List<List<StorageFile>>();
-            var items = hashList.ToList();
+            var items = hashResults.ToList();
             var visited = new bool[items.Count];
+            var result = new List<List<StorageFile>>();
 
             for (int i = 0; i < items.Count; i++)
             {
-                if (visited[i])
-                {
-                    continue;
-                }
-
-                var currentGroup = new List<(StorageFile File, ulong Size)> { (items[i].File, items[i].Size) };
+                if (visited[i]) continue;
                 visited[i] = true;
+
+                var group = new List<(StorageFile File, ulong Size)>
+                {
+                    (items[i].File, items[i].Size)
+                };
 
                 for (int j = i + 1; j < items.Count; j++)
                 {
-                    if (visited[j])
-                    {
-                        continue;
-                    }
+                    if (visited[j]) continue;
 
                     if (MediaScanService.HammingDistance(items[i].Hash, items[j].Hash) <= 5)
                     {
-                        currentGroup.Add((items[j].File, items[j].Size));
+                        group.Add((items[j].File, items[j].Size));
                         visited[j] = true;
                     }
                 }
 
-                if (currentGroup.Count > 1)
+                if (group.Count > 1)
                 {
-                    result.Add(currentGroup
-                        .OrderByDescending(item => item.Size)
-                        .Select(item => item.File)
+                    // Largest file first (highest quality / resolution)
+                    result.Add(group
+                        .OrderByDescending(g => g.Size)
+                        .Select(g => g.File)
                         .ToList());
                 }
             }

@@ -4,6 +4,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using BlueSapphire.Helpers;
+using BlueSapphire.Models;
 using Windows.Foundation;
 using Windows.Foundation.Collections;
 using Windows.Graphics.Imaging;
@@ -17,34 +18,6 @@ namespace BlueSapphire.Services
         Jpeg,
         Png,
         Bmp
-    }
-
-    public enum ImageResizePreset
-    {
-        LongEdge1280,
-        LongEdge1920,
-        LongEdge2560
-    }
-
-    public enum ImageCropPreset
-    {
-        Square,
-        Ratio4x3,
-        Ratio16x9
-    }
-
-    public enum ImageCompressionPreset
-    {
-        Light,
-        Balanced,
-        Aggressive
-    }
-
-    public enum ImageEnhancementPreset
-    {
-        SmartFix,
-        DetailBoost,
-        LowLight
     }
 
     public readonly record struct ImageCropFrame(uint X, uint Y, uint Width, uint Height);
@@ -64,87 +37,6 @@ namespace BlueSapphire.Services
 
     public class ImageProcessingService
     {
-        private static readonly IReadOnlyDictionary<ImageCropPreset, double> CropRatioMap = new Dictionary<ImageCropPreset, double>
-        {
-            [ImageCropPreset.Square] = 1d,
-            [ImageCropPreset.Ratio4x3] = 4d / 3d,
-            [ImageCropPreset.Ratio16x9] = 16d / 9d
-        };
-
-        public bool TryParseConversionTarget(string? targetKey, out ImageConversionTarget target)
-        {
-            return Enum.TryParse(targetKey, ignoreCase: true, out target);
-        }
-
-        public bool TryParseResizePreset(string? presetKey, out ImageResizePreset preset)
-        {
-            return Enum.TryParse(presetKey, ignoreCase: true, out preset);
-        }
-
-        public bool TryParseCropPreset(string? presetKey, out ImageCropPreset preset)
-        {
-            return Enum.TryParse(presetKey, ignoreCase: true, out preset);
-        }
-
-        public bool TryParseCompressionPreset(string? presetKey, out ImageCompressionPreset preset)
-        {
-            return Enum.TryParse(presetKey, ignoreCase: true, out preset);
-        }
-
-        public bool TryParseEnhancementPreset(string? presetKey, out ImageEnhancementPreset preset)
-        {
-            return Enum.TryParse(presetKey, ignoreCase: true, out preset);
-        }
-
-        public string GetTargetDisplayName(ImageConversionTarget target)
-        {
-            return target switch
-            {
-                ImageConversionTarget.Jpeg => "JPEG",
-                ImageConversionTarget.Png => "PNG",
-                ImageConversionTarget.Bmp => "BMP",
-                _ => target.ToString().ToUpperInvariant()
-            };
-        }
-
-        public string GetResizeDisplayName(ImageResizePreset preset)
-        {
-            return $"长边 {GetResizeLongEdge(preset)}";
-        }
-
-        public string GetCropDisplayName(ImageCropPreset preset)
-        {
-            return preset switch
-            {
-                ImageCropPreset.Square => "1:1 中心裁剪",
-                ImageCropPreset.Ratio4x3 => "4:3 中心裁剪",
-                ImageCropPreset.Ratio16x9 => "16:9 中心裁剪",
-                _ => "中心裁剪"
-            };
-        }
-
-        public string GetCompressionDisplayName(ImageCompressionPreset preset)
-        {
-            return preset switch
-            {
-                ImageCompressionPreset.Light => "轻度压缩",
-                ImageCompressionPreset.Balanced => "均衡压缩",
-                ImageCompressionPreset.Aggressive => "高压缩",
-                _ => "压缩导出"
-            };
-        }
-
-        public string GetEnhancementDisplayName(ImageEnhancementPreset preset)
-        {
-            return preset switch
-            {
-                ImageEnhancementPreset.SmartFix => "智能增强",
-                ImageEnhancementPreset.DetailBoost => "清晰增强",
-                ImageEnhancementPreset.LowLight => "低光优化",
-                _ => "图片增强"
-            };
-        }
-
         public bool CanProcess(string? fileName) => MediaFileCatalog.IsImage(fileName);
 
         public string GetTargetExtension(ImageConversionTarget target)
@@ -158,53 +50,42 @@ namespace BlueSapphire.Services
             };
         }
 
-        public uint GetResizeLongEdge(ImageResizePreset preset)
+        public string GetTargetDisplayName(ImageConversionTarget target)
         {
-            return preset switch
+            return target switch
             {
-                ImageResizePreset.LongEdge1280 => 1280,
-                ImageResizePreset.LongEdge1920 => 1920,
-                ImageResizePreset.LongEdge2560 => 2560,
-                _ => 1280
+                ImageConversionTarget.Jpeg => "JPEG",
+                ImageConversionTarget.Png => "PNG",
+                ImageConversionTarget.Bmp => "BMP",
+                _ => target.ToString()
             };
         }
 
-        public double GetCompressionQuality(ImageCompressionPreset preset)
-        {
-            return preset switch
-            {
-                ImageCompressionPreset.Light => 0.85d,
-                ImageCompressionPreset.Balanced => 0.72d,
-                ImageCompressionPreset.Aggressive => 0.55d,
-                _ => 0.72d
-            };
-        }
-
-        public async Task<ImageProcessResult> ConvertAsync(string sourcePath, ImageConversionTarget target, CancellationToken cancellationToken = default)
+        public async Task<ImageProcessResult> ConvertAsync(string sourcePath, FormatConvertOptions options, CancellationToken cancellationToken = default)
         {
             if (!ValidateSourcePath(sourcePath, out var validationResult))
             {
                 return validationResult!;
             }
 
-            string targetExtension = GetTargetExtension(target);
-            if (string.Equals(Path.GetExtension(sourcePath), targetExtension, StringComparison.OrdinalIgnoreCase))
+            string targetExtension = GetTargetExtension(options.TargetFormat);
+            if (string.Equals(Path.GetExtension(sourcePath), targetExtension, StringComparison.OrdinalIgnoreCase) && options.Quality >= 0.95)
             {
-                return ImageProcessResult.Failed(sourcePath, "源文件已经是目标格式。");
+                // return ImageProcessResult.Failed(sourcePath, "源文件已经是目标格式。");
             }
 
             string outputPath = BuildOutputPath(sourcePath, string.Empty, targetExtension);
             return await TranscodeAsync(
                 sourcePath,
                 outputPath,
-                GetEncoderId(target),
+                GetEncoderId(options.TargetFormat),
                 transform: null,
-                quality: target == ImageConversionTarget.Jpeg ? 0.92d : null,
-                successMessage: $"已转换为 {GetTargetDisplayName(target)}。",
+                quality: options.TargetFormat == ImageConversionTarget.Jpeg ? options.Quality : null,
+                successMessage: $"已转换为 {options.TargetFormat}。",
                 cancellationToken);
         }
 
-        public async Task<ImageProcessResult> ResizeAsync(string sourcePath, ImageResizePreset preset, CancellationToken cancellationToken = default)
+        public async Task<ImageProcessResult> ProcessAdvancedAsync(string sourcePath, AdvancedEditOptions options, CancellationToken cancellationToken = default)
         {
             if (!ValidateSourcePath(sourcePath, out var validationResult))
             {
@@ -215,64 +96,102 @@ namespace BlueSapphire.Services
             {
                 using var sourceStream = await OpenReadStreamAsync(sourcePath);
                 var decoder = await BitmapDecoder.CreateAsync(sourceStream);
-                var (targetWidth, targetHeight) = CalculateResizeDimensions(decoder.PixelWidth, decoder.PixelHeight, GetResizeLongEdge(preset));
-                var transform = new BitmapTransform
+                var transform = new BitmapTransform();
+
+                // 1. Crop
+                if (options.IsCropEnabled)
                 {
-                    ScaledWidth = targetWidth,
-                    ScaledHeight = targetHeight,
-                    InterpolationMode = BitmapInterpolationMode.Fant
-                };
-
-                var (encoderId, extension, displayName) = ResolvePreferredEditableFormat(sourcePath);
-                string outputPath = BuildOutputPath(sourcePath, $"_resize_{GetResizeLongEdge(preset)}", extension);
-                return await TranscodeAsync(
-                    sourcePath,
-                    outputPath,
-                    encoderId,
-                    transform,
-                    quality: encoderId == BitmapEncoder.JpegEncoderId ? 0.9d : null,
-                    successMessage: $"已调整尺寸为 {targetWidth}x{targetHeight}（{displayName}）。",
-                    cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                return ImageProcessResult.Failed(sourcePath, ex.Message);
-            }
-        }
-
-        public async Task<ImageProcessResult> CropAsync(string sourcePath, ImageCropPreset preset, CancellationToken cancellationToken = default)
-        {
-            if (!ValidateSourcePath(sourcePath, out var validationResult))
-            {
-                return validationResult!;
-            }
-
-            try
-            {
-                using var sourceStream = await OpenReadStreamAsync(sourcePath);
-                var decoder = await BitmapDecoder.CreateAsync(sourceStream);
-                var cropFrame = CalculateCenteredCropFrame(decoder.PixelWidth, decoder.PixelHeight, CropRatioMap[preset]);
-                var transform = new BitmapTransform
-                {
-                    Bounds = new BitmapBounds
+                    if (options.UseExactCrop)
                     {
-                        X = cropFrame.X,
-                        Y = cropFrame.Y,
-                        Width = cropFrame.Width,
-                        Height = cropFrame.Height
+                        uint x = options.ExactCropX;
+                        uint y = options.ExactCropY;
+                        uint w = options.ExactCropWidth;
+                        uint h = options.ExactCropHeight;
+
+                        if (x + w > decoder.PixelWidth) w = decoder.PixelWidth > x ? decoder.PixelWidth - x : 1;
+                        if (y + h > decoder.PixelHeight) h = decoder.PixelHeight > y ? decoder.PixelHeight - y : 1;
+
+                        transform.Bounds = new BitmapBounds
+                        {
+                            X = x,
+                            Y = y,
+                            Width = Math.Max(1, w),
+                            Height = Math.Max(1, h)
+                        };
                     }
-                };
+                    else if (options.CropAspectRatio > 0)
+                    {
+                        var cropFrame = CalculateCenteredCropFrame(decoder.PixelWidth, decoder.PixelHeight, options.CropAspectRatio);
+                        transform.Bounds = new BitmapBounds
+                        {
+                            X = cropFrame.X,
+                            Y = cropFrame.Y,
+                            Width = cropFrame.Width,
+                            Height = cropFrame.Height
+                        };
+                    }
+                }
+
+                // 2. Resize
+                uint currentWidth = transform.Bounds.Width > 0 ? transform.Bounds.Width : decoder.PixelWidth;
+                uint currentHeight = transform.Bounds.Height > 0 ? transform.Bounds.Height : decoder.PixelHeight;
+                uint targetWidth = options.TargetWidth;
+                uint targetHeight = options.TargetHeight;
+
+                if (targetWidth > 0 || targetHeight > 0)
+                {
+                    if (options.KeepAspectRatio && targetWidth > 0 && targetHeight > 0)
+                    {
+                        double sourceRatio = currentWidth / (double)currentHeight;
+                        double targetRatio = targetWidth / (double)targetHeight;
+                        if (sourceRatio > targetRatio)
+                        {
+                            targetHeight = Math.Max(1u, (uint)Math.Round(targetWidth / sourceRatio));
+                        }
+                        else
+                        {
+                            targetWidth = Math.Max(1u, (uint)Math.Round(targetHeight * sourceRatio));
+                        }
+                    }
+
+                    if (targetWidth == 0) targetWidth = currentWidth;
+                    if (targetHeight == 0) targetHeight = currentHeight;
+
+                    transform.ScaledWidth = targetWidth;
+                    transform.ScaledHeight = targetHeight;
+                    transform.InterpolationMode = BitmapInterpolationMode.Fant;
+                }
 
                 var (encoderId, extension, displayName) = ResolvePreferredEditableFormat(sourcePath);
-                string outputPath = BuildOutputPath(sourcePath, "_crop", extension);
-                return await TranscodeAsync(
-                    sourcePath,
-                    outputPath,
-                    encoderId,
-                    transform,
-                    quality: encoderId == BitmapEncoder.JpegEncoderId ? 0.92d : null,
-                    successMessage: $"已完成 {GetCropDisplayName(preset)}（{displayName}）。",
-                    cancellationToken);
+                
+                // If Target Size is enabled, we MUST use JPEG.
+                if (options.IsTargetSizeEnabled)
+                {
+                    encoderId = BitmapEncoder.JpegEncoderId;
+                    extension = ".jpg";
+                    displayName = "JPEG";
+                }
+
+                string outputPath = BuildOutputPath(sourcePath, "_edited", extension);
+
+                if (options.IsTargetSizeEnabled && options.TargetMaxFileSizeBytes > 0 && encoderId == BitmapEncoder.JpegEncoderId)
+                {
+                    // Advanced: Binary search for target size range
+                    return await EncodeWithTargetSizeAsync(
+                        sourcePath, outputPath, decoder, encoderId, transform, options.TargetMinFileSizeBytes, options.TargetMaxFileSizeBytes, cancellationToken);
+                }
+                else
+                {
+                    // Standard transcode
+                    return await TranscodeAsync(
+                        sourcePath,
+                        outputPath,
+                        encoderId,
+                        transform,
+                        quality: encoderId == BitmapEncoder.JpegEncoderId ? 0.92d : null,
+                        successMessage: $"已完成图片编辑（{displayName}）。",
+                        cancellationToken);
+                }
             }
             catch (Exception ex)
             {
@@ -280,25 +199,103 @@ namespace BlueSapphire.Services
             }
         }
 
-        public async Task<ImageProcessResult> CompressAsync(string sourcePath, ImageCompressionPreset preset, CancellationToken cancellationToken = default)
+        private static async Task<ImageProcessResult> EncodeWithTargetSizeAsync(
+            string sourcePath,
+            string outputPath,
+            BitmapDecoder decoder,
+            Guid encoderId,
+            BitmapTransform transform,
+            long targetMinBytes,
+            long targetMaxBytes,
+            CancellationToken cancellationToken)
         {
-            if (!ValidateSourcePath(sourcePath, out var validationResult))
+            try
             {
-                return validationResult!;
-            }
+                var pixelProvider = await decoder.GetPixelDataAsync(
+                    decoder.BitmapPixelFormat,
+                    BitmapAlphaMode.Ignore, // JPEG ignores alpha
+                    transform,
+                    ExifOrientationMode.RespectExifOrientation,
+                    ColorManagementMode.ColorManageToSRgb);
 
-            string outputPath = BuildOutputPath(sourcePath, "_compressed", ".jpg");
-            return await TranscodeAsync(
-                sourcePath,
-                outputPath,
-                BitmapEncoder.JpegEncoderId,
-                transform: null,
-                quality: GetCompressionQuality(preset),
-                successMessage: $"已按 {GetCompressionDisplayName(preset)} 导出 JPEG。",
-                cancellationToken);
+                byte[] pixels = pixelProvider.DetachPixelData();
+                uint width = transform.ScaledWidth > 0 ? transform.ScaledWidth : (transform.Bounds.Width > 0 ? transform.Bounds.Width : decoder.PixelWidth);
+                uint height = transform.ScaledHeight > 0 ? transform.ScaledHeight : (transform.Bounds.Height > 0 ? transform.Bounds.Height : decoder.PixelHeight);
+
+                double minQuality = 0.01;
+                double maxQuality = 1.0;
+                double bestQuality = 0.8;
+                byte[]? bestBytes = null;
+                long targetMidBytes = (targetMinBytes + targetMaxBytes) / 2;
+
+                int maxIterations = 8;
+                for (int i = 0; i < maxIterations; i++)
+                {
+                    if (cancellationToken.IsCancellationRequested) break;
+
+                    double currentQuality = (minQuality + maxQuality) / 2.0;
+                    
+                    using var memoryStream = new InMemoryRandomAccessStream();
+                    var encoder = await BitmapEncoder.CreateAsync(encoderId, memoryStream);
+                    var propertySet = new BitmapPropertySet { { "ImageQuality", new BitmapTypedValue((float)currentQuality, PropertyType.Single) } };
+                    await encoder.BitmapProperties.SetPropertiesAsync(propertySet);
+
+                    encoder.SetPixelData(
+                        decoder.BitmapPixelFormat,
+                        BitmapAlphaMode.Ignore,
+                        width, height,
+                        decoder.DpiX, decoder.DpiY,
+                        pixels);
+
+                    await encoder.FlushAsync();
+                    
+                    long currentSize = (long)memoryStream.Size;
+                    
+                    using (var reader = new DataReader(memoryStream.GetInputStreamAt(0)))
+                    {
+                        await reader.LoadAsync((uint)currentSize);
+                        bestBytes = new byte[currentSize];
+                        reader.ReadBytes(bestBytes);
+                    }
+                    bestQuality = currentQuality;
+
+                    // If we fall inside the requested range, stop searching immediately
+                    if (currentSize >= targetMinBytes && currentSize <= targetMaxBytes)
+                    {
+                        break;
+                    }
+
+                    if (currentSize > targetMaxBytes)
+                    {
+                        maxQuality = currentQuality;
+                    }
+                    else if (currentSize < targetMinBytes)
+                    {
+                        minQuality = currentQuality;
+                    }
+                }
+
+                if (bestBytes != null)
+                {
+                    var outputFolder = await StorageFolder.GetFolderFromPathAsync(Path.GetDirectoryName(outputPath)!);
+                    var outputFile = await outputFolder.CreateFileAsync(Path.GetFileName(outputPath), CreationCollisionOption.FailIfExists);
+                    using var destinationStream = await outputFile.OpenAsync(FileAccessMode.ReadWrite);
+                    using var dataWriter = new DataWriter(destinationStream);
+                    dataWriter.WriteBytes(bestBytes);
+                    await dataWriter.StoreAsync();
+                    
+                    return ImageProcessResult.Succeeded(sourcePath, outputPath, $"已编辑并压缩至 ~{bestBytes.Length / 1024}KB (质量 {bestQuality:P0})。");
+                }
+                
+                return ImageProcessResult.Failed(sourcePath, "无法编码图片以满足目标大小。");
+            }
+            catch (Exception ex)
+            {
+                return ImageProcessResult.Failed(sourcePath, $"目标大小压缩失败: {ex.Message}");
+            }
         }
 
-        public async Task<ImageProcessResult> EnhanceAsync(string sourcePath, ImageEnhancementPreset preset, CancellationToken cancellationToken = default)
+        public async Task<ImageProcessResult> EnhanceAsync(string sourcePath, EnhanceOptions options, CancellationToken cancellationToken = default)
         {
             if (!ValidateSourcePath(sourcePath, out var validationResult))
             {
@@ -309,16 +306,10 @@ namespace BlueSapphire.Services
             {
                 using var sourceStream = await OpenReadStreamAsync(sourcePath);
                 var decoder = await BitmapDecoder.CreateAsync(sourceStream);
-                var settings = GetEnhancementSettings(preset);
-                var (targetWidth, targetHeight) = CalculateEnhancedDimensions(
-                    decoder.PixelWidth,
-                    decoder.PixelHeight,
-                    settings.ScaleFactor);
+                var settings = new ImageEnhancementSettings(1d, options.Brightness, options.Contrast, options.Saturation, options.Sharpness);
 
                 var transform = new BitmapTransform
                 {
-                    ScaledWidth = targetWidth,
-                    ScaledHeight = targetHeight,
                     InterpolationMode = BitmapInterpolationMode.Fant
                 };
 
@@ -330,24 +321,21 @@ namespace BlueSapphire.Services
                     ColorManagementMode.ColorManageToSRgb);
 
                 byte[] pixels = pixelProvider.DetachPixelData();
-                byte[] enhancedPixels = EnhancePixels(pixels, targetWidth, targetHeight, settings);
+                byte[] enhancedPixels = EnhancePixels(pixels, decoder.PixelWidth, decoder.PixelHeight, settings);
 
                 var (encoderId, extension, displayName) = ResolvePreferredEditableFormat(sourcePath);
                 string outputPath = BuildOutputPath(sourcePath, "_enhanced", extension);
-                string successMessage = settings.ScaleFactor > 1d
-                    ? $"已完成 {GetEnhancementDisplayName(preset)}，输出 {targetWidth}x{targetHeight}（{displayName}）。"
-                    : $"已完成 {GetEnhancementDisplayName(preset)}（{displayName}）。";
 
                 return await EncodePixelBufferAsync(
                     sourcePath,
                     outputPath,
                     enhancedPixels,
-                    targetWidth,
-                    targetHeight,
+                    decoder.PixelWidth,
+                    decoder.PixelHeight,
                     decoder.DpiX,
                     decoder.DpiY,
                     encoderId,
-                    successMessage,
+                    $"已完成图片增强（{displayName}）。",
                     cancellationToken);
             }
             catch (Exception ex)
@@ -376,43 +364,8 @@ namespace BlueSapphire.Services
                 {
                     return candidate;
                 }
-
                 counter++;
             }
-        }
-
-        public static (uint Width, uint Height) CalculateEnhancedDimensions(uint sourceWidth, uint sourceHeight, double scaleFactor)
-        {
-            if (sourceWidth == 0 || sourceHeight == 0 || scaleFactor <= 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(scaleFactor), "图片尺寸和增强倍率必须有效。");
-            }
-
-            if (Math.Abs(scaleFactor - 1d) < 0.001d)
-            {
-                return (sourceWidth, sourceHeight);
-            }
-
-            uint width = Math.Max(1u, (uint)Math.Round(sourceWidth * scaleFactor, MidpointRounding.AwayFromZero));
-            uint height = Math.Max(1u, (uint)Math.Round(sourceHeight * scaleFactor, MidpointRounding.AwayFromZero));
-            return (width, height);
-        }
-
-        public static (uint Width, uint Height) CalculateResizeDimensions(uint sourceWidth, uint sourceHeight, uint longEdge)
-        {
-            if (sourceWidth == 0 || sourceHeight == 0 || longEdge == 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(longEdge), "图片尺寸和目标长边必须大于 0。");
-            }
-
-            if (sourceWidth >= sourceHeight)
-            {
-                double scale = longEdge / (double)sourceWidth;
-                return (longEdge, Math.Max(1u, (uint)Math.Round(sourceHeight * scale, MidpointRounding.AwayFromZero)));
-            }
-
-            double portraitScale = longEdge / (double)sourceHeight;
-            return (Math.Max(1u, (uint)Math.Round(sourceWidth * portraitScale, MidpointRounding.AwayFromZero)), longEdge);
         }
 
         public static ImageCropFrame CalculateCenteredCropFrame(uint sourceWidth, uint sourceHeight, double aspectRatio)
@@ -480,32 +433,6 @@ namespace BlueSapphire.Services
         {
             var sourceFile = await StorageFile.GetFileFromPathAsync(sourcePath);
             return await sourceFile.OpenReadAsync();
-        }
-
-        private static ImageEnhancementSettings GetEnhancementSettings(ImageEnhancementPreset preset)
-        {
-            return preset switch
-            {
-                ImageEnhancementPreset.SmartFix => new ImageEnhancementSettings(
-                    ScaleFactor: 1d,
-                    BrightnessOffset: 0.015d,
-                    ContrastFactor: 1.08d,
-                    SaturationFactor: 1.05d,
-                    SharpenAmount: 0.18d),
-                ImageEnhancementPreset.DetailBoost => new ImageEnhancementSettings(
-                    ScaleFactor: 1.5d,
-                    BrightnessOffset: 0.01d,
-                    ContrastFactor: 1.12d,
-                    SaturationFactor: 1.08d,
-                    SharpenAmount: 0.30d),
-                ImageEnhancementPreset.LowLight => new ImageEnhancementSettings(
-                    ScaleFactor: 1d,
-                    BrightnessOffset: 0.08d,
-                    ContrastFactor: 1.05d,
-                    SaturationFactor: 1.02d,
-                    SharpenAmount: 0.14d),
-                _ => new ImageEnhancementSettings(1d, 0d, 1d, 1d, 0d)
-            };
         }
 
         private static byte[] EnhancePixels(byte[] sourcePixels, uint width, uint height, ImageEnhancementSettings settings)
@@ -692,20 +619,12 @@ namespace BlueSapphire.Services
             }
             catch (OperationCanceledException)
             {
-                if (outputFile != null)
-                {
-                    await TryDeleteAsync(outputFile);
-                }
-
+                if (outputFile != null) await TryDeleteAsync(outputFile);
                 return ImageProcessResult.Failed(sourcePath, "图片处理已取消。");
             }
             catch (Exception ex)
             {
-                if (outputFile != null)
-                {
-                    await TryDeleteAsync(outputFile);
-                }
-
+                if (outputFile != null) await TryDeleteAsync(outputFile);
                 return ImageProcessResult.Failed(sourcePath, ex.Message);
             }
         }
@@ -771,33 +690,19 @@ namespace BlueSapphire.Services
             }
             catch (OperationCanceledException)
             {
-                if (outputFile != null)
-                {
-                    await TryDeleteAsync(outputFile);
-                }
-
+                if (outputFile != null) await TryDeleteAsync(outputFile);
                 return ImageProcessResult.Failed(sourcePath, "图片处理已取消。");
             }
             catch (Exception ex)
             {
-                if (outputFile != null)
-                {
-                    await TryDeleteAsync(outputFile);
-                }
-
+                if (outputFile != null) await TryDeleteAsync(outputFile);
                 return ImageProcessResult.Failed(sourcePath, ex.Message);
             }
         }
 
         private static async Task TryDeleteAsync(StorageFile file)
         {
-            try
-            {
-                await file.DeleteAsync();
-            }
-            catch
-            {
-            }
+            try { await file.DeleteAsync(); } catch { }
         }
 
         private readonly record struct ImageEnhancementSettings(

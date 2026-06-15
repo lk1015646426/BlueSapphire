@@ -29,6 +29,14 @@
                 </Grid>
             </Border>
 
+            <Border Background="#08FFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1" Padding="25,20" CornerRadius="8">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="AI 智能引擎 (DeepSeek)" FontSize="18" FontWeight="SemiBold" Foreground="#F0FFFFFF" CharacterSpacing="25" Margin="0,0,0,5"/>
+                    <TextBlock Text="配置 DeepSeek API 密钥，解锁“蓝宝石”智能对话控制与日志分析功能。" Foreground="#80FFFFFF" FontSize="14" TextWrapping="Wrap"/>
+                    <PasswordBox x:Name="DeepSeekApiKeyBox" PlaceholderText="输入你的 sk-... 密钥" PasswordChar="•" MaxWidth="500" HorizontalAlignment="Left" Margin="0,5,0,0" PasswordChanged="DeepSeekApiKeyBox_PasswordChanged"/>
+                </StackPanel>
+            </Border>
+
             <Border Background="#08FFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1" Padding="30" CornerRadius="8">
 
                 <StackPanel Background="Transparent" 

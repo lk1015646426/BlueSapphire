@@ -14,7 +14,6 @@ namespace BlueSapphire
     public sealed partial class CleanerAssistantPage : Page, ICleanerAssistantViewInteraction
     {
         private bool _isInitialized;
-        private bool _isUpdatingReminderIntervalSelection;
 
         public CleanerAssistantViewModel ViewModel { get; }
 
@@ -23,16 +22,12 @@ namespace BlueSapphire
             ViewModel = App.Current.Services.GetRequiredService<CleanerAssistantViewModel>();
             InitializeComponent();
             Loaded += CleanerAssistantPage_Loaded;
-            Unloaded += CleanerAssistantPage_Unloaded;
         }
 
         private async void CleanerAssistantPage_Loaded(object sender, RoutedEventArgs e)
         {
             if (_isInitialized)
             {
-                ViewModel.PropertyChanged -= ViewModel_PropertyChanged;
-                ViewModel.PropertyChanged += ViewModel_PropertyChanged;
-                SyncReminderIntervalComboBox();
                 return;
             }
 
@@ -47,70 +42,10 @@ namespace BlueSapphire
             }
             finally
             {
-                ViewModel.PropertyChanged -= ViewModel_PropertyChanged;
-                ViewModel.PropertyChanged += ViewModel_PropertyChanged;
-                SyncReminderIntervalComboBox();
+                // Initialization completed
             }
         }
 
-        private void CleanerAssistantPage_Unloaded(object sender, RoutedEventArgs e)
-        {
-            ViewModel.PropertyChanged -= ViewModel_PropertyChanged;
-        }
-
-        private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
-        {
-            if (e.PropertyName == nameof(CleanerAssistantViewModel.ReminderIntervalDays))
-            {
-                SyncReminderIntervalComboBox();
-            }
-        }
-
-        private void SyncReminderIntervalComboBox()
-        {
-            if (ReminderIntervalComboBox == null)
-            {
-                return;
-            }
-
-            try
-            {
-                _isUpdatingReminderIntervalSelection = true;
-                ComboBoxItem? matchedItem = ReminderIntervalComboBox.Items
-                    .OfType<ComboBoxItem>()
-                    .FirstOrDefault(item => string.Equals(item.Tag?.ToString(), ViewModel.ReminderIntervalDays.ToString(), StringComparison.OrdinalIgnoreCase));
-
-                ReminderIntervalComboBox.SelectedItem = matchedItem;
-            }
-            finally
-            {
-                _isUpdatingReminderIntervalSelection = false;
-            }
-        }
-
-        private async void ReminderIntervalComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (!_isInitialized || _isUpdatingReminderIntervalSelection)
-            {
-                return;
-            }
-
-            if (ReminderIntervalComboBox.SelectedItem is not ComboBoxItem selectedItem ||
-                !int.TryParse(selectedItem.Tag?.ToString(), out int days))
-            {
-                return;
-            }
-
-            try
-            {
-                await ViewModel.SetReminderIntervalAsync(days);
-            }
-            catch (Exception ex)
-            {
-                await ShowTipAsync("更新提醒周期失败", ex.Message);
-                SyncReminderIntervalComboBox();
-            }
-        }
 
         public async Task ShowTipAsync(string title, string message)
         {

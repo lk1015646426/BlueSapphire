@@ -1,0 +1,214 @@
+<ContentDialog
+    x:Class="BlueSapphire.Views.Dialogs.AdvancedImageEditorDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="高级图片编辑"
+    PrimaryButtonText="应用并导出"
+    CloseButtonText="取消"
+    DefaultButton="Primary"
+    Loaded="ContentDialog_Loaded"
+    PrimaryButtonClick="ContentDialog_PrimaryButtonClick"
+    MaxWidth="1600">
+
+    <ContentDialog.Resources>
+        <x:Double x:Key="ContentDialogMaxWidth">1600</x:Double>
+        <Style x:Key="ChipToggleButton" TargetType="ToggleButton">
+            <Setter Property="Background" Value="{ThemeResource ControlFillColorDefaultBrush}"/>
+            <Setter Property="BorderBrush" Value="{ThemeResource ControlStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="16"/>
+            <Setter Property="Padding" Value="16,6"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+    </ContentDialog.Resources>
+
+    <Grid Width="1100" MinHeight="600" MaxHeight="800" ColumnSpacing="24" Margin="0,12,0,0">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="420" />
+        </Grid.ColumnDefinitions>
+
+        <!-- 左侧预览与交互裁剪区 -->
+        <Border Grid.Column="0" Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource SurfaceStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="12" Padding="20">
+            <Viewbox x:Name="PreviewViewbox" Stretch="Uniform">
+                <Grid x:Name="ImageGrid">
+                    <Image x:Name="PreviewImage" Stretch="None" SizeChanged="PreviewImage_SizeChanged"/>
+                    <Canvas x:Name="CropCanvas" Background="Transparent" Visibility="Visible">
+                        
+                        <!-- 蒙版 -->
+                        <Path Fill="#B3000000" IsHitTestVisible="False">
+                            <Path.Data>
+                                <GeometryGroup FillRule="EvenOdd">
+                                    <RectangleGeometry x:Name="OuterMaskRect" Rect="0,0,100,100" />
+                                    <RectangleGeometry x:Name="InnerCropRect" Rect="10,10,80,80" />
+                                </GeometryGroup>
+                            </Path.Data>
+                        </Path>
+
+                        <!-- 中心拖拽区 (透明) -->
+                        <Thumb x:Name="CenterDragThumb" DragDelta="CenterDragThumb_DragDelta" Background="Transparent">
+                            <Thumb.Template>
+                                <ControlTemplate TargetType="Thumb">
+                                    <Rectangle Fill="Transparent" />
+                                </ControlTemplate>
+                            </Thumb.Template>
+                        </Thumb>
+
+                        <!-- 裁剪框边界线 -->
+                        <Rectangle x:Name="CropBorder" Stroke="{ThemeResource AccentFillColorDefaultBrush}" StrokeThickness="2" IsHitTestVisible="False" />
+
+                        <!-- 边缘拖拽区 (透明热区) -->
+                        <Thumb x:Name="ThumbT" Height="16" DragDelta="Thumb_DragDelta" Tag="T">
+                            <Thumb.Template><ControlTemplate TargetType="Thumb"><Rectangle Fill="Transparent"/></ControlTemplate></Thumb.Template>
+                        </Thumb>
+                        <Thumb x:Name="ThumbB" Height="16" DragDelta="Thumb_DragDelta" Tag="B">
+                            <Thumb.Template><ControlTemplate TargetType="Thumb"><Rectangle Fill="Transparent"/></ControlTemplate></Thumb.Template>
+                        </Thumb>
+                        <Thumb x:Name="ThumbL" Width="16" DragDelta="Thumb_DragDelta" Tag="L">
+                            <Thumb.Template><ControlTemplate TargetType="Thumb"><Rectangle Fill="Transparent"/></ControlTemplate></Thumb.Template>
+                        </Thumb>
+                        <Thumb x:Name="ThumbR" Width="16" DragDelta="Thumb_DragDelta" Tag="R">
+                            <Thumb.Template><ControlTemplate TargetType="Thumb"><Rectangle Fill="Transparent"/></ControlTemplate></Thumb.Template>
+                        </Thumb>
+
+                        <!-- 拖拽手柄 -->
+                        <!-- 左上 -->
+                        <Thumb x:Name="ThumbTL" Width="24" Height="24" DragDelta="Thumb_DragDelta" Tag="TL">
+                            <Thumb.Template>
+                                <ControlTemplate TargetType="Thumb">
+                                    <Ellipse Fill="White" Stroke="{ThemeResource AccentFillColorDefaultBrush}" StrokeThickness="2" Width="16" Height="16"/>
+                                </ControlTemplate>
+                            </Thumb.Template>
+                        </Thumb>
+                        <!-- 右上 -->
+                        <Thumb x:Name="ThumbTR" Width="24" Height="24" DragDelta="Thumb_DragDelta" Tag="TR">
+                            <Thumb.Template>
+                                <ControlTemplate TargetType="Thumb">
+                                    <Ellipse Fill="White" Stroke="{ThemeResource AccentFillColorDefaultBrush}" StrokeThickness="2" Width="16" Height="16"/>
+                                </ControlTemplate>
+                            </Thumb.Template>
+                        </Thumb>
+                        <!-- 左下 -->
+                        <Thumb x:Name="ThumbBL" Width="24" Height="24" DragDelta="Thumb_DragDelta" Tag="BL">
+                            <Thumb.Template>
+                                <ControlTemplate TargetType="Thumb">
+                                    <Ellipse Fill="White" Stroke="{ThemeResource AccentFillColorDefaultBrush}" StrokeThickness="2" Width="16" Height="16"/>
+                                </ControlTemplate>
+                            </Thumb.Template>
+                        </Thumb>
+                        <!-- 右下 -->
+                        <Thumb x:Name="ThumbBR" Width="24" Height="24" DragDelta="Thumb_DragDelta" Tag="BR">
+                            <Thumb.Template>
+                                <ControlTemplate TargetType="Thumb">
+                                    <Ellipse Fill="White" Stroke="{ThemeResource AccentFillColorDefaultBrush}" StrokeThickness="2" Width="16" Height="16"/>
+                                </ControlTemplate>
+                            </Thumb.Template>
+                        </Thumb>
+                    </Canvas>
+                </Grid>
+            </Viewbox>
+        </Border>
+
+        <!-- 右侧控制区 -->
+        <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" Padding="0,0,16,0">
+            <StackPanel Spacing="20" Padding="0,0,0,16">
+                
+                <InfoBar x:Name="BatchInfoBar" IsOpen="False" Severity="Informational" Title="批量处理模式" Message="以下设置将统一应用到所有选中的图片。" Margin="0,0,0,0"/>
+
+                <!-- 1. 图像重塑 (统一裁剪和尺寸) -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" 
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" 
+                        BorderThickness="1" CornerRadius="8" Padding="20">
+                    <StackPanel Spacing="16">
+                        <Grid>
+                            <TextBlock Text="图像重塑" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <ToggleSwitch x:Name="EnableReshapeToggle" IsOn="True" Toggled="EnableReshapeToggle_Toggled" HorizontalAlignment="Right" Margin="0,-8,0,-8"/>
+                        </Grid>
+                        
+                        <StackPanel x:Name="ReshapePanel" Spacing="20" Margin="0,8,0,0">
+                            
+                            <Grid>
+                                <TextBlock Text="原始尺寸与大小" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                <TextBlock x:Name="OriginalSizeText" Text="-" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                            </Grid>
+                            
+                            <StackPanel Spacing="12">
+                                <TextBlock Text="裁剪比例" FontSize="14" FontWeight="SemiBold"/>
+                                
+                                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                                    <StackPanel Orientation="Horizontal" Spacing="8" Padding="0,0,0,8">
+                                        <ToggleButton x:Name="RatioBtn1x1" Content="1:1" Tag="1.0" Style="{StaticResource ChipToggleButton}" Click="RatioBtn_Click"/>
+                                        <ToggleButton x:Name="RatioBtn3x4" Content="3:4" Tag="0.75" Style="{StaticResource ChipToggleButton}" Click="RatioBtn_Click"/>
+                                        <ToggleButton x:Name="RatioBtn4x3" Content="4:3" Tag="1.33333333" Style="{StaticResource ChipToggleButton}" Click="RatioBtn_Click"/>
+                                        <ToggleButton x:Name="RatioBtn9x16" Content="9:16" Tag="0.5625" Style="{StaticResource ChipToggleButton}" Click="RatioBtn_Click"/>
+                                        <ToggleButton x:Name="RatioBtn16x9" Content="16:9" Tag="1.77777778" Style="{StaticResource ChipToggleButton}" Click="RatioBtn_Click"/>
+                                        <ToggleButton x:Name="RatioBtn2x3" Content="2:3" Tag="0.66666667" Style="{StaticResource ChipToggleButton}" Click="RatioBtn_Click"/>
+                                        <ToggleButton x:Name="RatioBtn3x2" Content="3:2" Tag="1.5" Style="{StaticResource ChipToggleButton}" Click="RatioBtn_Click"/>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </StackPanel>
+
+                            <StackPanel Spacing="12">
+                                <TextBlock Text="导出尺寸" FontSize="14" FontWeight="SemiBold"/>
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <NumberBox x:Name="OutputWidthBox" PlaceholderText="宽度" Minimum="0" Value="0" SpinButtonPlacementMode="Hidden" Grid.Column="0"/>
+                                    <TextBlock Text="✕" Grid.Column="1" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12"/>
+                                    <NumberBox x:Name="OutputHeightBox" PlaceholderText="高度" Minimum="0" Value="0" SpinButtonPlacementMode="Hidden" Grid.Column="2" />
+                                    <TextBlock Text="px" Grid.Column="3" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" Margin="4,0,0,0"/>
+                                </Grid>
+                            </StackPanel>
+                            
+                            <Button Content="一键重置居中" Click="ResetCropButton_Click" HorizontalAlignment="Stretch" Style="{ThemeResource DefaultButtonStyle}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- 2. 输出文件大小 (区间) -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" 
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" 
+                        BorderThickness="1" CornerRadius="8" Padding="20">
+                    <StackPanel Spacing="16">
+                        <Grid>
+                            <TextBlock Text="动态压缩 (限制体积)" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <ToggleSwitch x:Name="EnableTargetSizeToggle" IsOn="False" Toggled="EnableTargetSizeToggle_Toggled" HorizontalAlignment="Right" Margin="0,-8,0,-8"/>
+                        </Grid>
+                        
+                        <StackPanel x:Name="TargetSizePanel" Spacing="16" Visibility="Collapsed" Margin="0,8,0,0">
+                            
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="90"/>
+                                </Grid.ColumnDefinitions>
+                                
+                                <NumberBox x:Name="MinSizeBox" PlaceholderText="Min" Minimum="1" Value="100" SpinButtonPlacementMode="Hidden" Grid.Column="0"/>
+                                <TextBlock Grid.Column="1" Text="~" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="16"/>
+                                <NumberBox x:Name="MaxSizeBox" PlaceholderText="Max" Minimum="1" Value="500" SpinButtonPlacementMode="Hidden" Grid.Column="2"/>
+                                
+                                <ComboBox x:Name="TargetSizeUnitCombo" SelectedIndex="0" Grid.Column="3" HorizontalAlignment="Stretch">
+                                    <ComboBoxItem Content="KB"/>
+                                    <ComboBoxItem Content="MB"/>
+                                </ComboBox>
+                            </Grid>
+                            
+                            <InfoBar IsOpen="True" Severity="Success" IsIconVisible="False" Padding="12,8">
+                                <InfoBar.Content>
+                                    <TextBlock Text="蓝宝石引擎将自动进行多次二分压制，直到输出文件体积落在此范围内 (输出为 JPEG)。" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </InfoBar.Content>
+                            </InfoBar>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</ContentDialog>

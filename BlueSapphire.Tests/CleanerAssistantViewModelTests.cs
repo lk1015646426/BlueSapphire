@@ -117,7 +117,8 @@ public class CleanerAssistantViewModelTests : IDisposable
             deepScanService,
             profileService,
             telemetryService,
-            recommendationService);
+            recommendationService,
+            new CleanerSettingsViewModel(automationService, telemetryService));
     }
 
     public void Dispose()

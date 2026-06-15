@@ -261,6 +261,12 @@ namespace BlueSapphire.Services
                         break;
                 }
             }
+            catch (AggregateException ex)
+            {
+                entry.Status = "PartialSuccess";
+                entry.FailureReason = CleanerFailureReason.AccessDenied;
+                entry.ErrorMessage = "部分文件已被删除，但由于权限或锁定原因，部分文件未能清理。\n" + ex.Message;
+            }
             catch (Exception ex)
             {
                 entry.Status = "Failed";
@@ -339,6 +345,12 @@ namespace BlueSapphire.Services
                         entry.Status = "Skipped";
                         break;
                 }
+            }
+            catch (AggregateException ex)
+            {
+                entry.Status = "PartialSuccess";
+                entry.FailureReason = CleanerFailureReason.AccessDenied;
+                entry.ErrorMessage = "部分文件已被删除，但由于权限或锁定原因，部分文件未能清理。\n" + ex.Message;
             }
             catch (Exception ex)
             {
@@ -478,7 +490,18 @@ namespace BlueSapphire.Services
                 catch (IOException)
                 {
                     File.Copy(sourcePath, destinationPath, true);
-                    File.Delete(sourcePath);
+                    try 
+                    {
+                        File.Delete(sourcePath);
+                    }
+                    catch
+                    {
+                        if (File.Exists(destinationPath))
+                        {
+                            File.Delete(destinationPath); // Rollback
+                        }
+                        throw;
+                    }
                 }
 
                 return;
@@ -532,11 +555,32 @@ namespace BlueSapphire.Services
             }
         }
 
+        private static void DeleteFileSafely(string file)
+        {
+            try
+            {
+                File.Delete(file);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                FileAttributes attrs = File.GetAttributes(file);
+                if ((attrs & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
+                {
+                    File.SetAttributes(file, attrs & ~FileAttributes.ReadOnly);
+                    File.Delete(file);
+                }
+                else
+                {
+                    throw;
+                }
+            }
+        }
+
         private static void DeletePath(string path)
         {
             if (File.Exists(path))
             {
-                File.Delete(path);
+                DeleteFileSafely(path);
                 return;
             }
 
@@ -559,23 +603,57 @@ namespace BlueSapphire.Services
                 return;
             }
 
+            List<Exception> exceptions = new();
+
             foreach (string file in CleanerPathSafety.SafeEnumerateFiles(path))
             {
-                File.Delete(file);
+                try
+                {
+                    DeleteFileSafely(file);
+                }
+                catch (Exception ex)
+                {
+                    exceptions.Add(ex);
+                }
             }
 
             foreach (string directory in CleanerPathSafety.SafeEnumerateDirectories(path))
             {
                 if (CleanerPathSafety.IsReparsePoint(directory))
                 {
-                    Directory.Delete(directory, false);
+                    try
+                    {
+                        Directory.Delete(directory, false);
+                    }
+                    catch (Exception ex)
+                    {
+                        exceptions.Add(ex);
+                    }
                     continue;
                 }
 
-                DeleteDirectorySafely(directory);
+                try
+                {
+                    DeleteDirectorySafely(directory);
+                }
+                catch (AggregateException aggEx)
+                {
+                    exceptions.AddRange(aggEx.InnerExceptions);
+                }
+                catch (Exception ex)
+                {
+                    exceptions.Add(ex);
+                }
             }
 
-            Directory.Delete(path, false);
+            if (exceptions.Count == 0)
+            {
+                Directory.Delete(path, false);
+            }
+            else
+            {
+                throw new AggregateException($"目录 {path} 中有 {exceptions.Count} 个项无法删除。", exceptions);
+            }
         }
 
         private IReadOnlyList<string> ResolveLockingProcesses(string targetPath)

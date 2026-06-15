@@ -1,0 +1,6 @@
+                   _BinaryFormatterObsoleteAsError = true
+                   ContinueOnError = false
+                   CsWinRTGeneratorLogStandardErrorAsError = true
+                   RestoreContinueOnError = WarnAndContinue
+12:19:10.581     1>C:\Users\10156\.nuget\packages\microsoft.windowsappsdk.winui\1.8.260204000\buildTransitive\Microsoft.UI.Xaml.Markup.Compiler.interop.targets(594,9): error MSB3073: 鍛戒护鈥?C:\Users\10156\.nuget\packages\microsoft.windowsappsdk.winui\1.8.260204000\buildTransitive\..\tools\net6.0\..\net472\XamlCompiler.exe" "obj\Debug\net8.0-windows10.0.19041.0\win-x64\\input.json" "obj\Debug\net8.0-windows10.0.19041.0\win-x64\\output.json"鈥濆凡閫€鍑猴紝浠ｇ爜涓?1銆?[C:\Users\10156\Desktop\钃濆疂鐭冲伐鍏峰紑鍙慭new\BlueSapphire\BlueSapphire.csproj]
+                     C:\Users\10156\.nuget\packages\microsoft.windowsappsdk.winui\1.8.260204000\buildTransitive\Microsoft.UI.Xaml.Markup.Compiler.interop.targets(594,9): error MSB3073: 鍛戒护鈥?C:\Users\10156\.nuget\packages\microsoft.windowsappsdk.winui\1.8.260204000\buildTransitive\..\tools\net6.0\..\net472\XamlCompiler.exe" "obj\Debug\net8.0-windows10.0.19041.0\win-x64\\input.json" "obj\Debug\net8.0-windows10.0.19041.0\win-x64\\output.json"鈥濆凡閫€鍑猴紝浠ｇ爜涓?1銆?[C:\Users\10156\Desktop\钃濆疂鐭冲伐鍏峰紑鍙慭new\BlueSapphire\BlueSapphire.csproj]

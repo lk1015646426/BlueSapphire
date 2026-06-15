@@ -81,42 +81,63 @@ namespace BlueSapphire.Services
             }
             else
             {
-                foreach (CleanerRuleDefinition rule in quickRules)
+                int localProgressValue = progressValue;
+
+                var quickTasks = quickRules.Select(async rule =>
                 {
                     cancellationToken.ThrowIfCancellationRequested();
+                    
+                    int currentProgress = Interlocked.Increment(ref localProgressValue);
                     progress?.Report(new CleanerScanProgress
                     {
                         StageTitle = scope == CleanerScanScope.Quick ? "快速扫描" : "深度扫描",
                         Detail = $"正在检查：{rule.Name}",
-                        ProgressValue = progressValue,
+                        ProgressValue = currentProgress,
                         ProgressMax = progressMax
                     });
 
-                    List<CleanerScanItem> ruleItems = await ScanRuleAsync(rule, exclusionLookup, cancellationToken);
+                    return await ScanRuleAsync(rule, exclusionLookup, cancellationToken);
+                });
+
+                var quickResults = await Task.WhenAll(quickTasks);
+                
+                foreach (var ruleItems in quickResults)
+                {
                     scannedQuickItems.AddRange(ruleItems);
                     items.AddRange(ruleItems);
-                    progressValue++;
                 }
+                
+                progressValue = localProgressValue;
 
                 StoreQuickCache(quickFingerprint, scannedQuickItems);
             }
 
             if (scope == CleanerScanScope.Deep)
             {
-                foreach (CleanerRuleDefinition rule in deepOnlyRules)
+                int localDeepProgressValue = progressValue;
+
+                var deepTasks = deepOnlyRules.Select(async rule =>
                 {
                     cancellationToken.ThrowIfCancellationRequested();
+                    
+                    int currentProgress = Interlocked.Increment(ref localDeepProgressValue);
                     progress?.Report(new CleanerScanProgress
                     {
                         StageTitle = "深度扫描",
                         Detail = $"正在检查：{rule.Name}",
-                        ProgressValue = progressValue,
+                        ProgressValue = currentProgress,
                         ProgressMax = progressMax
                     });
 
-                    items.AddRange(await ScanRuleAsync(rule, exclusionLookup, cancellationToken));
-                    progressValue++;
+                    return await ScanRuleAsync(rule, exclusionLookup, cancellationToken);
+                });
+
+                var deepResults = await Task.WhenAll(deepTasks);
+                foreach (var ruleItems in deepResults)
+                {
+                    items.AddRange(ruleItems);
                 }
+                progressValue = localDeepProgressValue;
 
             }
 
@@ -154,7 +175,7 @@ namespace BlueSapphire.Services
 
             foreach (string rawPath in rule.Paths)
             {
-                foreach (string expandedPath in ExpandPaths(rawPath))
+                foreach (string expandedPath in ExpandPaths(rawPath, cancellationToken))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
@@ -285,7 +306,7 @@ namespace BlueSapphire.Services
                 .ToList();
         }
 
-        private IEnumerable<string> ExpandPaths(string rawPath)
+        private IEnumerable<string> ExpandPaths(string rawPath, CancellationToken cancellationToken)
         {
             string expanded = Environment.ExpandEnvironmentVariables(rawPath ?? string.Empty);
             if (string.IsNullOrWhiteSpace(expanded))
@@ -311,6 +332,8 @@ namespace BlueSapphire.Services
 
                 foreach (string basePath in current)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     if (!Directory.Exists(basePath))
                     {
                         continue;
@@ -326,13 +349,19 @@ namespace BlueSapphire.Services
                     {
                         next.AddRange(CleanerPathSafety.SafeEnumerateDirectories(basePath)
                             .Where(candidate => IsPatternMatch(Path.GetFileName(candidate), segment)));
+                            
+                        // Breadth limit breaker
+                        if (next.Count > 10000)
+                        {
+                            break;
+                        }
                     }
                     catch
                     {
                     }
                 }
 
-                current = next;
+                current = next.Take(10000);
             }
 
             foreach (string resolved in current.Distinct(StringComparer.OrdinalIgnoreCase))
@@ -396,12 +425,13 @@ namespace BlueSapphire.Services
                             latestWriteTime = info.LastWriteTimeUtc;
                         }
 
-                        bool locked = CleanerPathSafety.IsFileLocked(file);
-                        isLocked |= locked;
-                        if (lockProbePaths.Count < 12 && locked)
-                        {
-                            lockProbePaths.Add(file);
-                        }
+                        // Lock checking is deferred to execution time to avoid catastrophic I/O bottlenecks.
+                        // bool locked = CleanerPathSafety.IsFileLocked(file);
+                        // isLocked |= locked;
+                        // if (lockProbePaths.Count < 12 && locked)
+                        // {
+                        //     lockProbePaths.Add(file);
+                        // }
                     }
 
                     if (!recursive)
@@ -462,12 +492,13 @@ namespace BlueSapphire.Services
                         latestWriteTime = info.LastWriteTimeUtc;
                     }
 
-                    bool locked = CleanerPathSafety.IsFileLocked(file);
-                    isLocked |= locked;
-                    if (lockProbePaths.Count < 12 && locked)
-                    {
-                        lockProbePaths.Add(file);
-                    }
+                    // Lock checking is deferred to execution time to avoid catastrophic I/O bottlenecks.
+                    // bool locked = CleanerPathSafety.IsFileLocked(file);
+                    // isLocked |= locked;
+                    // if (lockProbePaths.Count < 12 && locked)
+                    // {
+                    //     lockProbePaths.Add(file);
+                    // }
                 }
                 catch
                 {
@@ -497,8 +528,8 @@ namespace BlueSapphire.Services
                 SizeBytes = info.Length,
                 FileCount = 1,
                 ModifyTime = info.LastWriteTimeUtc,
-                IsLocked = CleanerPathSafety.IsFileLocked(path),
-                LockProbePaths = File.Exists(path) ? new List<string> { path } : new List<string>()
+                IsLocked = false, // Deferred to execution time
+                LockProbePaths = new List<string>()
             };
         }
 

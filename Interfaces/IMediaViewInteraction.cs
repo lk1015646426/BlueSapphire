@@ -14,5 +14,8 @@ namespace BlueSapphire.Interfaces
         Task<List<StorageFile>> ShowDuplicateResultsAsync(List<List<StorageFile>> duplicates);
         Task<bool> ShowRenamePreviewAsync(List<RenamePreviewItem> items, int skippedCount);
         Task<string?> ShowInputPromptAsync(string title, string message, string defaultText);
+        Task<FormatConvertOptions?> ShowFormatConvertDialogAsync();
+        Task<AdvancedEditOptions?> ShowAdvancedEditorDialogAsync(IList<string> previewImagePaths);
+        Task<EnhanceOptions?> ShowEnhanceDialogAsync(string? previewImagePath);
     }
 }

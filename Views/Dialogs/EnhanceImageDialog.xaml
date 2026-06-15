@@ -1,0 +1,38 @@
+<ContentDialog
+    x:Class="BlueSapphire.Views.Dialogs.EnhanceImageDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="AI 增强参数"
+    PrimaryButtonText="应用"
+    CloseButtonText="取消"
+    DefaultButton="Primary"
+    Loaded="ContentDialog_Loaded">
+
+    <StackPanel Spacing="16" Width="400" Margin="0,12,0,0">
+        <Border x:Name="PreviewBorder" CornerRadius="8" Height="200" Background="{ThemeResource ControlFillColorDefaultBrush}" Visibility="Collapsed">
+            <Image x:Name="PreviewImage" Stretch="Uniform" />
+        </Border>
+
+        <TextBlock Text="调整以下参数来增强您的图片。如果选择了多张图片，参数将批量应用。" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+        <StackPanel Spacing="8">
+            <TextBlock x:Name="BrightnessText" Text="亮度: 0.0" />
+            <Slider x:Name="BrightnessSlider" Minimum="-1" Maximum="1" StepFrequency="0.05" Value="0" ValueChanged="Slider_ValueChanged" />
+        </StackPanel>
+
+        <StackPanel Spacing="8">
+            <TextBlock x:Name="ContrastText" Text="对比度: 1.0" />
+            <Slider x:Name="ContrastSlider" Minimum="0" Maximum="2" StepFrequency="0.05" Value="1" ValueChanged="Slider_ValueChanged" />
+        </StackPanel>
+
+        <StackPanel Spacing="8">
+            <TextBlock x:Name="SaturationText" Text="饱和度: 1.0" />
+            <Slider x:Name="SaturationSlider" Minimum="0" Maximum="2" StepFrequency="0.05" Value="1" ValueChanged="Slider_ValueChanged" />
+        </StackPanel>
+
+        <StackPanel Spacing="8">
+            <TextBlock x:Name="SharpnessText" Text="锐化: 0.0" />
+            <Slider x:Name="SharpnessSlider" Minimum="0" Maximum="1" StepFrequency="0.05" Value="0" ValueChanged="Slider_ValueChanged" />
+        </StackPanel>
+    </StackPanel>
+</ContentDialog>

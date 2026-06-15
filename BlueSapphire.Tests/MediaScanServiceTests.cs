@@ -37,11 +37,11 @@ public class MediaScanServiceTests
     }
 
     [Fact]
-    public async Task ComputePHashAsync_ReturnsHashForRealImageSample()
+    public async Task ComputeDHashAsync_ReturnsHashForRealImageSample()
     {
-        StorageFile file = await StorageFile.GetFileFromPathAsync(GetTestDataPath("sample-image.png"));
+        string path = GetTestDataPath("sample-image.png");
 
-        ulong? hash = await MediaScanService.ComputePHashAsync(file);
+        ulong? hash = await MediaScanService.ComputeDHashAsync(path);
 
         Assert.True(hash.HasValue);
     }

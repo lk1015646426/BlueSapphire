@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -76,11 +76,16 @@ namespace BlueSapphire
             services.AddTransient<HomeTool>();
             services.AddTransient<MediaManagerTool>();
             services.AddTransient<CleanerAssistantTool>();
+            services.AddTransient<BlueSapphire.Tools.AICopilotTool>();
             // ✅ 新增：注册我们的重命名业务服务 (使用 Singleton 单例即可，因为它是无状态的工具类)
             services.AddSingleton<BlueSapphire.Services.MediaRenameService>();
 
             // ✅ 新增：注册去重扫描业务服务
             services.AddSingleton<BlueSapphire.Services.MediaDeduplicationService>();
+
+            // 注册 AI 服务
+            services.AddSingleton<BlueSapphire.Services.DeepSeekAIService>();
+            services.AddSingleton<BlueSapphire.Services.AIToolsRegistry>();
 
             // 注册我们的本地文件系统服务 (回收站功能)
             services.AddSingleton<BlueSapphire.Services.NativeFileService>();
@@ -112,6 +117,7 @@ namespace BlueSapphire
             services.AddTransient<MediaManagerViewModel>();
             services.AddTransient<DevLogViewModel>();
             services.AddTransient<CleanerAssistantViewModel>();
+            services.AddTransient<CleanerSettingsViewModel>();
 
             return services.BuildServiceProvider();
         }

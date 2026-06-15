@@ -260,23 +260,23 @@ namespace BlueSapphire.ViewModels
         }
 
         [RelayCommand]
-        private void ChangeSort(string field)
+        private async Task ChangeSort(string field)
         {
             CurrentSortField = field;
             OnPropertyChanged(nameof(SortButtonText));
-            RefreshViewFromCache();
+            await RefreshViewFromCacheAsync();
         }
 
         [RelayCommand]
-        private void ToggleSortDirection()
+        private async Task ToggleSortDirection()
         {
             IsSortDescending = !IsSortDescending;
             OnPropertyChanged(nameof(SortButtonText));
-            RefreshViewFromCache();
+            await RefreshViewFromCacheAsync();
         }
 
         [RelayCommand]
-        private void ApplySort(string option)
+        private async Task ApplySort(string option)
         {
             string normalized = option ?? string.Empty;
             if (normalized.EndsWith("Desc", StringComparison.OrdinalIgnoreCase))
@@ -302,7 +302,7 @@ namespace BlueSapphire.ViewModels
             }
 
             OnPropertyChanged(nameof(SortButtonText));
-            RefreshViewFromCache();
+            await RefreshViewFromCacheAsync();
         }
 
         [RelayCommand]
@@ -681,103 +681,98 @@ namespace BlueSapphire.ViewModels
             await _view.ShowTipAsync(LastImageOperationSummaryText);
         }
 
-        public async Task ConvertSelectedImagesToTargetAsync(IList<object> selectedItems, string targetKey)
+        [RelayCommand]
+        private async Task OpenFormatConvertDialog(IList<object> selectedItems)
         {
-            if (!_imageProcessingService.TryParseConversionTarget(targetKey, out var target))
+            var items = ExtractSelectedItems(selectedItems);
+            if (items.Count == 0)
             {
-                await _view.ShowTipAsync("未知的图片目标格式。");
+                await _view.ShowTipAsync("请先选择要处理的图片。");
                 return;
             }
 
-            string targetName = _imageProcessingService.GetTargetDisplayName(target);
-            string targetExtension = _imageProcessingService.GetTargetExtension(target);
-            var items = ExtractSelectedItems(selectedItems)
-                .Where(item => !string.Equals(Path.GetExtension(item.FileName), targetExtension, StringComparison.OrdinalIgnoreCase))
+            var options = await _view.ShowFormatConvertDialogAsync();
+            if (options == null) return;
+
+            string targetName = _imageProcessingService.GetTargetDisplayName(options.TargetFormat);
+            string targetExtension = _imageProcessingService.GetTargetExtension(options.TargetFormat);
+            
+            var filteredItems = items
+                .Where(item => !string.Equals(Path.GetExtension(item.FileName), targetExtension, StringComparison.OrdinalIgnoreCase) || options.Quality < 0.95)
                 .ToList();
 
+            if (filteredItems.Count == 0)
+            {
+                await _view.ShowTipAsync("源文件已经是目标格式，无需转换。");
+                return;
+            }
+
             await RunImageOperationAndPresentAsync(
-                items,
+                filteredItems,
                 $"正在转换图片为 {targetName}...",
                 $"图片转 {targetName}",
-                $"已加入 {items.Count} 张图片，目标：{targetName}",
+                $"已加入 {filteredItems.Count} 张图片，目标：{targetName}",
                 (_, _, item) => $"正在转换为 {targetName}：{item.FileName}",
-                path => _imageProcessingService.ConvertAsync(path, target));
+                path => _imageProcessingService.ConvertAsync(path, options));
         }
 
-        public async Task ResizeSelectedImagesAsync(IList<object> selectedItems, string presetKey)
+        [RelayCommand]
+        private async Task OpenAdvancedEditorDialog(IList<object> selectedItems)
         {
-            if (!_imageProcessingService.TryParseResizePreset(presetKey, out var preset))
+            var items = ExtractSelectedItems(selectedItems);
+            if (items.Count == 0)
             {
-                await _view.ShowTipAsync("未知的图片尺寸预设。");
+                await _view.ShowTipAsync("请先选择要处理的图片。");
                 return;
             }
 
-            string presetName = _imageProcessingService.GetResizeDisplayName(preset);
-            var items = ExtractSelectedItems(selectedItems);
-            await RunImageOperationAndPresentAsync(
-                items,
-                $"正在调整图片尺寸为 {presetName}...",
-                $"图片尺寸调整：{presetName}",
-                $"已加入 {items.Count} 张图片，目标：{presetName}",
-                (_, _, item) => $"正在调整尺寸：{item.FileName}",
-                path => _imageProcessingService.ResizeAsync(path, preset));
-        }
-
-        public async Task CropSelectedImagesAsync(IList<object> selectedItems, string presetKey)
-        {
-            if (!_imageProcessingService.TryParseCropPreset(presetKey, out var preset))
+            var previewPaths = new List<string>();
+            foreach (var item in items)
             {
-                await _view.ShowTipAsync("未知的图片裁剪预设。");
+                if (MediaFileCatalog.IsImage(item.ImagePath))
+                {
+                    previewPaths.Add(item.ImagePath);
+                }
+            }
+
+            if (previewPaths.Count == 0)
+            {
+                await _view.ShowTipAsync("所选文件中没有受支持的图片格式。");
                 return;
             }
 
-            string presetName = _imageProcessingService.GetCropDisplayName(preset);
-            var items = ExtractSelectedItems(selectedItems);
+            var options = await _view.ShowAdvancedEditorDialogAsync(previewPaths);
+            if (options == null) return;
+
             await RunImageOperationAndPresentAsync(
                 items,
-                $"正在执行 {presetName}...",
-                $"图片裁剪：{presetName}",
-                $"已加入 {items.Count} 张图片，预设：{presetName}",
-                (_, _, item) => $"正在裁剪：{item.FileName}",
-                path => _imageProcessingService.CropAsync(path, preset));
+                $"正在进行高级编辑...",
+                $"高级图片编辑",
+                $"已加入 {items.Count} 张图片进行处理",
+                (_, _, item) => $"正在处理：{item.FileName}",
+                path => _imageProcessingService.ProcessAdvancedAsync(path, options));
         }
 
-        public async Task CompressSelectedImagesAsync(IList<object> selectedItems, string presetKey)
+        [RelayCommand]
+        private async Task OpenEnhanceDialog(IList<object> selectedItems)
         {
-            if (!_imageProcessingService.TryParseCompressionPreset(presetKey, out var preset))
+            var items = ExtractSelectedItems(selectedItems);
+            if (items.Count == 0)
             {
-                await _view.ShowTipAsync("未知的图片压缩预设。");
+                await _view.ShowTipAsync("请先选择要处理的图片。");
                 return;
             }
 
-            string presetName = _imageProcessingService.GetCompressionDisplayName(preset);
-            var items = ExtractSelectedItems(selectedItems);
+            var options = await _view.ShowEnhanceDialogAsync(items.Count == 1 ? items[0].ImagePath : null);
+            if (options == null) return;
+
             await RunImageOperationAndPresentAsync(
                 items,
-                $"正在按 {presetName} 压缩图片...",
-                $"图片压缩：{presetName}",
-                $"已加入 {items.Count} 张图片，预设：{presetName}",
-                (_, _, item) => $"正在压缩：{item.FileName}",
-                path => _imageProcessingService.CompressAsync(path, preset));
-        }
-
-        public async Task EnhanceSelectedImagesAsync(IList<object> selectedItems, string presetKey)
-        {
-            if (!_imageProcessingService.TryParseEnhancementPreset(presetKey, out var preset))
-            {
-                await _view.ShowTipAsync("未知的图片增强预设。");
-                return;
-            }
-
-            string presetName = _imageProcessingService.GetEnhancementDisplayName(preset);
-            var items = ExtractSelectedItems(selectedItems);
-            await RunImageOperationAndPresentAsync(
-                items,
-                $"正在执行 {presetName}...",
-                $"图片增强：{presetName}",
-                $"已加入 {items.Count} 张图片，预设：{presetName}",
+                $"正在增强图片...",
+                $"AI 增强",
+                $"已加入 {items.Count} 张图片，图片增强",
                 (_, _, item) => $"正在增强：{item.FileName}",
-                path => _imageProcessingService.EnhanceAsync(path, preset));
+                path => _imageProcessingService.EnhanceAsync(path, options));
         }
 
         private async Task RunImageOperationAndPresentAsync(
@@ -885,7 +880,7 @@ namespace BlueSapphire.ViewModels
             }
 
             await RemoveGhostFilesAsync(ghostPaths);
-            RefreshViewFromCache();
+            await RefreshViewFromCacheAsync();
 
             string summary = BuildOperationSummary(operationName, successCount, failCount, skippedCount, messages);
             SetImageQueueState("图片队列：已完成", summary.Replace(Environment.NewLine, " "));
@@ -920,6 +915,9 @@ namespace BlueSapphire.ViewModels
                 var concurrentItems = new ConcurrentBag<ImageItem>();
                 using var semaphore = new SemaphoreSlim(Environment.ProcessorCount * 2);
 
+                int processedCount = 0;
+                int totalFiles = files.Count;
+
                 var tasks = files.Select(async file =>
                 {
                     await semaphore.WaitAsync();
@@ -935,6 +933,15 @@ namespace BlueSapphire.ViewModels
                     finally
                     {
                         semaphore.Release();
+                        int current = Interlocked.Increment(ref processedCount);
+                        if (current % 10 == 0 || current == totalFiles)
+                        {
+                            RunOnUi(() =>
+                            {
+                                ProgressValue = (double)current / totalFiles * 100;
+                                StatusDetailText = $"{current} / {totalFiles}";
+                            });
+                        }
                     }
                 });
 
@@ -945,7 +952,7 @@ namespace BlueSapphire.ViewModels
                     _cachedAllItems.AddRange(concurrentItems);
                 }
 
-                RefreshViewFromCache();
+                await RefreshViewFromCacheAsync();
 
                 int skippedCount = files.Count - concurrentItems.Count;
                 if (skippedCount > 0)
@@ -965,21 +972,19 @@ namespace BlueSapphire.ViewModels
             }
         }
 
-        private void RefreshViewFromCache()
+        private async Task RefreshViewFromCacheAsync()
         {
-            RunOnUi(() =>
+            SetBusy(true, "正在重新排序...", 0, 100);
+
+            List<ImageItem> snapshot;
+            lock (_cachedAllItems)
             {
-                List<ImageItem> snapshot;
-                lock (_cachedAllItems)
-                {
-                    snapshot = _cachedAllItems.ToList();
-                }
+                snapshot = _cachedAllItems.ToList();
+            }
 
-                CountText = snapshot.Count.ToString();
-                HasImages = snapshot.Count > 0;
-                IsEmptyStateVisible = snapshot.Count == 0;
-
-                var sortedList = CurrentSortField switch
+            var sortedList = await Task.Run(() =>
+            {
+                return CurrentSortField switch
                 {
                     "Date" => IsSortDescending
                         ? snapshot.OrderByDescending(item => item.DateCreated).ToList()
@@ -991,8 +996,15 @@ namespace BlueSapphire.ViewModels
                         ? snapshot.OrderByDescending(item => item.FileName, StringComparer.OrdinalIgnoreCase).ToList()
                         : snapshot.OrderBy(item => item.FileName, StringComparer.OrdinalIgnoreCase).ToList()
                 };
+            });
 
-                _lastVisibleItems = sortedList.ToList();
+            RunOnUi(() =>
+            {
+                CountText = snapshot.Count.ToString();
+                HasImages = snapshot.Count > 0;
+                IsEmptyStateVisible = snapshot.Count == 0;
+
+                _lastVisibleItems = sortedList;
 
                 int offset = 0;
                 Images = new IncrementalLoadingCollection<ImageItem>((_, count) =>
@@ -1005,6 +1017,8 @@ namespace BlueSapphire.ViewModels
                     offset += batch.Count;
                     return Task.FromResult<IEnumerable<ImageItem>>(batch);
                 });
+                
+                SetBusy(false);
             });
         }
 
@@ -1090,7 +1104,7 @@ namespace BlueSapphire.ViewModels
             }
 
             SetBusy(false);
-            RefreshViewFromCache();
+            await RefreshViewFromCacheAsync();
 
             await _view.ShowTipAsync($"重命名完成。\n成功: {successCount} 张\n失败: {failCount} 张");
         }
@@ -1136,7 +1150,7 @@ namespace BlueSapphire.ViewModels
             }
 
             SetBusy(false);
-            RefreshViewFromCache();
+            await RefreshViewFromCacheAsync();
 
             await _view.ShowTipAsync($"删除完成。\n成功移至回收站: {success} 个\n失败: {fail} 个");
         }
@@ -1222,7 +1236,7 @@ namespace BlueSapphire.ViewModels
             }
 
             await _mediaTagService.RemoveTagsAsync(paths);
-            RefreshViewFromCache();
+            await RefreshViewFromCacheAsync();
         }
 
         private Dictionary<string, HashSet<string>> BuildDirectoryNameReservations()
