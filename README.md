@@ -9,11 +9,11 @@ BlueSapphire 是一个面向 Windows 11 的 WinUI 3 工具箱，当前已经包�
 
 ## 版本信息
 
-- 当前文档版本：`1.0.5`
+- 当前文档版本：`1.0.7`
 - 当前发布形态：`Windows 11 x64` 安装包
 - 当前发布链路：`dotnet publish -> Inno Setup -> GitHub Releases`
 
-### 1.0.5 更新摘要
+### 1.0.7 更新摘要
 
 - 消除非事件处理器中的 `async void`，避免静默崩溃风险
 - 拆解 `CleanerAssistantViewModel` 至独立功能模块（扫描、清理、自动化等），大幅提升可维护性
@@ -181,11 +181,11 @@ BlueSapphire/
 正式安装包统一通过 GitHub Releases 分发：
 
 - 下载地址：[BlueSapphire Releases](https://github.com/lk1015646426/BlueSapphire/releases)
-- 建议发布标签：`v1.0.5`
+- 建议发布标签：`v1.0.7`
 
 下载建议：
 
-- 普通用户直接下载 `BlueSapphire_Setup_v1.0.5.exe` 或更新版本
+- 普通用户直接下载 `BlueSapphire_Setup_v1.0.7.exe` 或更新版本
 - 安装目标机器不需要提前安装 `.NET SDK`
 - 安装目标机器不需要提前安装 `Windows App SDK`
 
@@ -225,3 +225,11 @@ dotnet build BlueSapphire.slnx
 - 持续扩充清理规则库与发布质量治理
 - 继续完善媒体处理链路的真实场景验证
 - 持续收口安装包、Release 和 Builder 的发版体验
+
+## 开发日志与版本记录
+
+> **[修复优化] 修复 AI 智能助手连续触发指令时的陷入死循环的 Bug，并优化提示词让 AI 执行清理任务更加灵活**
+> 
+> **1.0.7** | 2026-06-15 23:11:56
+> 
+> `release(1.0.7): 修复 DeepSeek 原生 tool_calls JSON 结构解析导致的死循环 Bug；修改 AI 强制提示词（Prompt），赋予智能免询问立即扫描能力；完善多轮 Tool Call History 的状态保持。`
