@@ -20,12 +20,12 @@ namespace BlueSapphire.Services
             _httpClientFactory = httpClientFactory;
         }
 
-        public async Task<string> SendChatAsync(List<ChatMessage> messages, List<ChatTool>? tools = null)
+        public async Task<ChatMessage> SendChatAsync(List<ChatMessage> messages, List<ChatTool>? tools = null)
         {
             string? apiKey = AppSettings.GetSecret("DeepSeekApiKey");
             if (string.IsNullOrWhiteSpace(apiKey))
             {
-                return "错误：请先在设置中配置 DeepSeek API Key。";
+                return new ChatMessage { Role = "assistant", Content = "错误：请先在设置中配置 DeepSeek API Key。" };
             }
 
             var requestBody = new
@@ -36,8 +36,10 @@ namespace BlueSapphire.Services
                 temperature = 0.6
             };
 
+            var requestJson = JsonSerializer.Serialize(requestBody, new JsonSerializerOptions { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull });
+
             var jsonContent = new StringContent(
-                JsonSerializer.Serialize(requestBody, new JsonSerializerOptions { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull }),
+                requestJson,
                 Encoding.UTF8,
                 "application/json");
 
@@ -51,23 +53,18 @@ namespace BlueSapphire.Services
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    return $"API 请求失败: {response.StatusCode}\n{responseString}";
+                    return new ChatMessage { Role = "assistant", Content = $"API 请求失败: {response.StatusCode}\n{responseString}" };
                 }
 
                 var jsonDoc = JsonDocument.Parse(responseString);
                 var choice = jsonDoc.RootElement.GetProperty("choices")[0];
                 var message = choice.GetProperty("message");
 
-                if (message.TryGetProperty("tool_calls", out var toolCalls) && toolCalls.GetArrayLength() > 0)
-                {
-                    return $"[TOOL_CALL] {toolCalls.GetRawText()}";
-                }
-
-                return message.GetProperty("content").GetString() ?? "";
+                return JsonSerializer.Deserialize<ChatMessage>(message.GetRawText()) ?? new ChatMessage { Role = "assistant", Content = "API 解析失败" };
             }
             catch (Exception ex)
             {
-                return $"发生错误: {ex.Message}";
+                return new ChatMessage { Role = "assistant", Content = $"发生错误: {ex.Message}" };
             }
         }
     }
@@ -78,11 +75,20 @@ namespace BlueSapphire.Services
         public string Role { get; set; } = "";
 
         [JsonPropertyName("content")]
-        public string Content { get; set; } = "";
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? Content { get; set; }
         
         [JsonPropertyName("name")]
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public string? Name { get; set; }
+
+        [JsonPropertyName("tool_calls")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public JsonElement? ToolCalls { get; set; }
+
+        [JsonPropertyName("tool_call_id")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? ToolCallId { get; set; }
     }
 
     public class ChatTool

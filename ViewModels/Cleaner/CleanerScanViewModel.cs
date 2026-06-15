@@ -119,7 +119,7 @@ namespace BlueSapphire.ViewModels.Cleaner
             Cleanup = cleanup;
             Settings = settings;
 
-            WeakReferenceMessenger.Default.Register<BlueSapphire.Services.StartQuickScanMessage>(this, async (r, m) => await StartQuickScan());
+            WeakReferenceMessenger.Default.Register<BlueSapphire.Models.StartQuickScanMessage>(this, async (r, m) => await StartQuickScan());
         }
 
         public async Task InitializeAsync(ICleanerAssistantViewInteraction view)

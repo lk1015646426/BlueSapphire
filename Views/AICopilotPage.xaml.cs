@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -35,7 +36,14 @@ namespace BlueSapphire.Views
                 }
             }
 
-            systemPrompt += "\n请使用自然、亲切的语气与用户交流。你可以根据上面的功能列表回答你能做什么。当用户需要执行操作时，请主动调用对应的 function call（工具）。";
+            try
+            {
+                var drives = string.Join(", ", System.IO.DriveInfo.GetDrives().Where(d => d.IsReady).Select(d => d.Name));
+                systemPrompt += $"\n【可用本地磁盘】系统当前就绪的磁盘有：{drives}。";
+            }
+            catch { }
+
+            systemPrompt += "\n请使用自然、亲切的语气与用户交流。你可以根据上面的功能列表回答你能做什么。当用户需要执行操作时，请主动调用对应的 function call（工具）。\n【重要流程与排版规则】\n1. 执行清理前必须先与用户确认要扫描哪些磁盘（可全盘或指定），确认后调用 start_smart_cleanup。收到扫描结果后，**必须使用 Markdown 语法（如表格、加粗、Emoji、列表等）进行优美排版**，向用户清晰展示各项详细体积与数量，并且**作为电脑专家，用通俗易懂的语言简单解释这些垃圾文件（例如系统临时文件、应用缓存等）是用来做什么的，删除它们会有什么好处**，最后询问用户清理意向。\n2. 用户确认后调用 execute_cleanup。\n3. **极其重要：绝对不可伪造或虚构清理结果！** 必须严格读取 execute_cleanup 返回的 JSON 真实数据。如果真实数据显示释放了 0 B 或存在大量失败项，必须如实且美观地告知用户，并附上返回的失败原因供用户参考。整个过程不跳转界面，全在对话框完成！";
 
             // 注入系统级提示词，赋予 AI “认知”
             _messageHistory.Add(new ChatMessage 
@@ -99,7 +107,26 @@ namespace BlueSapphire.Views
                     Function = new ChatFunction
                     {
                         Name = "start_smart_cleanup",
-                        Description = "Starts the smart system cleanup process. Use this when the user wants to clean up junk files or optimize system storage."
+                        Description = "Starts the smart system cleanup process. If the user explicitly specifies the drives (e.g. 'all drives', 'C drive'), call this tool immediately. If they do NOT specify any drives, you MUST ask them which drives they want to scan before calling this.",
+                        Parameters = new
+                        {
+                            type = "object",
+                            properties = new
+                            {
+                                scan_mode = new
+                                {
+                                    type = "string",
+                                    description = "The mode of scanning. 'Quick' for fast scanning of common junk, 'Deep' for full disk deep scan of large files. Default is 'Deep' if specific drives are given."
+                                },
+                                drives_to_scan = new
+                                {
+                                    type = "array",
+                                    items = new { type = "string" },
+                                    description = "List of drive roots to scan, e.g. [\"C:\\\\\", \"D:\\\\\"]. Pass [\"All\"] to scan all available drives."
+                                }
+                            },
+                            required = new[] { "scan_mode", "drives_to_scan" }
+                        }
                     }
                 },
                 new ChatTool
@@ -107,7 +134,21 @@ namespace BlueSapphire.Views
                     Function = new ChatFunction
                     {
                         Name = "execute_cleanup",
-                        Description = "Executes the cleanup process to free up space. Use this when the user explicitly confirms or asks you to clean up the scanned items."
+                        Description = "Executes the cleanup process to free up space. Use this ONLY AFTER the user has explicitly confirmed what to clean from the scan results.",
+                        Parameters = new
+                        {
+                            type = "object",
+                            properties = new
+                            {
+                                categories_to_clean = new
+                                {
+                                    type = "array",
+                                    items = new { type = "string" },
+                                    description = "The categories or RiskLevels to clean, e.g. ['Safe'], ['Review'], or specific rule names."
+                                }
+                            },
+                            required = new[] { "categories_to_clean" }
+                        }
                     }
                 },
                 new ChatTool
@@ -129,29 +170,40 @@ namespace BlueSapphire.Views
                 }
             };
 
-            // Call AI
-            string responseText = await _aiService.SendChatAsync(_messageHistory, tools);
-
             // Handle Function Calling
-            if (responseText.StartsWith("[TOOL_CALL]"))
+            int maxTurns = 5;
+            while (maxTurns-- > 0)
             {
-                string toolCallJson = responseText.Substring("[TOOL_CALL]".Length).Trim();
-                string toolResult = await _toolsRegistry.ExecuteToolCallAsync(toolCallJson);
-                
-                _messageHistory.Add(new ChatMessage { Role = "assistant", Content = responseText }); // Ideally we'd pass the actual tool_calls object back, but for simplicity we skip full multi-turn tool history tracking if not supported natively. 
-                // Wait, DeepSeek expects proper tool_calls format. For a simpler implementation, we just append the result as a user message or system message to continue the conversation.
-                
-                _messageHistory.Add(new ChatMessage { Role = "system", Content = $"函数执行结果: {toolResult}。请用自然语言将结果反馈给用户。" });
+                // Call AI
+                var aiMessage = await _aiService.SendChatAsync(_messageHistory, tools);
+                _messageHistory.Add(aiMessage);
 
-                // Call AI again to get the natural language response
-                string finalResponse = await _aiService.SendChatAsync(_messageHistory, tools);
-                _messageHistory.Add(new ChatMessage { Role = "assistant", Content = finalResponse });
-                AddMessage("助理", finalResponse);
+                if (aiMessage.ToolCalls != null)
+                {
+                    var toolCallsArray = aiMessage.ToolCalls.Value;
+                    foreach (var call in toolCallsArray.EnumerateArray())
+                    {
+                        var function = call.GetProperty("function");
+                        var name = function.GetProperty("name").GetString();
+                        var args = function.GetProperty("arguments").GetString() ?? "{}";
+                        var toolCallId = call.GetProperty("id").GetString();
+
+                        string toolCallJson = $"[{{\"function\":{{\"name\":\"{name}\",\"arguments\":{System.Text.Json.JsonSerializer.Serialize(args)}}}}}]";
+                        string toolResult = await _toolsRegistry.ExecuteToolCallAsync(toolCallJson);
+                        
+                        _messageHistory.Add(new ChatMessage { Role = "tool", ToolCallId = toolCallId, Content = toolResult });
+                    }
+                    // Loop again so AI can generate the text response
+                }
+                else
+                {
+                    AddMessage("助理", aiMessage.Content ?? "");
+                    break;
+                }
             }
-            else
+            if (maxTurns <= 0)
             {
-                _messageHistory.Add(new ChatMessage { Role = "assistant", Content = responseText });
-                AddMessage("助理", responseText);
+                AddMessage("助理", "后台任务执行次数已达上限，系统已中断连续操作。");
             }
         }
 

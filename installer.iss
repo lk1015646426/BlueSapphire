@@ -6,7 +6,7 @@
   #define MyAppName "BlueSapphire"
 #endif
 #ifndef MyAppVersion
-  #define MyAppVersion "1.0.0"
+  #define MyAppVersion "1.0.7"
 #endif
 #ifndef MyAppPublisher
   #define MyAppPublisher "BlueSapphire Team"
