@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -88,6 +88,7 @@ namespace BlueSapphire
             // 注册 AI 服务
             services.AddSingleton<BlueSapphire.Services.DeepSeekAIService>();
             services.AddSingleton<BlueSapphire.Services.AIToolsRegistry>();
+            services.AddSingleton<BlueSapphire.Services.AIClassifierService>();
 
             // 注册我们的本地文件系统服务 (回收站功能)
             services.AddSingleton<BlueSapphire.Services.NativeFileService>();

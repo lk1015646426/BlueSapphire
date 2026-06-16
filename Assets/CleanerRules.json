@@ -963,6 +963,72 @@
         "%WINDIR%\\LiveKernelReports"
       ],
       "viewOnly": false
+    },
+    {
+      "whyItConsumesSpace": "每次 pip install 都会缓存下载的 whl 包，开发环境可能累积数 GB。",
+      "executionMode": "Quarantine",
+      "regenerationHint": "需要时会自动重新下载。",
+      "includeSubdirectories": true,
+      "scanKind": "DirectoryContents",
+      "includePatterns": [],
+      "name": "pip 缓存",
+      "description": "Python pip 包管理器的下载缓存，存储已安装包的 .whl 文件。",
+      "ownerApp": "Python pip",
+      "whyItCanBeCleaned": "属于可再获取的下载缓存，不影响已安装的 Python 包。",
+      "viewOnly": false,
+      "riskLevel": "Low",
+      "impactAfterCleanup": "下次安装包时需重新下载。",
+      "category": "dev_cache",
+      "paths": [
+        "%LOCALAPPDATA%\\pip\\cache"
+      ],
+      "scope": "Quick",
+      "id": "pip_cache",
+      "defaultSelected": true
+    },
+    {
+      "whyItConsumesSpace": "NuGet 执行 restore 时保留的远程请求缓存，随时间累积。",
+      "executionMode": "Permanent",
+      "regenerationHint": "恢复项目依赖时会自动重建。",
+      "includeSubdirectories": true,
+      "scanKind": "DirectoryContents",
+      "includePatterns": [],
+      "name": "NuGet HTTP 缓存",
+      "description": "NuGet 远程下载的原始 HTTP 缓存，不影响已还原的本地包。",
+      "ownerApp": "NuGet",
+      "whyItCanBeCleaned": "属于纯下载缓存，删除后不影响已还原到 packages 目录的包。",
+      "viewOnly": false,
+      "riskLevel": "Low",
+      "impactAfterCleanup": "下次 restore 初次请求可能稍慢，需重建 HTTP 缓存。",
+      "category": "dev_cache",
+      "paths": [
+        "%LOCALAPPDATA%\\NuGet\\v3-cache"
+      ],
+      "scope": "Quick",
+      "id": "nuget_http_cache",
+      "defaultSelected": true
+    },
+    {
+      "whyItConsumesSpace": "npm install 会将包存入 _cacache，长期开发可能累积数 GB。",
+      "executionMode": "Quarantine",
+      "regenerationHint": "需要时会自动重建缓存。",
+      "includeSubdirectories": true,
+      "scanKind": "DirectoryContents",
+      "includePatterns": [],
+      "name": "npm 缓存",
+      "description": "Node.js npm 包管理器的本地缓存目录。",
+      "ownerApp": "Node.js npm",
+      "whyItCanBeCleaned": "属于可再获取的包缓存，不影响 node_modules 和新安装。",
+      "viewOnly": false,
+      "riskLevel": "Low",
+      "impactAfterCleanup": "下次 npm install 需重新下载，首次可能稍慢。",
+      "category": "dev_cache",
+      "paths": [
+        "%LOCALAPPDATA%\\npm-cache"
+      ],
+      "scope": "Quick",
+      "id": "npm_cache",
+      "defaultSelected": true
     }
   ]
 }
