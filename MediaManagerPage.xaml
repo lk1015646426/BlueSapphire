@@ -187,18 +187,28 @@
             </StackPanel>
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12">
-                <Button Style="{StaticResource ActionButtonStyle}">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <FontIcon Glyph="&#xE70F;" FontSize="14"/>
-                        <TextBlock Text="输入路径" FontSize="13"/>
-                    </StackPanel>
-                </Button>
-                <Button Style="{StaticResource PrimaryActionButtonStyle}" Command="{x:Bind ViewModel.OpenFolderCommand}">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <FontIcon Glyph="&#xE890;" FontSize="14"/>
-                        <TextBlock Text="导入数据源" FontSize="13" FontWeight="SemiBold"/>
-                    </StackPanel>
-                </Button>
+                <DropDownButton Style="{StaticResource PrimaryActionButtonStyle}">
+                    <DropDownButton.Content>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE890;" FontSize="14"/>
+                            <TextBlock Text="导入数据源" FontSize="13" FontWeight="SemiBold"/>
+                        </StackPanel>
+                    </DropDownButton.Content>
+                    <DropDownButton.Flyout>
+                        <MenuFlyout>
+                            <MenuFlyoutItem Text="导入文件夹" Command="{x:Bind ViewModel.OpenFolderCommand}">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE8D5;"/>
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutItem Text="导入单张/多张图片" Command="{x:Bind ViewModel.OpenFilesCommand}">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE8B9;"/>
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                        </MenuFlyout>
+                    </DropDownButton.Flyout>
+                </DropDownButton>
             </StackPanel>
         </Grid>
 

@@ -41,6 +41,23 @@ namespace BlueSapphire
             return await folderPicker.PickSingleFolderAsync();
         }
 
+        public async Task<IReadOnlyList<StorageFile>> PickFilesAsync()
+        {
+            var filePicker = new Windows.Storage.Pickers.FileOpenPicker
+            {
+                ViewMode = Windows.Storage.Pickers.PickerViewMode.Thumbnail,
+                SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.PicturesLibrary
+            };
+            foreach (var ext in Helpers.MediaFileCatalog.ImageExtensions)
+            {
+                filePicker.FileTypeFilter.Add(ext);
+            }
+
+            WinRT.Interop.InitializeWithWindow.Initialize(filePicker, App.MainWindowHandle);
+            var files = await filePicker.PickMultipleFilesAsync();
+            return files;
+        }
+
         public async Task SelectItemsByPathsAsync(IReadOnlyCollection<string> paths)
         {
             if (paths.Count == 0)
@@ -239,9 +256,13 @@ namespace BlueSapphire
             }
         }
 
-        public async Task<FormatConvertOptions?> ShowFormatConvertDialogAsync()
+        public async Task<FormatConvertOptions?> ShowFormatConvertDialogAsync(IReadOnlyList<string> sourceFiles)
         {
-            var dialog = new FormatConvertDialog { XamlRoot = this.XamlRoot };
+            var dialog = new FormatConvertDialog(sourceFiles)
+            {
+                XamlRoot = this.XamlRoot
+            };
+            
             var result = await dialog.ShowAsync();
             return result == ContentDialogResult.Primary ? dialog.Options : null;
         }

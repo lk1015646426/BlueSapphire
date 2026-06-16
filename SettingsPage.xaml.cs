@@ -10,15 +10,37 @@ using System;
 using System.IO;
 using System.Reflection;
 using System.Threading.Tasks;
+using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using BlueSapphire.Services;
 
 namespace BlueSapphire
 {
-    public sealed partial class SettingsPage : Page
+    public sealed partial class SettingsPage : Page, System.ComponentModel.INotifyPropertyChanged
     {
-        public string AppDisplayVersion { get; private set; } = "版本信息读取失败";
-        public string AppBuildDate { get; private set; } = "构建日期读取失败";
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+
+        private string _appDisplayVersion = "版本信息读取失败";
+        public string AppDisplayVersion
+        {
+            get => _appDisplayVersion;
+            private set
+            {
+                _appDisplayVersion = value;
+                PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(AppDisplayVersion)));
+            }
+        }
+
+        private string _appBuildDate = "构建日期读取失败";
+        public string AppBuildDate
+        {
+            get => _appBuildDate;
+            private set
+            {
+                _appBuildDate = value;
+                PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(AppBuildDate)));
+            }
+        }
 
         private int _versionTapCount;
         private readonly DispatcherTimer _clickResetTimer;
@@ -38,16 +60,33 @@ namespace BlueSapphire
             };
         }
 
-        private void LoadVersionInfo()
+        private async void LoadVersionInfo()
         {
             try
             {
                 var assembly = Assembly.GetExecutingAssembly();
-                var version = assembly.GetName().Version;
-
-                if (version != null)
+                
+                try
                 {
-                    AppDisplayVersion = $"版本 {version.Major}.{version.Minor}.{version.Build}";
+                    var logService = App.Current.Services.GetRequiredService<DevLogDataService>();
+                    var logs = await logService.LoadLogsAsync();
+                    var latestLog = logs.OrderByDescending(l => l.Timestamp).FirstOrDefault();
+                    if (latestLog != null)
+                    {
+                        AppDisplayVersion = $"版本 {latestLog.Version}";
+                    }
+                    else
+                    {
+                        var version = assembly.GetName().Version;
+                        if (version != null)
+                            AppDisplayVersion = $"版本 {version.Major}.{version.Minor}.{version.Build}";
+                    }
+                }
+                catch
+                {
+                    var version = assembly.GetName().Version;
+                    if (version != null)
+                        AppDisplayVersion = $"版本 {version.Major}.{version.Minor}.{version.Build}";
                 }
 
                 if (!string.IsNullOrEmpty(assembly.Location))

@@ -230,37 +230,27 @@ namespace BlueSapphire.ViewModels
         }
 
         [RelayCommand]
-        private async Task OpenFolderByPath()
+        private async Task OpenFiles()
         {
             IsImageWorkspaceVisible = true;
 
-            string? input = await _view.ShowInputPromptAsync(
-                "导入本地路径",
-                "输入要导入的图片文件夹路径，支持直接粘贴本地目录。",
-                _currentFolder?.Path ?? string.Empty);
-
-            string? normalizedPath = NormalizeFolderPathInput(input);
-            if (normalizedPath == null)
+            var files = await _view.PickFilesAsync();
+            if (files == null || files.Count == 0)
             {
                 return;
             }
 
-            try
+            // Set _currentFolder to the folder of the first file if possible
+            if (files.Count > 0)
             {
-                if (!Directory.Exists(normalizedPath))
+                try
                 {
-                    await _view.ShowTipAsync("指定路径不存在，或当前账户无权访问。");
-                    return;
+                    _currentFolder = await StorageFolder.GetFolderFromPathAsync(Path.GetDirectoryName(files[0].Path));
                 }
+                catch { _currentFolder = null; }
+            }
 
-                StorageFolder folder = await StorageFolder.GetFolderFromPathAsync(normalizedPath);
-                _currentFolder = folder;
-                await LoadFolderContentAsync(folder);
-            }
-            catch (Exception ex)
-            {
-                await _view.ShowTipAsync($"路径导入失败: {ex.Message}");
-            }
+            await LoadFilesAsync(files, _currentFolder?.Path ?? "已选图片");
         }
 
         [RelayCommand]
@@ -695,7 +685,8 @@ namespace BlueSapphire.ViewModels
                 return;
             }
 
-            var options = await _view.ShowFormatConvertDialogAsync();
+            var filePaths = items.Select(x => x.ImagePath).Where(x => !string.IsNullOrEmpty(x)).Cast<string>().ToList();
+            var options = await _view.ShowFormatConvertDialogAsync(filePaths);
             if (options == null) return;
 
             string targetName = _imageProcessingService.GetTargetDisplayName(options.TargetFormat);
@@ -893,7 +884,23 @@ namespace BlueSapphire.ViewModels
 
         private async Task LoadFolderContentAsync(StorageFolder folder)
         {
-            SetBusy(true, "正在扫描图片...");
+            SetBusy(true, "正在扫描文件夹...");
+
+            try
+            {
+                var files = await folder.CreateFileQueryWithOptions(MediaFileCatalog.CreateImageQueryOptions()).GetFilesAsync();
+                await LoadFilesAsync(files, folder.Path);
+            }
+            catch (Exception ex)
+            {
+                SetBusy(false);
+                await _view.ShowTipAsync($"加载文件夹失败: {ex.Message}");
+            }
+        }
+
+        private async Task LoadFilesAsync(IReadOnlyList<StorageFile> files, string displayPath)
+        {
+            SetBusy(true, "正在读取图片信息...");
 
             Images = null;
             lock (_cachedAllItems)
@@ -901,54 +908,59 @@ namespace BlueSapphire.ViewModels
                 _cachedAllItems.Clear();
             }
 
-            PathText = folder.Path;
+            PathText = displayPath;
             CountText = "0";
             HasImages = false;
             IsEmptyStateVisible = false;
 
+            if (files.Count == 0)
+            {
+                IsEmptyStateVisible = true;
+                SetBusy(false);
+                return;
+            }
+
+            var concurrentItems = new ConcurrentBag<ImageItem>();
+            using var semaphore = new SemaphoreSlim(Environment.ProcessorCount * 2);
+
+            int processedCount = 0;
+            int totalFiles = files.Count;
+
+            RunOnUi(() => 
+            {
+                ProgressMax = totalFiles;
+                ProgressValue = 0;
+            });
+
+            var tasks = files.Select(async file =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    var item = await CreateImageItemAsync(file);
+                    concurrentItems.Add(item);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Load_Image ({FileName})", file.Name);
+                }
+                finally
+                {
+                    semaphore.Release();
+                    int current = Interlocked.Increment(ref processedCount);
+                    if (current % 10 == 0 || current == totalFiles)
+                    {
+                        RunOnUi(() =>
+                        {
+                            ProgressValue = current;
+                            StatusDetailText = $"{current} / {totalFiles}";
+                        });
+                    }
+                }
+            });
+
             try
             {
-                var files = await folder.CreateFileQueryWithOptions(MediaFileCatalog.CreateImageQueryOptions()).GetFilesAsync();
-                if (files.Count == 0)
-                {
-                    IsEmptyStateVisible = true;
-                    SetBusy(false);
-                    return;
-                }
-
-                var concurrentItems = new ConcurrentBag<ImageItem>();
-                using var semaphore = new SemaphoreSlim(Environment.ProcessorCount * 2);
-
-                int processedCount = 0;
-                int totalFiles = files.Count;
-
-                var tasks = files.Select(async file =>
-                {
-                    await semaphore.WaitAsync();
-                    try
-                    {
-                        var item = await CreateImageItemAsync(file);
-                        concurrentItems.Add(item);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Load_Image ({FileName})", file.Name);
-                    }
-                    finally
-                    {
-                        semaphore.Release();
-                        int current = Interlocked.Increment(ref processedCount);
-                        if (current % 10 == 0 || current == totalFiles)
-                        {
-                            RunOnUi(() =>
-                            {
-                                ProgressValue = (double)current / totalFiles * 100;
-                                StatusDetailText = $"{current} / {totalFiles}";
-                            });
-                        }
-                    }
-                });
-
                 await Task.WhenAll(tasks);
 
                 lock (_cachedAllItems)
@@ -966,7 +978,7 @@ namespace BlueSapphire.ViewModels
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Load_Folder_Critical");
+                _logger.LogError(ex, "Load_Files_Critical");
                 await _view.ShowTipAsync($"读取失败: {ex.Message}");
                 IsEmptyStateVisible = true;
             }

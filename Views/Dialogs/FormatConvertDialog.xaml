@@ -12,11 +12,20 @@
             <ComboBoxItem Content="JPEG (.jpg)" Tag="Jpeg"/>
             <ComboBoxItem Content="PNG (.png)" Tag="Png"/>
             <ComboBoxItem Content="BMP (.bmp)" Tag="Bmp"/>
+            <ComboBoxItem Content="TIFF (.tiff)" Tag="Tiff"/>
         </ComboBox>
 
         <StackPanel x:Name="QualityPanel" Spacing="8">
             <TextBlock x:Name="QualityText" Text="压缩质量: 92%" />
-            <Slider x:Name="QualitySlider" Minimum="1" Maximum="100" Value="92" ValueChanged="QualitySlider_ValueChanged" />
+            <Grid ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Slider x:Name="QualitySlider" Minimum="1" Maximum="100" Value="92" ValueChanged="QualitySlider_ValueChanged" Grid.Column="0" VerticalAlignment="Center" />
+                <NumberBox x:Name="QualityNumberBox" Minimum="1" Maximum="100" Value="92" ValueChanged="QualityNumberBox_ValueChanged" Grid.Column="1" Width="70" SpinButtonPlacementMode="Compact" />
+            </Grid>
+            <TextBlock x:Name="EstimatedSizeText" Text="" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap" />
         </StackPanel>
     </StackPanel>
 </ContentDialog>

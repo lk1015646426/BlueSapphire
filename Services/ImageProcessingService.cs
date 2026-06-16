@@ -17,7 +17,9 @@ namespace BlueSapphire.Services
     {
         Jpeg,
         Png,
-        Bmp
+        Bmp,
+        Gif,
+        Tiff
     }
 
     public readonly record struct ImageCropFrame(uint X, uint Y, uint Width, uint Height);
@@ -46,6 +48,8 @@ namespace BlueSapphire.Services
                 ImageConversionTarget.Jpeg => ".jpg",
                 ImageConversionTarget.Png => ".png",
                 ImageConversionTarget.Bmp => ".bmp",
+                ImageConversionTarget.Gif => ".gif",
+                ImageConversionTarget.Tiff => ".tiff",
                 _ => string.Empty
             };
         }
@@ -57,6 +61,8 @@ namespace BlueSapphire.Services
                 ImageConversionTarget.Jpeg => "JPEG",
                 ImageConversionTarget.Png => "PNG",
                 ImageConversionTarget.Bmp => "BMP",
+                ImageConversionTarget.Gif => "GIF",
+                ImageConversionTarget.Tiff => "TIFF",
                 _ => target.ToString()
             };
         }
@@ -83,6 +89,63 @@ namespace BlueSapphire.Services
                 quality: options.TargetFormat == ImageConversionTarget.Jpeg ? options.Quality : null,
                 successMessage: $"已转换为 {options.TargetFormat}。",
                 cancellationToken);
+        }
+
+        public async Task<long> EstimateSizeAsync(string sourcePath, FormatConvertOptions options, CancellationToken cancellationToken = default)
+        {
+            if (!ValidateSourcePath(sourcePath, out _))
+            {
+                return -1;
+            }
+
+            try
+            {
+                var sourceFile = await StorageFile.GetFileFromPathAsync(sourcePath);
+                using var sourceStream = await sourceFile.OpenReadAsync();
+                var decoder = await BitmapDecoder.CreateAsync(sourceStream);
+                var encoderId = GetEncoderId(options.TargetFormat);
+                
+                using var memoryStream = new InMemoryRandomAccessStream();
+                BitmapEncoder encoder;
+
+                if (options.TargetFormat == ImageConversionTarget.Jpeg)
+                {
+                    var propertySet = new BitmapPropertySet
+                    {
+                        { "ImageQuality", new BitmapTypedValue((float)options.Quality, PropertyType.Single) }
+                    };
+                    encoder = await BitmapEncoder.CreateAsync(encoderId, memoryStream, propertySet);
+                }
+                else
+                {
+                    encoder = await BitmapEncoder.CreateAsync(encoderId, memoryStream);
+                }
+
+                var pixelProvider = await decoder.GetPixelDataAsync(
+                    decoder.BitmapPixelFormat,
+                    encoderId == BitmapEncoder.JpegEncoderId ? BitmapAlphaMode.Ignore : decoder.BitmapAlphaMode,
+                    new BitmapTransform(),
+                    ExifOrientationMode.RespectExifOrientation,
+                    ColorManagementMode.ColorManageToSRgb);
+
+                byte[] pixels = pixelProvider.DetachPixelData();
+
+                encoder.SetPixelData(
+                    decoder.BitmapPixelFormat,
+                    encoderId == BitmapEncoder.JpegEncoderId ? BitmapAlphaMode.Ignore : decoder.BitmapAlphaMode,
+                    decoder.PixelWidth,
+                    decoder.PixelHeight,
+                    decoder.DpiX,
+                    decoder.DpiY,
+                    pixels);
+
+                await encoder.FlushAsync().AsTask(cancellationToken);
+                return (long)memoryStream.Size;
+            }
+            catch
+            {
+                return -1;
+            }
         }
 
         public async Task<ImageProcessResult> ProcessAdvancedAsync(string sourcePath, AdvancedEditOptions options, CancellationToken cancellationToken = default)
@@ -413,6 +476,8 @@ namespace BlueSapphire.Services
                 ImageConversionTarget.Jpeg => BitmapEncoder.JpegEncoderId,
                 ImageConversionTarget.Png => BitmapEncoder.PngEncoderId,
                 ImageConversionTarget.Bmp => BitmapEncoder.BmpEncoderId,
+                ImageConversionTarget.Gif => BitmapEncoder.GifEncoderId,
+                ImageConversionTarget.Tiff => BitmapEncoder.TiffEncoderId,
                 _ => BitmapEncoder.JpegEncoderId
             };
         }
@@ -594,15 +659,18 @@ namespace BlueSapphire.Services
                 var outputFolder = await StorageFolder.GetFolderFromPathAsync(Path.GetDirectoryName(outputPath)!);
                 outputFile = await outputFolder.CreateFileAsync(Path.GetFileName(outputPath), CreationCollisionOption.FailIfExists);
                 using var destinationStream = await outputFile.OpenAsync(FileAccessMode.ReadWrite);
-                var encoder = await BitmapEncoder.CreateAsync(encoderId, destinationStream);
-
+                BitmapEncoder encoder;
                 if (encoderId == BitmapEncoder.JpegEncoderId)
                 {
                     var propertySet = new BitmapPropertySet
                     {
                         { "ImageQuality", new BitmapTypedValue(0.94f, PropertyType.Single) }
                     };
-                    await encoder.BitmapProperties.SetPropertiesAsync(propertySet);
+                    encoder = await BitmapEncoder.CreateAsync(encoderId, destinationStream, propertySet);
+                }
+                else
+                {
+                    encoder = await BitmapEncoder.CreateAsync(encoderId, destinationStream);
                 }
 
                 encoder.SetPixelData(
@@ -649,15 +717,18 @@ namespace BlueSapphire.Services
                 using var sourceStream = await sourceFile.OpenReadAsync();
                 using var destinationStream = await outputFile.OpenAsync(FileAccessMode.ReadWrite);
                 var decoder = await BitmapDecoder.CreateAsync(sourceStream);
-                var encoder = await BitmapEncoder.CreateAsync(encoderId, destinationStream);
-
+                BitmapEncoder encoder;
                 if (quality.HasValue)
                 {
                     var propertySet = new BitmapPropertySet
                     {
                         { "ImageQuality", new BitmapTypedValue((float)quality.Value, PropertyType.Single) }
                     };
-                    await encoder.BitmapProperties.SetPropertiesAsync(propertySet);
+                    encoder = await BitmapEncoder.CreateAsync(encoderId, destinationStream, propertySet);
+                }
+                else
+                {
+                    encoder = await BitmapEncoder.CreateAsync(encoderId, destinationStream);
                 }
 
                 BitmapTransform effectiveTransform = transform ?? new BitmapTransform();
