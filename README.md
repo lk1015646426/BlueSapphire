@@ -1,34 +1,35 @@
 # BlueSapphire
 
-BlueSapphire 是一个面向 Windows 11 的 WinUI 3 工具箱，当前已经包含两条核心产品线：
+BlueSapphire 是一个面向 Windows 11 的 WinUI 3 工具箱，当前已经完成了四大核心产品线的闭环：
 
-- `媒体管家`：图片的扫描、整理、去重与批处理
-- `清理助手`：空间分析、风险分层、恢复、排除、提权清理、规则热更新
+- `AI Copilot`：基于大语言模型的全局智能中枢，支持智能调度、指令执行与自动化日志记录
+- `媒体管家`：基于 pHash 的视觉指纹去重、动态刷新、重度图像整理与批处理
+- `清理助手`：空间分析、风险分层、隔离恢复、自动低风险保洁、安全隔离区与规则治理
+- `开发日志`：自动化同步与展示，内部调试与版本记录页
 
-项目目标不是做“堆功能的工具集合”，而是做一套风格统一、交互清晰、可长期演进的桌面工具平台。
+项目目标不是做“堆功能的工具集合”，而是做一套风格统一、交互清晰、可长期演进的现代化智能桌面平台。
 
 ## 版本信息
 
-- 当前文档版本：`1.0.7`
+- 当前文档版本：`1.0.0` 正式版
 - 当前发布形态：`Windows 11 x64` 安装包
 - 当前发布链路：`dotnet publish -> Inno Setup -> GitHub Releases`
 
-### 1.0.7 更新摘要
+### 1.0.0 里程碑升级摘要
 
-- 消除非事件处理器中的 `async void`，避免静默崩溃风险
-- 拆解 `CleanerAssistantViewModel` 至独立功能模块（扫描、清理、自动化等），大幅提升可维护性
-- 补齐 ViewModel 层与 Media 模块核心业务逻辑的自动化测试用例
-- 采用 `DPAPI` 加密方式实现 `DeepSeek API Key` 安全存储机制
-- 引入 `IHttpClientFactory` 优化 HTTP 请求性能及生命周期管理
-- 统一日志抽象至 `Microsoft.Extensions.Logging`，全盘接管启动和清理相关的输出
+- 🚀 **智能中枢进化**：深度集成 AI Copilot 智能引擎，全面接管软件系统底层的路由调度与后台任务（例如自动扫描与记录日志）。
+- 🗑️ **空间治理闭环**：提供清理助手“扫描-分层-隔离-保洁”的安全体系，并新增隔离区与提权清理。
+- 🖼️ **媒体管理重构**：引入 pHash 视觉指纹引擎，并实现操作界面的局部动态无感刷新。
+- 🛠️ **全盘架构焕新**：全面转入 WinUI 3 现代化框架并重构侧边导航；统一 `DevLogDataService` 并实现日志回写机制；发布体系正式切换到 Publish-Only 自动链路。
 
 ## 当前模块
 
 - `主页`：工具导航与整体状态入口
-- `媒体管家`：图片扫描、去重、时间重命名、格式转换、尺寸调整、裁剪、压缩、增强、自定义标签
-- `清理助手`：快速扫描、深度扫描、空间分析、隔离恢复、自动低风险保洁、规则治理
-- `设置`：应用行为与视觉项配置
-- `开发日志`：内部调试与版本记录页
+- `AI 智能助理`：支持自然语言多轮对话，内置 Agent 引擎，可根据指令直达界面或调用清理任务、生成日志
+- `媒体管家`：图片智能扫描、精准相似度去重、文件无感动态刷新
+- `清理助手`：快速/深度扫描、磁盘空间分析、隔离恢复与系统级权限保洁
+- `设置`：应用行为与视觉项配置、大模型 API Key 加密存储管理
+- `开发日志`：版本自动合并、双环境（开发/生产）记录存储流转
 
 ## 技术栈
 
@@ -126,13 +127,13 @@ ISCC.exe `
 ```text
 BlueSapphire/
 ├── .github/workflows/          # GitHub Actions
-├── Assets/                     # 运行时资源、规则、图标
+├── Assets/                     # 运行时资源、规则、图标、初始日志配置
 ├── BlueSapphire.Tests/         # 单元测试与回归测试
 ├── Helpers/                    # 配置与通用辅助
 ├── Interfaces/                 # UI/服务交互接口
 ├── Models/                     # 业务模型
-├── Services/                   # 扫描、清理、图片处理等服务
-├── Tools/                      # 导航工具定义
+├── Services/                   # 扫描、清理、图片处理及大模型调度服务
+├── Tools/                      # AI Agent 工具与导航工具定义
 ├── ViewModels/                 # MVVM 视图模型
 ├── Views/                      # 页面与对话框
 ├── TestData/                   # 测试样本
@@ -142,7 +143,7 @@ BlueSapphire/
 
 ## 说明
 
-- `Assets\CleanerRules.json` 属于正式运行时资源，会跟随发布
+- `Assets\CleanerRules.json` 与 `Assets\DevMatrixLog.json` 属于正式运行时资源，会跟随发布
 - `BlueSapphire.Tests` 和 `TestData` 仅用于开发与验证，不进入正式发布目录
 - 如果你想一键构建安装包，配套工具仓库是 `BlueSapphire-Builder`
 
@@ -157,6 +158,7 @@ BlueSapphire/
 - `docs/screenshots/home.png`
 - `docs/screenshots/media-manager.png`
 - `docs/screenshots/cleaner-assistant.png`
+- `docs/screenshots/ai-copilot.png`
 
 代表界面如下：
 
@@ -172,6 +174,10 @@ BlueSapphire/
 
 ![BlueSapphire Cleaner Assistant](docs/screenshots/cleaner-assistant.png)
 
+### AI 智能助理
+
+![BlueSapphire AI Copilot](docs/screenshots/ai-copilot.png)
+
 补充说明：
 
 - `Assets/StoreLogo.png` 继续作为仓库 Logo 资源保留
@@ -181,11 +187,11 @@ BlueSapphire/
 正式安装包统一通过 GitHub Releases 分发：
 
 - 下载地址：[BlueSapphire Releases](https://github.com/lk1015646426/BlueSapphire/releases)
-- 建议发布标签：`v1.0.7`
+- 建议发布标签：`v1.0.0`
 
 下载建议：
 
-- 普通用户直接下载 `BlueSapphire_Setup_v1.0.7.exe` 或更新版本
+- 普通用户直接下载 `BlueSapphire_Setup_v1.0.0.exe` 或更新版本
 - 安装目标机器不需要提前安装 `.NET SDK`
 - 安装目标机器不需要提前安装 `Windows App SDK`
 
@@ -219,17 +225,15 @@ dotnet build BlueSapphire.slnx
 
 - README 截图目录已经预留，但最终版界面截图仍需后续替换进 `docs/screenshots/`
 - 系统级清理涉及权限边界，部分路径必须在管理员模式下才可执行
+- AI Copilot 目前采用基于对话流的 Tool Calls 方案，指令连续触发时可能需要注意 API 返回结构。
 
 ## 后续路线
 
 - 持续扩充清理规则库与发布质量治理
 - 继续完善媒体处理链路的真实场景验证
+- 拓展 AI Copilot 的更多桌面级别 Agent 能力
 - 持续收口安装包、Release 和 Builder 的发版体验
 
 ## 开发日志与版本记录
 
-> **[修复优化] 修复 AI 智能助手连续触发指令时的陷入死循环的 Bug，并优化提示词让 AI 执行清理任务更加灵活**
-> 
-> **1.0.7** | 2026-06-15 23:11:56
-> 
-> `release(1.0.7): 修复 DeepSeek 原生 tool_calls JSON 结构解析导致的死循环 Bug；修改 AI 强制提示词（Prompt），赋予智能免询问立即扫描能力；完善多轮 Tool Call History 的状态保持。`
+详见客户端内嵌的 **开发日志** 模块，AI 智能助理可根据指令自动为您提取与生成最新开发记录！
