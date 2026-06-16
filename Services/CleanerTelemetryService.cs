@@ -14,6 +14,8 @@ namespace BlueSapphire.Services
 {
     public sealed class CleanerTelemetryService
     {
+        private static readonly HttpClient SharedClient = new HttpClient();
+
         private readonly CleanerStateStore _stateStore;
         private readonly CleanerAuditService _auditService;
         private readonly CleanerRuleService _ruleService;
@@ -42,7 +44,7 @@ namespace BlueSapphire.Services
             _auditService = auditService;
             _ruleService = ruleService;
             _profileService = profileService;
-            _httpClient = httpClient ?? new HttpClient();
+            _httpClient = httpClient ?? SharedClient;
             _uploader = uploader ?? UploadCoreAsync;
         }
 

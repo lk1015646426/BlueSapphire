@@ -166,12 +166,14 @@ namespace BlueSapphire.Services
             _cachedQuickScan = null;
         }
 
-        private async Task<List<CleanerScanItem>> ScanRuleAsync(
+        private Task<List<CleanerScanItem>> ScanRuleAsync(
             CleanerRuleDefinition rule,
             HashSet<string> exclusions,
             CancellationToken cancellationToken)
         {
-            List<CleanerScanItem> result = new();
+            return Task.Run(() =>
+            {
+                List<CleanerScanItem> result = new();
 
             foreach (string rawPath in rule.Paths)
             {
@@ -197,9 +199,7 @@ namespace BlueSapphire.Services
                         continue;
                     }
 
-                    ScanStats stats = await Task.Run(
-                        () => CollectStats(rule, normalizedPath, exclusions),
-                        cancellationToken);
+                    ScanStats stats = CollectStats(rule, normalizedPath, exclusions);
 
                     if (stats.SizeBytes <= 0 || stats.FileCount <= 0)
                     {
@@ -257,6 +257,7 @@ namespace BlueSapphire.Services
                 }
             }
             return result;
+            }, cancellationToken);
         }
 
         private CleanerScanItem BuildElevationRequiredPlaceholder(
@@ -410,28 +411,22 @@ namespace BlueSapphire.Services
 
                 try
                 {
-                    foreach (string file in CleanerPathSafety.SafeEnumerateFiles(current))
+                    EnumerationOptions options = new EnumerationOptions { IgnoreInaccessible = true, ReturnSpecialDirectories = false };
+                    DirectoryInfo dirInfo = new DirectoryInfo(current);
+                    
+                    foreach (FileInfo file in dirInfo.EnumerateFiles("*", options))
                     {
-                        if (CleanerPathSafety.IsExcluded(file, exclusions))
+                        if (CleanerPathSafety.IsExcluded(file.FullName, exclusions))
                         {
                             continue;
                         }
 
-                        FileInfo info = new(file);
-                        sizeBytes += info.Length;
+                        sizeBytes += file.Length;
                         fileCount++;
-                        if (latestWriteTime < info.LastWriteTimeUtc)
+                        if (latestWriteTime < file.LastWriteTimeUtc)
                         {
-                            latestWriteTime = info.LastWriteTimeUtc;
+                            latestWriteTime = file.LastWriteTimeUtc;
                         }
-
-                        // Lock checking is deferred to execution time to avoid catastrophic I/O bottlenecks.
-                        // bool locked = CleanerPathSafety.IsFileLocked(file);
-                        // isLocked |= locked;
-                        // if (lockProbePaths.Count < 12 && locked)
-                        // {
-                        //     lockProbePaths.Add(file);
-                        // }
                     }
 
                     if (!recursive)
@@ -439,11 +434,11 @@ namespace BlueSapphire.Services
                         continue;
                     }
 
-                    foreach (string directory in CleanerPathSafety.SafeEnumerateDirectories(current))
+                    foreach (DirectoryInfo subDir in dirInfo.EnumerateDirectories("*", options))
                     {
-                        if (!CleanerPathSafety.IsReparsePoint(directory))
+                        if (!CleanerPathSafety.IsReparsePoint(subDir.FullName))
                         {
-                            pending.Push(directory);
+                            pending.Push(subDir.FullName);
                         }
                     }
                 }

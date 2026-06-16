@@ -12,10 +12,21 @@ namespace BlueSapphire.Services
 
         public static string NormalizePath(string path)
         {
+            if (string.IsNullOrWhiteSpace(path)) return string.Empty;
+
             try
             {
-                return Path.GetFullPath(path)
-                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                string fullPath = Path.GetFullPath(path);
+                string root = Path.GetPathRoot(fullPath) ?? string.Empty;
+                
+                if (string.Equals(fullPath, root, StringComparison.OrdinalIgnoreCase))
+                {
+                    return fullPath.EndsWith(Path.DirectorySeparatorChar) || fullPath.EndsWith(Path.AltDirectorySeparatorChar)
+                        ? fullPath
+                        : fullPath + Path.DirectorySeparatorChar;
+                }
+
+                return fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
             }
             catch
             {

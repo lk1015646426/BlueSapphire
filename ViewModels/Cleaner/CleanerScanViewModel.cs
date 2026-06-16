@@ -386,7 +386,7 @@ namespace BlueSapphire.ViewModels.Cleaner
 
         private static string NormalizePath(string path)
         {
-            return path.TrimEnd('\\', '/') + "\\";
+            return CleanerPathSafety.NormalizePath(path);
         }
 
         private class ActionDisposable : IDisposable

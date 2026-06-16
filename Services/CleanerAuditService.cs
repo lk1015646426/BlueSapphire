@@ -36,12 +36,13 @@ namespace BlueSapphire.Services
                 snapshot.RecentScans.RemoveRange(12, snapshot.RecentScans.Count - 12);
             }
 
-            foreach (IGrouping<string, CleanerScanItem> group in report.Items
-                .Where(item => !string.IsNullOrWhiteSpace(item.RuleId))
-                .GroupBy(item => item.RuleId, StringComparer.OrdinalIgnoreCase))
+            foreach (CleanerScanItem item in report.Items)
             {
-                snapshot.RuleHits.TryGetValue(group.Key, out int current);
-                snapshot.RuleHits[group.Key] = current + group.Count();
+                if (!string.IsNullOrWhiteSpace(item.RuleId))
+                {
+                    snapshot.RuleHits.TryGetValue(item.RuleId, out int current);
+                    snapshot.RuleHits[item.RuleId] = current + 1;
+                }
             }
 
             await _stateStore.SaveAuditAsync(snapshot);
@@ -113,12 +114,13 @@ namespace BlueSapphire.Services
         public async Task RecordDeselectionAsync(IEnumerable<CleanerScanItem> items)
         {
             CleanerAuditSnapshot snapshot = await _stateStore.LoadAuditAsync();
-            foreach (IGrouping<string, CleanerScanItem> group in items
-                .Where(item => item.DefaultSelected && !item.IsSelected && item.IsSelectableAndEnabled && !string.IsNullOrWhiteSpace(item.RuleId))
-                .GroupBy(item => item.RuleId, StringComparer.OrdinalIgnoreCase))
+            foreach (CleanerScanItem item in items)
             {
-                snapshot.RuleDeselections.TryGetValue(group.Key, out int current);
-                snapshot.RuleDeselections[group.Key] = current + group.Count();
+                if (item.DefaultSelected && !item.IsSelected && item.IsSelectableAndEnabled && !string.IsNullOrWhiteSpace(item.RuleId))
+                {
+                    snapshot.RuleDeselections.TryGetValue(item.RuleId, out int current);
+                    snapshot.RuleDeselections[item.RuleId] = current + 1;
+                }
             }
 
             await _stateStore.SaveAuditAsync(snapshot);
@@ -212,9 +214,33 @@ namespace BlueSapphire.Services
 
         private static CleanerScanSnapshot BuildScanSnapshot(CleanerScanReport report)
         {
-            List<CleanerScanItem> safeItems = report.Items.Where(item => item.IsSafeBucket).ToList();
-            List<CleanerScanItem> reviewItems = report.Items.Where(item => item.IsReviewBucket).ToList();
-            List<CleanerScanItem> viewOnlyItems = report.Items.Where(item => item.IsViewOnlyBucket).ToList();
+            int safeCount = 0;
+            int reviewCount = 0;
+            int viewOnlyCount = 0;
+            long safeBytes = 0;
+            long reviewBytes = 0;
+            long viewOnlyBytes = 0;
+            long totalBytes = 0;
+
+            foreach (CleanerScanItem item in report.Items)
+            {
+                totalBytes += item.SizeBytes;
+                if (item.IsSafeBucket)
+                {
+                    safeCount++;
+                    safeBytes += item.SizeBytes;
+                }
+                else if (item.IsReviewBucket)
+                {
+                    reviewCount++;
+                    reviewBytes += item.SizeBytes;
+                }
+                else if (item.IsViewOnlyBucket)
+                {
+                    viewOnlyCount++;
+                    viewOnlyBytes += item.SizeBytes;
+                }
+            }
 
             return new CleanerScanSnapshot
             {
@@ -226,13 +252,13 @@ namespace BlueSapphire.Services
                     .ToList(),
                 DurationMs = (long)report.Duration.TotalMilliseconds,
                 TotalItemCount = report.Items.Count,
-                SafeItemCount = safeItems.Count,
-                ReviewItemCount = reviewItems.Count,
-                ViewOnlyItemCount = viewOnlyItems.Count,
-                TotalBytes = report.Items.Sum(item => item.SizeBytes),
-                SafeBytes = safeItems.Sum(item => item.SizeBytes),
-                ReviewBytes = reviewItems.Sum(item => item.SizeBytes),
-                ViewOnlyBytes = viewOnlyItems.Sum(item => item.SizeBytes),
+                SafeItemCount = safeCount,
+                ReviewItemCount = reviewCount,
+                ViewOnlyItemCount = viewOnlyCount,
+                TotalBytes = totalBytes,
+                SafeBytes = safeBytes,
+                ReviewBytes = reviewBytes,
+                ViewOnlyBytes = viewOnlyBytes,
                 UsedIncrementalReuse = report.UsedIncrementalReuse,
                 ReusedItemCount = report.ReusedItemCount
             };

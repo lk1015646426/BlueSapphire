@@ -1,4 +1,4 @@
-﻿using BlueSapphire.Interfaces;
+using BlueSapphire.Interfaces;
 using BlueSapphire.Models;
 using BlueSapphire.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -307,7 +307,7 @@ namespace BlueSapphire.ViewModels.Cleaner
 
         private static string NormalizePath(string path)
         {
-            return path.TrimEnd('\\', '/') + "\\";
+            return CleanerPathSafety.NormalizePath(path);
         }
 
         private void NotifyPropertiesChanged()

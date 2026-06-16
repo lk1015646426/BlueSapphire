@@ -12,8 +12,10 @@ namespace BlueSapphire.Services
 {
     public sealed class CleanerStateStore
     {
-        private readonly SemaphoreSlim _gate = new(1, 1);
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, SemaphoreSlim> _locks = new(StringComparer.OrdinalIgnoreCase);
         private readonly string _rootPath;
+        
+        private SemaphoreSlim GetLock(string path) => _locks.GetOrAdd(path, _ => new SemaphoreSlim(1, 1));
 
         public CleanerStateStore(string? rootPath = null)
         {
@@ -39,59 +41,64 @@ namespace BlueSapphire.Services
 
         public async Task<IReadOnlyList<CleanerCleanupBatch>> LoadHistoryAsync()
         {
-            await _gate.WaitAsync();
+            SemaphoreSlim fileLock = GetLock(HistoryFilePath);
+            await fileLock.WaitAsync();
             try
             {
                 return await ReadAsync(HistoryFilePath, CleanerStoreJsonContext.Default.ListCleanerCleanupBatch);
             }
             finally
             {
-                _gate.Release();
+                fileLock.Release();
             }
         }
 
         public async Task SaveHistoryAsync(IReadOnlyList<CleanerCleanupBatch> history)
         {
-            await _gate.WaitAsync();
+            SemaphoreSlim fileLock = GetLock(HistoryFilePath);
+            await fileLock.WaitAsync();
             try
             {
                 await WriteAsync(HistoryFilePath, history, CleanerStoreJsonContext.Default.ListCleanerCleanupBatch);
             }
             finally
             {
-                _gate.Release();
+                fileLock.Release();
             }
         }
 
         public async Task<IReadOnlyList<CleanerExclusionEntry>> LoadExclusionsAsync()
         {
-            await _gate.WaitAsync();
+            SemaphoreSlim fileLock = GetLock(ExclusionsFilePath);
+            await fileLock.WaitAsync();
             try
             {
                 return await ReadAsync(ExclusionsFilePath, CleanerStoreJsonContext.Default.ListCleanerExclusionEntry);
             }
             finally
             {
-                _gate.Release();
+                fileLock.Release();
             }
         }
 
         public async Task SaveExclusionsAsync(IReadOnlyList<CleanerExclusionEntry> exclusions)
         {
-            await _gate.WaitAsync();
+            SemaphoreSlim fileLock = GetLock(ExclusionsFilePath);
+            await fileLock.WaitAsync();
             try
             {
                 await WriteAsync(ExclusionsFilePath, exclusions, CleanerStoreJsonContext.Default.ListCleanerExclusionEntry);
             }
             finally
             {
-                _gate.Release();
+                fileLock.Release();
             }
         }
 
         public async Task<CleanerAuditSnapshot> LoadAuditAsync()
         {
-            await _gate.WaitAsync();
+            SemaphoreSlim fileLock = GetLock(AuditFilePath);
+            await fileLock.WaitAsync();
             try
             {
                 if (!File.Exists(AuditFilePath))
@@ -105,13 +112,14 @@ namespace BlueSapphire.Services
             }
             finally
             {
-                _gate.Release();
+                fileLock.Release();
             }
         }
 
         public async Task SaveAuditAsync(CleanerAuditSnapshot snapshot)
         {
-            await _gate.WaitAsync();
+            SemaphoreSlim fileLock = GetLock(AuditFilePath);
+            await fileLock.WaitAsync();
             try
             {
                 string tempFile = AuditFilePath + ".tmp";
@@ -124,13 +132,14 @@ namespace BlueSapphire.Services
             }
             finally
             {
-                _gate.Release();
+                fileLock.Release();
             }
         }
 
         public async Task<CleanerPreferenceState> LoadPreferencesAsync()
         {
-            await _gate.WaitAsync();
+            SemaphoreSlim fileLock = GetLock(PreferencesFilePath);
+            await fileLock.WaitAsync();
             try
             {
                 if (!File.Exists(PreferencesFilePath))
@@ -144,13 +153,14 @@ namespace BlueSapphire.Services
             }
             finally
             {
-                _gate.Release();
+                fileLock.Release();
             }
         }
 
         public async Task SavePreferencesAsync(CleanerPreferenceState preferences)
         {
-            await _gate.WaitAsync();
+            SemaphoreSlim fileLock = GetLock(PreferencesFilePath);
+            await fileLock.WaitAsync();
             try
             {
                 string tempFile = PreferencesFilePath + ".tmp";
@@ -163,13 +173,14 @@ namespace BlueSapphire.Services
             }
             finally
             {
-                _gate.Release();
+                fileLock.Release();
             }
         }
 
         public async Task<CleanerRuleUpdateState> LoadRuleUpdateStateAsync()
         {
-            await _gate.WaitAsync();
+            SemaphoreSlim fileLock = GetLock(RuleUpdateStateFilePath);
+            await fileLock.WaitAsync();
             try
             {
                 if (!File.Exists(RuleUpdateStateFilePath))
@@ -183,13 +194,14 @@ namespace BlueSapphire.Services
             }
             finally
             {
-                _gate.Release();
+                fileLock.Release();
             }
         }
 
         public async Task SaveRuleUpdateStateAsync(CleanerRuleUpdateState state)
         {
-            await _gate.WaitAsync();
+            SemaphoreSlim fileLock = GetLock(RuleUpdateStateFilePath);
+            await fileLock.WaitAsync();
             try
             {
                 string tempFile = RuleUpdateStateFilePath + ".tmp";
@@ -202,7 +214,7 @@ namespace BlueSapphire.Services
             }
             finally
             {
-                _gate.Release();
+                fileLock.Release();
             }
         }
 

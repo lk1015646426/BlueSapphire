@@ -68,7 +68,7 @@ namespace BlueSapphire.Services
             return candidate.StartsWith(rootWithSeparator, StringComparison.OrdinalIgnoreCase);
         }
 
-        private static bool IsBroadProtectedRoot(string path)
+        private static readonly Lazy<string[]> _cachedBroadRoots = new Lazy<string[]>(() =>
         {
             string windows = NormalizePath(Environment.GetFolderPath(Environment.SpecialFolder.Windows));
             string programFiles = NormalizePath(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles));
@@ -76,17 +76,28 @@ namespace BlueSapphire.Services
             string programData = NormalizePath(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData));
             string userProfile = NormalizePath(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
 
-            string[] blockedExactRoots =
+            return new[]
             {
-                Path.GetPathRoot(path) ?? string.Empty,
                 windows,
                 programFiles,
                 programFilesX86,
                 programData,
                 userProfile
             };
+        });
 
-            return blockedExactRoots.Any(root =>
+        private static bool IsBroadProtectedRoot(string path)
+        {
+            string driveRoot = Path.GetPathRoot(path) ?? string.Empty;
+
+            string[] exactRoots = _cachedBroadRoots.Value;
+
+            if (!string.IsNullOrWhiteSpace(driveRoot) && string.Equals(path, driveRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            return exactRoots.Any(root =>
                 !string.IsNullOrWhiteSpace(root) &&
                 string.Equals(path, root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), StringComparison.OrdinalIgnoreCase));
         }

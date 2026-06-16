@@ -293,6 +293,13 @@ namespace BlueSapphire.Services
             Stack<string> pending = new();
             pending.Push(root);
 
+            EnumerationOptions options = new EnumerationOptions
+            {
+                IgnoreInaccessible = true,
+                ReturnSpecialDirectories = false,
+                RecurseSubdirectories = false
+            };
+
             while (pending.Count > 0 && visitedDirectories < MaxVisitedDirectories && visitedFiles < MaxVisitedFiles)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -304,45 +311,53 @@ namespace BlueSapphire.Services
                     continue;
                 }
 
-                foreach (string file in CleanerPathSafety.SafeEnumerateFiles(current))
+                DirectoryInfo dirInfo = new DirectoryInfo(current);
+                IEnumerable<FileSystemInfo> infos;
+                try
+                {
+                    infos = dirInfo.EnumerateFileSystemInfos("*", options);
+                }
+                catch
+                {
+                    continue;
+                }
+
+                foreach (FileSystemInfo info in infos)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    if (visitedFiles >= MaxVisitedFiles || CleanerPathSafety.IsExcluded(file, exclusions))
+                    string path = info.FullName;
+                    if (CleanerPathSafety.IsExcluded(path, exclusions))
                     {
-                        break;
+                        continue;
                     }
 
-                    try
+                    if (info is FileInfo fileInfo)
                     {
-                        FileInfo info = new(file);
-                        sizeBytes += info.Length;
+                        if (visitedFiles >= MaxVisitedFiles)
+                        {
+                            continue;
+                        }
+
+                        sizeBytes += fileInfo.Length;
                         fileCount++;
                         visitedFiles++;
 
-                        DateTimeOffset fileWriteTime = info.LastWriteTimeUtc;
+                        DateTimeOffset fileWriteTime = fileInfo.LastWriteTimeUtc;
                         if (lastModified < fileWriteTime)
                         {
                             lastModified = fileWriteTime;
                         }
                     }
-                    catch
+                    else if (info is DirectoryInfo)
                     {
-                    }
-                }
-
-                foreach (string directory in CleanerPathSafety.SafeEnumerateDirectories(current))
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-
-                    if (visitedDirectories >= MaxVisitedDirectories)
-                    {
-                        break;
-                    }
-
-                    if (!CleanerPathSafety.IsReparsePoint(directory))
-                    {
-                        pending.Push(directory);
+                        if (visitedDirectories < MaxVisitedDirectories)
+                        {
+                            if (!CleanerPathSafety.IsReparsePoint(path))
+                            {
+                                pending.Push(path);
+                            }
+                        }
                     }
                 }
             }

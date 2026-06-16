@@ -22,6 +22,8 @@ namespace BlueSapphire.Services
             }
         };
 
+        private static readonly HttpClient SharedClient = new HttpClient();
+
         private readonly CleanerStateStore _stateStore;
         private readonly CleanerProfileService _profileService;
         private readonly string _builtInRuleFilePath;
@@ -48,7 +50,7 @@ namespace BlueSapphire.Services
             _stateStore = stateStore;
             _profileService = profileService;
             _builtInRuleFilePath = builtInRuleFilePath ?? Path.Combine(AppContext.BaseDirectory, "Assets", "CleanerRules.json");
-            _httpClient = httpClient ?? new HttpClient();
+            _httpClient = httpClient ?? SharedClient;
         }
 
         public async Task<IReadOnlyList<CleanerRuleDefinition>> GetRulesAsync()

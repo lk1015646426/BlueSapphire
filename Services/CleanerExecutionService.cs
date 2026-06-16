@@ -46,33 +46,40 @@ namespace BlueSapphire.Services
             };
 
             int completedItems = 0;
-            foreach (CleanerScanItem item in items)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
+            object entriesLock = new();
 
+            ParallelOptions options = new ParallelOptions
+            {
+                MaxDegreeOfParallelism = Math.Max(2, Environment.ProcessorCount),
+                CancellationToken = cancellationToken
+            };
+
+            await Parallel.ForEachAsync(items, options, async (item, ct) =>
+            {
+                ct.ThrowIfCancellationRequested();
+
+                IReadOnlyList<string> targets = ResolveTargets(item);
+                if (targets.Count > 0)
+                {
+                    foreach (string target in targets)
+                    {
+                        CleanerCleanupEntry entry = await ExecuteTargetAsync(batch.BatchId, item, target);
+                        lock (entriesLock)
+                        {
+                            batch.Entries.Add(entry);
+                        }
+                    }
+                }
+
+                int currentCompleted = Interlocked.Increment(ref completedItems);
                 progress?.Report(new CleanerExecutionProgress
                 {
                     StageTitle = "执行清理",
                     Detail = $"正在处理：{item.Name}",
-                    ProgressValue = completedItems,
+                    ProgressValue = currentCompleted,
                     ProgressMax = Math.Max(1, items.Count)
                 });
-
-                IReadOnlyList<string> targets = ResolveTargets(item);
-                if (targets.Count == 0)
-                {
-                    completedItems++;
-                    continue;
-                }
-
-                foreach (string target in targets)
-                {
-                    CleanerCleanupEntry entry = await ExecuteTargetAsync(batch.BatchId, item, target);
-                    batch.Entries.Add(entry);
-                }
-
-                completedItems++;
-            }
+            });
 
             batch.ReleasedBytes = batch.Entries
                 .Where(entry => string.Equals(entry.Status, "Completed", StringComparison.OrdinalIgnoreCase))
@@ -489,7 +496,11 @@ namespace BlueSapphire.Services
                 }
                 catch (IOException)
                 {
-                    File.Copy(sourcePath, destinationPath, true);
+                    await using (FileStream sourceStream = File.OpenRead(sourcePath))
+                    await using (FileStream destinationStream = File.Create(destinationPath))
+                    {
+                        await sourceStream.CopyToAsync(destinationStream);
+                    }
                     try 
                     {
                         File.Delete(sourcePath);

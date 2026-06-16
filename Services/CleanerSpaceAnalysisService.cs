@@ -1,4 +1,4 @@
-using BlueSapphire.Models;
+﻿using BlueSapphire.Models;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -127,6 +127,13 @@ namespace BlueSapphire.Services
             Stack<string> pending = new();
             pending.Push(root);
 
+            EnumerationOptions options = new EnumerationOptions
+            {
+                IgnoreInaccessible = true,
+                ReturnSpecialDirectories = false,
+                RecurseSubdirectories = false
+            };
+
             while (pending.Count > 0 && visitedDirectories < _maxVisitedDirectories && visitedFiles < _maxVisitedFiles)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -138,54 +145,57 @@ namespace BlueSapphire.Services
                     continue;
                 }
 
-                foreach (string file in CleanerPathSafety.SafeEnumerateFiles(current))
+                DirectoryInfo dirInfo = new DirectoryInfo(current);
+                IEnumerable<FileSystemInfo> infos;
+                try
+                {
+                    infos = dirInfo.EnumerateFileSystemInfos("*", options);
+                }
+                catch
+                {
+                    continue;
+                }
+
+                foreach (FileSystemInfo info in infos)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    if (visitedFiles >= _maxVisitedFiles)
-                    {
-                        break;
-                    }
-
-                    if (CleanerPathSafety.IsExcluded(file, exclusions))
+                    string path = info.FullName;
+                    if (CleanerPathSafety.IsExcluded(path, exclusions))
                     {
                         continue;
                     }
 
-                    try
+                    if (info is FileInfo fileInfo)
                     {
-                        FileInfo info = new(file);
-                        sizeBytes += info.Length;
+                        if (visitedFiles >= _maxVisitedFiles)
+                        {
+                            continue;
+                        }
+
+                        sizeBytes += fileInfo.Length;
                         fileCount++;
                         visitedFiles++;
 
-                        DateTimeOffset fileWriteTime = info.LastWriteTimeUtc;
+                        DateTimeOffset fileWriteTime = fileInfo.LastWriteTimeUtc;
                         if (lastModified < fileWriteTime)
                         {
                             lastModified = fileWriteTime;
                         }
 
-                        bool locked = CleanerPathSafety.IsFileLocked(file);
+                        bool locked = CleanerPathSafety.IsFileLocked(path);
                         isLocked |= locked;
-                        RegisterLargeFileCandidate(largestFiles, file, info.Length, fileWriteTime, locked);
+                        RegisterLargeFileCandidate(largestFiles, path, fileInfo.Length, fileWriteTime, locked);
                     }
-                    catch
+                    else if (info is DirectoryInfo)
                     {
-                    }
-                }
-
-                foreach (string directory in CleanerPathSafety.SafeEnumerateDirectories(current))
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-
-                    if (visitedDirectories >= _maxVisitedDirectories)
-                    {
-                        break;
-                    }
-
-                    if (!CleanerPathSafety.IsReparsePoint(directory))
-                    {
-                        pending.Push(directory);
+                        if (visitedDirectories < _maxVisitedDirectories)
+                        {
+                            if (!CleanerPathSafety.IsReparsePoint(path))
+                            {
+                                pending.Push(path);
+                            }
+                        }
                     }
                 }
             }
