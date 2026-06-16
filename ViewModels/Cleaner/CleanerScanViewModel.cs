@@ -49,9 +49,14 @@ namespace BlueSapphire.ViewModels.Cleaner
 
         public CleanerAuditSnapshot? AuditSnapshot { get; private set; }
 
-        public ObservableCollection<CleanerScanItem> SafeItems { get; } = new();
-        public ObservableCollection<CleanerScanItem> ReviewItems { get; } = new();
-        public ObservableCollection<CleanerScanItem> ViewOnlyItems { get; } = new();
+        [ObservableProperty]
+        private ObservableCollection<CleanerScanItem> _safeItems = new();
+
+        [ObservableProperty]
+        private ObservableCollection<CleanerScanItem> _reviewItems = new();
+
+        [ObservableProperty]
+        private ObservableCollection<CleanerScanItem> _viewOnlyItems = new();
         private readonly List<CleanerScanItem> _allItems = new();
 
         public IReadOnlyList<CleanerScanItem> AllItems => _allItems;
@@ -173,8 +178,8 @@ namespace BlueSapphire.ViewModels.Cleaner
             try
             {
                 CleanerScanReport finalReport;
-                CleanerScanAddOnResult spaceAnalysisResult = default;
-                CleanerScanAddOnResult orphanResult = default;
+                CleanerScanAddOnResult? spaceAnalysisResult = null;
+                CleanerScanAddOnResult? orphanResult = null;
 
                 CleanerScanOptions options = new CleanerScanOptions
                 {
@@ -228,7 +233,7 @@ namespace BlueSapphire.ViewModels.Cleaner
             }
         }
 
-        private string BuildScanCompletionText(CleanerScanReport report, CleanerScanAddOnResult spaceAnalysisResult, CleanerScanAddOnResult orphanResult)
+        private string BuildScanCompletionText(CleanerScanReport report, CleanerScanAddOnResult? spaceAnalysisResult, CleanerScanAddOnResult? orphanResult)
         {
             string summary = report.UsedIncrementalReuse && report.ReusedItemCount > 0
                 ? $"共识别 {_allItems.Count} 个候选对象，复用了最近快速扫描结果 {report.ReusedItemCount} 项。"
@@ -240,14 +245,14 @@ namespace BlueSapphire.ViewModels.Cleaner
             }
 
             List<string> additions = new();
-            if (spaceAnalysisResult.Attempted)
+            if (spaceAnalysisResult != null && spaceAnalysisResult.Attempted)
             {
                 additions.Add(spaceAnalysisResult.WasSkipped
                     ? "抽样空间占用分析已跳过"
                     : spaceAnalysisResult.AddedCount > 0 ? $"补充 {spaceAnalysisResult.AddedCount} 项空间分析" : "未发现大文件");
             }
 
-            if (orphanResult.Attempted)
+            if (orphanResult != null && orphanResult.Attempted)
             {
                 additions.Add(orphanResult.WasSkipped
                     ? "卸载残留提示已跳过"
@@ -267,9 +272,9 @@ namespace BlueSapphire.ViewModels.Cleaner
             }
 
             _allItems.Clear();
-            SafeItems.Clear();
-            ReviewItems.Clear();
-            ViewOnlyItems.Clear();
+            var newSafe = new ObservableCollection<CleanerScanItem>();
+            var newReview = new ObservableCollection<CleanerScanItem>();
+            var newViewOnly = new ObservableCollection<CleanerScanItem>();
 
             HashSet<string> exclusions = Cleanup.GetExclusionLookup();
 
@@ -281,18 +286,22 @@ namespace BlueSapphire.ViewModels.Cleaner
                 switch (item.RiskLevel)
                 {
                     case CleanerRiskLevel.Low:
-                        SafeItems.Add(item);
+                        newSafe.Add(item);
                         break;
                     case CleanerRiskLevel.Medium:
-                        ReviewItems.Add(item);
+                        newReview.Add(item);
                         break;
                     case CleanerRiskLevel.High:
-                        ViewOnlyItems.Add(item);
+                        newViewOnly.Add(item);
                         break;
                 }
 
                 item.PropertyChanged += ScanItem_PropertyChanged;
             }
+
+            SafeItems = newSafe;
+            ReviewItems = newReview;
+            ViewOnlyItems = newViewOnly;
         }
 
         private void PrepareScanItem(CleanerScanItem item, HashSet<string> exclusions)

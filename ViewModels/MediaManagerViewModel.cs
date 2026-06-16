@@ -733,7 +733,7 @@ namespace BlueSapphire.ViewModels
             var previewPaths = new List<string>();
             foreach (var item in items)
             {
-                if (MediaFileCatalog.IsImage(item.ImagePath))
+                if (!string.IsNullOrWhiteSpace(item.ImagePath) && MediaFileCatalog.IsImage(item.ImagePath))
                 {
                     previewPaths.Add(item.ImagePath);
                 }

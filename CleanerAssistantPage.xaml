@@ -1,4 +1,4 @@
-﻿<Page
+<Page
     x:Class="BlueSapphire.CleanerAssistantPage"
     x:Name="RootPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -235,33 +235,59 @@
                                     </StackPanel>
                                 </Border>
                             </Grid>
-                    <Border Style="{StaticResource CardBorderStrongStyle}" Padding="18,16">
-                        <StackPanel Spacing="6">
-                            <TextBlock Text="{x:Bind ViewModel.Scan.StatusMainText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="16" FontWeight="SemiBold"/>
-                            <TextBlock Text="{x:Bind ViewModel.Scan.StatusDetailText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap"/>
-                            <Grid Margin="0,8,0,0">
+                    <Border CornerRadius="16" BorderThickness="1" BorderBrush="{StaticResource BorderColor}" Padding="20,18" Margin="0,4,0,4">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#0AFFFFFF" Offset="0"/>
+                                <GradientStop Color="#02FFFFFF" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="{x:Bind ViewModel.Scan.StatusMainText, Mode=OneWay}" Foreground="{StaticResource TextMain}" FontSize="18" FontWeight="SemiBold"/>
+                            <TextBlock Text="{x:Bind ViewModel.Scan.StatusDetailText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="13" TextWrapping="Wrap"/>
+                            <Grid Margin="0,12,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <ProgressBar Value="{x:Bind ViewModel.Scan.ProgressValue, Mode=OneWay}" Maximum="{x:Bind ViewModel.Scan.ProgressMax, Mode=OneWay}" Height="6" CornerRadius="999"/>
-                                <TextBlock Grid.Column="1" Text="{x:Bind ViewModel.Scan.ScanModeText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" Margin="12,0,0,0" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="1" Text="{x:Bind ViewModel.Scan.ScanModeText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="12" Margin="16,0,0,0" VerticalAlignment="Center"/>
                                 <Button Grid.Column="2"
                                         Style="{StaticResource ActionButtonStyle}"
                                         Command="{x:Bind ViewModel.Scan.CancelCurrentOperationCommand}"
                                         Visibility="{x:Bind ViewModel.Scan.CanCancelCurrentOperation, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                                        Margin="12,0,0,0">
-                                    <TextBlock Text="取消"/>
+                                        Margin="16,0,0,0">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon Glyph="&#xE711;" FontSize="12" Foreground="{StaticResource TextMuted}"/>
+                                        <TextBlock Text="取消" FontSize="12" Foreground="{StaticResource TextMuted}"/>
+                                    </StackPanel>
                                 </Button>
                             </Grid>
                         </StackPanel>
                     </Border>
                     <Expander Visibility="{x:Bind ViewModel.Scan.HasSafeItems, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                              Header="可安全清理明细"
+                              HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Margin="0,4,0,4"
                               IsExpanded="False">
-                        <ItemsControl ItemsSource="{x:Bind ViewModel.Scan.SafeItems, Mode=OneWay}">
-                            <ItemsControl.ItemTemplate>
+                        <Expander.Header>
+                            <StackPanel Orientation="Horizontal" Spacing="12" Padding="0,6">
+                                <FontIcon Glyph="&#xE73E;" Foreground="{StaticResource AccentSafe}" FontSize="16"/>
+                                <TextBlock Text="可安全清理明细" Foreground="{StaticResource TextMain}" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
+                                <Border Background="{StaticResource AccentSafeBg}" BorderThickness="1" BorderBrush="#3022C55E" CornerRadius="12" Padding="8,2" Margin="4,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock Text="{x:Bind ViewModel.Scan.SafeItemCount, Mode=OneWay}" Foreground="{StaticResource AccentSafe}" FontSize="12" FontWeight="Bold"/>
+                                </Border>
+                            </StackPanel>
+                        </Expander.Header>
+                        <ListView ItemsSource="{x:Bind ViewModel.Scan.SafeItems, Mode=OneWay}" SelectionMode="None" MaxHeight="500" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem">
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                    <Setter Property="Padding" Value="0"/>
+                                    <Setter Property="Margin" Value="0"/>
+                                    <Setter Property="MinHeight" Value="0"/>
+                                </Style>
+                            </ListView.ItemContainerStyle>
+                            <ListView.ItemTemplate>
                                 <DataTemplate x:DataType="models:CleanerScanItem">
                                     <Border Style="{StaticResource ListItemBorderStyle}">
                                         <Grid ColumnSpacing="12">
@@ -285,12 +311,12 @@
                                                         <TextBlock Text="{x:Bind RiskText}" Foreground="{StaticResource AccentSafe}" FontSize="11" FontWeight="SemiBold"/>
                                                     </Border>
                                                 </Grid>
-                                                <WrapGrid Orientation="Horizontal" MaximumRowsOrColumns="4">
+                                                <VariableSizedWrapGrid Orientation="Horizontal" MaximumRowsOrColumns="4">
                                                     <Border Background="#0FFFFFFF" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="999" Padding="8,4" Margin="0,0,8,8"><TextBlock Text="{x:Bind SizeText}" Foreground="{StaticResource TextMain}" FontSize="11"/></Border>
                                                     <Border Background="#0FFFFFFF" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="999" Padding="8,4" Margin="0,0,8,8"><TextBlock Text="{x:Bind CategoryText}" Foreground="{StaticResource TextMuted}" FontSize="11"/></Border>
                                                     <Border Background="#0FFFFFFF" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="999" Padding="8,4" Margin="0,0,8,8"><TextBlock Text="{x:Bind ExecutionModeText}" Foreground="{StaticResource TextMuted}" FontSize="11"/></Border>
                                                     <Border Background="#0FFFFFFF" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="999" Padding="8,4" Margin="0,0,8,8"><TextBlock Text="{x:Bind FileCountText}" Foreground="{StaticResource TextMuted}" FontSize="11"/></Border>
-                                                </WrapGrid>
+                                                </VariableSizedWrapGrid>
                                                 <TextBlock Text="{x:Bind StatusHintText}" Foreground="{StaticResource AccentSafe}" FontSize="12" TextWrapping="Wrap"/>
                                                 <TextBlock Text="{x:Bind LockedByText}" Visibility="{x:Bind HasLockOwnerInfo, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}" Foreground="{StaticResource AccentReview}" FontSize="12" TextWrapping="Wrap"/>
                                                 <TextBlock Text="{x:Bind WhyItCanBeCleaned}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
@@ -304,14 +330,31 @@
                                         </Grid>
                                     </Border>
                                 </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                            </ListView.ItemTemplate>
+                        </ListView>
                     </Expander>
                     <Expander Visibility="{x:Bind ViewModel.Scan.HasReviewItems, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                              Header="建议确认后清理明细"
+                              HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Margin="0,4,0,4"
                               IsExpanded="False">
-                        <ItemsControl ItemsSource="{x:Bind ViewModel.Scan.ReviewItems, Mode=OneWay}">
-                            <ItemsControl.ItemTemplate>
+                        <Expander.Header>
+                            <StackPanel Orientation="Horizontal" Spacing="12" Padding="0,6">
+                                <FontIcon Glyph="&#xE7BA;" Foreground="{StaticResource AccentReview}" FontSize="16"/>
+                                <TextBlock Text="建议确认后清理明细" Foreground="{StaticResource TextMain}" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
+                                <Border Background="{StaticResource AccentReviewBg}" BorderThickness="1" BorderBrush="#30F59E0B" CornerRadius="12" Padding="8,2" Margin="4,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock Text="{x:Bind ViewModel.Scan.ReviewItems.Count, Mode=OneWay}" Foreground="{StaticResource AccentReview}" FontSize="12" FontWeight="Bold"/>
+                                </Border>
+                            </StackPanel>
+                        </Expander.Header>
+                        <ListView ItemsSource="{x:Bind ViewModel.Scan.ReviewItems, Mode=OneWay}" SelectionMode="None" MaxHeight="500" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem">
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                    <Setter Property="Padding" Value="0"/>
+                                    <Setter Property="Margin" Value="0"/>
+                                    <Setter Property="MinHeight" Value="0"/>
+                                </Style>
+                            </ListView.ItemContainerStyle>
+                            <ListView.ItemTemplate>
                                 <DataTemplate x:DataType="models:CleanerScanItem">
                                     <Border Style="{StaticResource ListItemBorderStyle}">
                                         <Grid ColumnSpacing="12">
@@ -348,20 +391,37 @@
                                         </Grid>
                                     </Border>
                                 </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                            </ListView.ItemTemplate>
+                        </ListView>
                     </Expander>
                     <Expander Visibility="{x:Bind ViewModel.Scan.HasViewOnlyItems, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
-                              Header="仅供查看明细"
+                              HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Margin="0,4,0,4"
                               IsExpanded="False">
+                        <Expander.Header>
+                            <StackPanel Orientation="Horizontal" Spacing="12" Padding="0,6">
+                                <FontIcon Glyph="&#xE9ce;" Foreground="{StaticResource AccentInspect}" FontSize="16"/>
+                                <TextBlock Text="仅供查看明细" Foreground="{StaticResource TextMain}" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
+                                <Border Background="{StaticResource AccentInspectBg}" BorderThickness="1" BorderBrush="#3038BDF8" CornerRadius="12" Padding="8,2" Margin="4,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock Text="{x:Bind ViewModel.Scan.ViewOnlyItems.Count, Mode=OneWay}" Foreground="{StaticResource AccentInspect}" FontSize="12" FontWeight="Bold"/>
+                                </Border>
+                            </StackPanel>
+                        </Expander.Header>
                         <StackPanel Spacing="12">
                         <TextBlock Text="{x:Bind ViewModel.ViewOnlyDisplayHintText, Mode=OneWay}"
                                    Visibility="{x:Bind ViewModel.HasHiddenViewOnlyItems, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
                                    Foreground="{StaticResource TextMuted}"
                                    FontSize="12"
                                    TextWrapping="Wrap"/>
-                        <ItemsControl ItemsSource="{x:Bind ViewModel.Scan.ViewOnlyItems, Mode=OneWay}">
-                            <ItemsControl.ItemTemplate>
+                        <ListView ItemsSource="{x:Bind ViewModel.Scan.ViewOnlyItems, Mode=OneWay}" SelectionMode="None" MaxHeight="500" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem">
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                    <Setter Property="Padding" Value="0"/>
+                                    <Setter Property="Margin" Value="0"/>
+                                    <Setter Property="MinHeight" Value="0"/>
+                                </Style>
+                            </ListView.ItemContainerStyle>
+                            <ListView.ItemTemplate>
                                 <DataTemplate x:DataType="models:CleanerScanItem">
                                     <Border Style="{StaticResource ListItemBorderStyle}">
                                         <Grid ColumnSpacing="12">
@@ -395,14 +455,25 @@
                                         </Grid>
                                     </Border>
                                 </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                            </ListView.ItemTemplate>
+                        </ListView>
                         </StackPanel>
                     </Expander>
-                    <StackPanel Visibility="{x:Bind ViewModel.Scan.HasResults, Mode=OneWay, Converter={StaticResource InverseBoolToVisibleConverter}}" HorizontalAlignment="Center" Margin="0,30,0,0" Spacing="8">
-                        <TextBlock Text="还没有扫描结果" Foreground="{StaticResource TextMain}" FontSize="18" HorizontalAlignment="Center"/>
-                        <TextBlock Text="先跑一次快速扫描，把明确可清的空间找出来。" Foreground="{StaticResource TextMuted}" HorizontalAlignment="Center"/>
-                    </StackPanel>
+                    <Grid Visibility="{x:Bind ViewModel.Scan.HasResults, Mode=OneWay, Converter={StaticResource InverseBoolToVisibleConverter}}" 
+                          Margin="0,60,0,60" HorizontalAlignment="Center">
+                        <StackPanel Spacing="16">
+                            <Grid Width="72" Height="72" HorizontalAlignment="Center">
+                                <Ellipse Fill="{StaticResource AccentInspectBg}" Margin="-16" Opacity="0.5"/>
+                                <Border Background="#0AFFFFFF" CornerRadius="36" BorderThickness="1" BorderBrush="#1AFFFFFF">
+                                    <FontIcon Glyph="&#xE909;" FontSize="28" Foreground="{StaticResource TextMuted}"/>
+                                </Border>
+                            </Grid>
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="还没有扫描结果" Foreground="{StaticResource TextMain}" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                                <TextBlock Text="先跑一次快速扫描，把明确可清的空间找出来。" Foreground="{StaticResource TextMuted}" FontSize="13" HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
 
                         </StackPanel>
                     </ScrollViewer>
