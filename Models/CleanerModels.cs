@@ -501,37 +501,37 @@ namespace BlueSapphire.Models
         private bool _isSelected;
         private bool _isExcluded;
 
-        public string ObjectId { get; init; } = Guid.NewGuid().ToString("N");
-        public string RuleId { get; init; } = string.Empty;
-        public string Name { get; init; } = string.Empty;
-        public string Description { get; init; } = string.Empty;
-        public string Category { get; init; } = string.Empty;
-        public string Path { get; init; } = string.Empty;
-        public long SizeBytes { get; init; }
-        public int FileCount { get; init; }
-        public DateTimeOffset ModifyTime { get; init; }
-        public string OwnerApp { get; init; } = string.Empty;
-        public CleanerRiskLevel RiskLevel { get; init; } = CleanerRiskLevel.High;
-        public int CleanScore { get; init; }
-        public CleanerExecutionMode ExecutionMode { get; init; } = CleanerExecutionMode.None;
-        public CleanerScanKind ScanKind { get; init; } = CleanerScanKind.DirectoryContents;
-        public bool IncludeSubdirectories { get; init; }
-        public bool IsLocked { get; init; }
-        public bool ViewOnly { get; init; }
-        public bool CanSelect { get; init; }
-        public bool DefaultSelected { get; init; }
-        public bool RequiresElevation { get; init; }
-        public bool IsElevatedMode { get; init; }
-        public List<string> IncludePatterns { get; init; } = new();
-        public List<string> TargetPaths { get; init; } = new();
-        public List<string> BoundaryRoots { get; init; } = new();
-        public string WhyItConsumesSpace { get; init; } = string.Empty;
-        public string WhyItCanBeCleaned { get; init; } = string.Empty;
-        public string ImpactAfterCleanup { get; init; } = string.Empty;
-        public string RegenerationHint { get; init; } = string.Empty;
-        public string RiskSummary { get; init; } = string.Empty;
-        public string RiskDetail { get; init; } = string.Empty;
-        public List<string> LockedByProcesses { get; init; } = new();
+        public string ObjectId { get; set; } = Guid.NewGuid().ToString("N");
+        public string RuleId { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public string Category { get; set; } = string.Empty;
+        public string Path { get; set; } = string.Empty;
+        public long SizeBytes { get; set; }
+        public int FileCount { get; set; }
+        public DateTimeOffset ModifyTime { get; set; }
+        public string OwnerApp { get; set; } = string.Empty;
+        public CleanerRiskLevel RiskLevel { get; set; } = CleanerRiskLevel.High;
+        public int CleanScore { get; set; }
+        public CleanerExecutionMode ExecutionMode { get; set; } = CleanerExecutionMode.None;
+        public CleanerScanKind ScanKind { get; set; } = CleanerScanKind.DirectoryContents;
+        public bool IncludeSubdirectories { get; set; }
+        public bool IsLocked { get; set; }
+        public bool ViewOnly { get; set; }
+        public bool CanSelect { get; set; }
+        public bool DefaultSelected { get; set; }
+        public bool RequiresElevation { get; set; }
+        public bool IsElevatedMode { get; set; }
+        public List<string> IncludePatterns { get; set; } = new();
+        public List<string> TargetPaths { get; set; } = new();
+        public List<string> BoundaryRoots { get; set; } = new();
+        public string WhyItConsumesSpace { get; set; } = string.Empty;
+        public string WhyItCanBeCleaned { get; set; } = string.Empty;
+        public string ImpactAfterCleanup { get; set; } = string.Empty;
+        public string RegenerationHint { get; set; } = string.Empty;
+        public string RiskSummary { get; set; } = string.Empty;
+        public string RiskDetail { get; set; } = string.Empty;
+        public List<string> LockedByProcesses { get; set; } = new();
 
         public bool IsExcluded
         {
