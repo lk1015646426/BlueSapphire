@@ -17,13 +17,15 @@ namespace BlueSapphire.Services
         private readonly int _maxCandidateDirectoriesPerRoot;
         private readonly int _maxVisitedDirectories;
         private readonly int _maxVisitedFiles;
+        private readonly AIClassifierService? _aiClassifier;
 
         public CleanerSpaceAnalysisService(
             CleanerRiskEvaluator riskEvaluator,
-            CleanerLockService lockService)
+            CleanerLockService lockService, AIClassifierService? aiClassifier = null)
             : this(
                 riskEvaluator,
                 lockService,
+                aiClassifier,
                 256L * 1024L * 1024L,
                 512L * 1024L * 1024L,
                 24,
@@ -35,6 +37,7 @@ namespace BlueSapphire.Services
         public CleanerSpaceAnalysisService(
             CleanerRiskEvaluator riskEvaluator,
             CleanerLockService lockService,
+            AIClassifierService? aiClassifier = null,
             long largeDirectoryThresholdBytes = 256L * 1024L * 1024L,
             long largeFileThresholdBytes = 512L * 1024L * 1024L,
             int maxCandidateDirectoriesPerRoot = 24,
@@ -48,6 +51,7 @@ namespace BlueSapphire.Services
             _maxCandidateDirectoriesPerRoot = Math.Max(1, maxCandidateDirectoriesPerRoot);
             _maxVisitedDirectories = Math.Max(32, maxVisitedDirectories);
             _maxVisitedFiles = Math.Max(256, maxVisitedFiles);
+            _aiClassifier = aiClassifier;
         }
 
         public async Task<List<CleanerScanItem>> AnalyzeAsync(
@@ -55,7 +59,9 @@ namespace BlueSapphire.Services
             IReadOnlyList<string> selectedDriveRoots,
             CancellationToken cancellationToken)
         {
-            return await Task.Run(() => AnalyzeCore(exclusions, selectedDriveRoots, cancellationToken), cancellationToken);
+            var items = await Task.Run(() => AnalyzeCore(exclusions, selectedDriveRoots, cancellationToken), cancellationToken);
+            await EnrichWithAIAsync(items, cancellationToken);
+            return items;
         }
 
         private List<CleanerScanItem> AnalyzeCore(
@@ -353,5 +359,70 @@ namespace BlueSapphire.Services
             public DateTimeOffset ModifyTime { get; init; }
             public bool IsLocked { get; init; }
         }
+
+        private async Task EnrichWithAIAsync(List<CleanerScanItem> items, CancellationToken cancellationToken)
+        {
+            if (_aiClassifier == null) return;
+
+            var targetItems = items.Where(i => i.ViewOnly && i.ScanKind == CleanerScanKind.Directory).ToList();
+            var tasks = targetItems.Select(async item =>
+            {
+                try
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    var classification = await _aiClassifier.ClassifyDirectoryAsync(item.Path, item.SizeBytes, cancellationToken);
+                    if (classification == null || !classification.SafeToClean) return;
+
+                item.Category = classification.Category;
+                item.Name = classification.Name;
+                item.Description = classification.Description;
+                item.OwnerApp = classification.Category switch
+                {
+                    "dev_cache" => "开发工具缓存",
+                    "app_cache" => "应用缓存",
+                    "system_temp" => "系统临时文件",
+                    "app_logs" => "应用日志",
+                    _ => "AI 识别"
+                };
+                item.RiskLevel = classification.RiskLevel switch
+                {
+                    "Low" => CleanerRiskLevel.Low,
+                    "Medium" => CleanerRiskLevel.Medium,
+                    _ => CleanerRiskLevel.High
+                };
+                item.ExecutionMode = CleanerExecutionMode.Quarantine;
+                item.ViewOnly = false;
+                item.CanSelect = true;
+                item.DefaultSelected = item.RiskLevel == CleanerRiskLevel.Low;
+                item.WhyItConsumesSpace = classification.Description;
+                item.WhyItCanBeCleaned = classification.CleanReason;
+                item.ImpactAfterCleanup = item.RiskLevel == CleanerRiskLevel.Low
+                    ? "可安全清理，需要时会自动重建。"
+                    : "清理后相关功能可能需要重新配置。";
+                item.RegenerationHint = "相关程序在需要时会重新生成。";
+                item.RiskSummary = classification.RiskLevel switch
+                {
+                    "Low" => "低风险：AI 识别为可安全清理的开发/系统缓存",
+                    "Medium" => "中风险：AI 识别为日志或临时数据",
+                    _ => "高风险：AI 无法确认安全性"
+                };
+                item.RiskDetail = $"AI 自动分类: {classification.Description}";
+                item.CleanScore = classification.RiskLevel switch
+                {
+                    "Low" => 90,
+                    "Medium" => 60,
+                    _ => 30
+                };
+                }
+                catch
+                {
+                    // Ignore individual failures to not disrupt others
+                }
+            });
+
+            await Task.WhenAll(tasks);
+        }
+
     }
 }

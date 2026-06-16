@@ -2,6 +2,7 @@ using BlueSapphire.Models;
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace BlueSapphire.Services
@@ -10,13 +11,14 @@ namespace BlueSapphire.Services
     {
         private readonly DeepSeekAIService _aiService;
         private readonly Dictionary<string, AIClassificationResult> _cache = new(StringComparer.OrdinalIgnoreCase);
+        private readonly SemaphoreSlim _semaphore = new(3, 3); // 限制并发数为 3
 
         public AIClassifierService(DeepSeekAIService aiService)
         {
             _aiService = aiService;
         }
 
-        public async Task<AIClassificationResult?> ClassifyDirectoryAsync(string path, long sizeBytes)
+        public async Task<AIClassificationResult?> ClassifyDirectoryAsync(string path, long sizeBytes, CancellationToken cancellationToken = default)
         {
             string normalized = CleanerPathSafety.NormalizePath(path)
                 .TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar);
@@ -63,9 +65,13 @@ namespace BlueSapphire.Services
                 }
             };
 
+            await _semaphore.WaitAsync(cancellationToken);
             try
             {
-                var response = await _aiService.SendChatAsync(messages);
+                using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+
+                var response = await _aiService.SendChatAsync(messages, null, linkedCts.Token);
                 string content = response.Content?.Trim() ?? "";
 
                 // Extract JSON from response (in case AI wraps it in markdown)
@@ -91,6 +97,10 @@ namespace BlueSapphire.Services
             catch
             {
                 // AI classification failed, return null → fall back to ViewOnly
+            }
+            finally
+            {
+                _semaphore.Release();
             }
 
             return null;

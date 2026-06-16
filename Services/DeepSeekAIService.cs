@@ -5,6 +5,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 using BlueSapphire.Helpers;
 
@@ -20,7 +21,7 @@ namespace BlueSapphire.Services
             _httpClientFactory = httpClientFactory;
         }
 
-        public async Task<ChatMessage> SendChatAsync(List<ChatMessage> messages, List<ChatTool>? tools = null)
+        public async Task<ChatMessage> SendChatAsync(List<ChatMessage> messages, List<ChatTool>? tools = null, CancellationToken cancellationToken = default)
         {
             string? apiKey = AppSettings.GetSecret("DeepSeekApiKey");
             if (string.IsNullOrWhiteSpace(apiKey))
@@ -48,7 +49,7 @@ namespace BlueSapphire.Services
 
             try
             {
-                var response = await httpClient.PostAsync(ApiUrl, jsonContent);
+                var response = await httpClient.PostAsync(ApiUrl, jsonContent, cancellationToken);
                 var responseString = await response.Content.ReadAsStringAsync();
 
                 if (!response.IsSuccessStatusCode)
