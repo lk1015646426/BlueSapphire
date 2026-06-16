@@ -16,6 +16,7 @@ namespace BlueSapphire.Services
         private readonly CleanerExecutionService _executionService;
         private readonly CleanerAuditService _auditService;
         private readonly DevLogDataService _devLogDataService;
+        private readonly AIMemoryService _memoryService;
 
         private List<CleanerScanItem>? _lastScanResults;
 
@@ -24,16 +25,18 @@ namespace BlueSapphire.Services
             CleanerScanService scanService, 
             CleanerExecutionService executionService, 
             CleanerAuditService auditService,
-            DevLogDataService devLogDataService)
+            DevLogDataService devLogDataService,
+            AIMemoryService memoryService)
         {
             _aiService = aiService;
             _scanService = scanService;
             _executionService = executionService;
             _auditService = auditService;
             _devLogDataService = devLogDataService;
+            _memoryService = memoryService;
         }
 
-        public ChatMessage GetSystemPrompt(IEnumerable<string> features)
+        public async Task<ChatMessage> GetSystemPromptAsync(IEnumerable<string> features)
         {
             var systemPrompt = "你现在是“蓝宝石（BlueSapphire）”工具箱的智能助理。蓝宝石是一款 Windows 桌面效率软件，目前系统已安装的功能包括：\n";
 
@@ -67,6 +70,20 @@ namespace BlueSapphire.Services
 - 绝不要猜测或虚构文件路径。
 - 如果用户要求清理某些你认为属于 High 风险或用户数据的类别，必须发出警告并拒绝静默清理。
 - 整个过程不跳转界面，全在对话框完成！请始终使用中文回复用户，态度专业、友善。";
+
+            try
+            {
+                var rules = await _memoryService.GetMemoryRulesAsync();
+                if (rules != null && rules.Count > 0)
+                {
+                    systemPrompt += "\n\n【用户长期记忆偏好规则】（最高优先级，在操作时必须严格遵守）：\n";
+                    foreach (var rule in rules)
+                    {
+                        systemPrompt += $"- {rule}\n";
+                    }
+                }
+            }
+            catch { }
 
             return new ChatMessage { Role = "system", Content = systemPrompt };
         }
@@ -103,6 +120,10 @@ namespace BlueSapphire.Services
                     else if (name == "add_dev_log_record")
                     {
                         return await AddDevLogRecordAsync(args);
+                    }
+                    else if (name == "remember_user_preference")
+                    {
+                        return await RememberUserPreferenceAsync(args);
                     }
                 }
                 return "未找到对应的指令。";
@@ -325,6 +346,26 @@ namespace BlueSapphire.Services
             return $"无法找到功能：{feature}。";
         }
 
+        private async Task<string> RememberUserPreferenceAsync(string args)
+        {
+            try
+            {
+                var doc = JsonDocument.Parse(args);
+                string rule = doc.RootElement.GetProperty("rule").GetString() ?? "";
+
+                if (!string.IsNullOrWhiteSpace(rule))
+                {
+                    await _memoryService.AddMemoryRuleAsync(rule);
+                    return $"已成功记住该偏好规则：{rule}。它将在未来的对话和操作中自动生效。";
+                }
+                return "错误：规则内容为空。";
+            }
+            catch (Exception ex)
+            {
+                return $"保存记忆失败: {ex.Message}";
+            }
+        }
+
         public static List<ChatTool> BuildCleanerTools(IEnumerable<string> features)
         {
             var featureEnum = features.ToList();
@@ -436,6 +477,24 @@ namespace BlueSapphire.Services
                             required = new[] { "title", "version", "level", "summary", "fullContent" }
                         })
                     }
+                },
+                new ChatTool
+                {
+                    Type = "function",
+                    Function = new ChatFunction
+                    {
+                        Name = "remember_user_preference",
+                        Description = "Extracts and saves a long-term memory rule based on the user's instructions or preferences. Call this tool when the user tells you to remember something, or expresses a strong preference (e.g., 'Never clean .mp4 files', 'Always use deep scan').",
+                        Parameters = JsonSerializer.SerializeToNode(new
+                        {
+                            type = "object",
+                            properties = new
+                            {
+                                rule = new { type = "string", description = "A concise, actionable rule that captures the user's preference. Keep it short but specific, e.g., '不清理 .mp4 格式文件' or '习惯使用深度扫描'." }
+                            },
+                            required = new[] { "rule" }
+                        })
+                    }
                 }
             };
         }
@@ -443,7 +502,7 @@ namespace BlueSapphire.Services
         public async Task<string> RunAgentLoopAsync(
             List<ChatMessage> messages, 
             IEnumerable<string> features,
-            Action<ChatMessage> onMessageGenerated,
+            Action<string, string, bool> onMessageGenerated,
             Func<string, Task<bool>> requestConfirmation)
         {
             var tools = BuildCleanerTools(features);
@@ -451,53 +510,85 @@ namespace BlueSapphire.Services
 
             for (int round = 0; round < maxRounds; round++)
             {
-                var response = await _aiService.SendChatAsync(messages, tools);
-                string content = response.Content?.Trim() ?? "";
+                var stream = _aiService.SendChatStreamAsync(messages, tools);
 
-                if (response.ToolCalls == null || response.ToolCalls.Value.ValueKind != JsonValueKind.Array)
+                string fullContent = "";
+                var toolCallsAccumulator = new Dictionary<int, AccumulatingToolCall>();
+                bool isFirstChunk = true;
+
+                await foreach (var evt in stream)
                 {
-                    if (!string.IsNullOrWhiteSpace(content))
+                    if (!string.IsNullOrEmpty(evt.ContentDelta))
                     {
-                        messages.Add(new ChatMessage { Role = "assistant", Content = content });
-                        onMessageGenerated(new ChatMessage { Role = "assistant", Content = content });
+                        fullContent += evt.ContentDelta;
+                        onMessageGenerated("assistant", evt.ContentDelta, !isFirstChunk);
+                        isFirstChunk = false;
+                    }
+
+                    if (evt.ToolCallFragments != null)
+                    {
+                        foreach (var frag in evt.ToolCallFragments)
+                        {
+                            if (!toolCallsAccumulator.TryGetValue(frag.Index, out var acc))
+                            {
+                                acc = new AccumulatingToolCall();
+                                toolCallsAccumulator[frag.Index] = acc;
+                            }
+                            if (frag.Id != null) acc.Id = frag.Id;
+                            if (frag.Type != null) acc.Type = frag.Type;
+                            if (frag.FunctionName != null) acc.FunctionName += frag.FunctionName;
+                            if (frag.FunctionArgumentsDelta != null) acc.FunctionArguments += frag.FunctionArgumentsDelta;
+                        }
+                    }
+                }
+
+                if (toolCallsAccumulator.Count == 0)
+                {
+                    if (!string.IsNullOrWhiteSpace(fullContent))
+                    {
+                        messages.Add(new ChatMessage { Role = "assistant", Content = fullContent });
                     }
                     return "OK";
                 }
 
+                var toolCallsArrayJson = "[";
+                var toolCallsList = toolCallsAccumulator.OrderBy(x => x.Key).Select(x => x.Value).ToList();
+                for (int i = 0; i < toolCallsList.Count; i++)
+                {
+                    var acc = toolCallsList[i];
+                    toolCallsArrayJson += $"{{\"id\":\"{acc.Id}\",\"type\":\"{acc.Type}\",\"function\":{{\"name\":\"{acc.FunctionName}\",\"arguments\":{JsonSerializer.Serialize(acc.FunctionArguments)}}}}}";
+                    if (i < toolCallsList.Count - 1) toolCallsArrayJson += ",";
+                }
+                toolCallsArrayJson += "]";
+
+                var toolCallsNode = JsonDocument.Parse(toolCallsArrayJson).RootElement;
+
                 messages.Add(new ChatMessage
                 {
                     Role = "assistant",
-                    Content = content,
-                    ToolCalls = response.ToolCalls
+                    Content = fullContent,
+                    ToolCalls = toolCallsNode
                 });
-                
-                if (!string.IsNullOrWhiteSpace(content))
+
+                foreach (var acc in toolCallsList)
                 {
-                    onMessageGenerated(new ChatMessage { Role = "assistant", Content = content });
-                }
+                    onMessageGenerated("tool_progress", $"执行中: {acc.FunctionName}...", false);
 
-                foreach (var toolCall in response.ToolCalls.Value.EnumerateArray())
-                {
-                    string callId = toolCall.GetProperty("id").GetString() ?? "";
-                    string funcName = toolCall.GetProperty("function").GetProperty("name").GetString() ?? "";
-                    string funcArgs = toolCall.GetProperty("function").GetProperty("arguments").GetString() ?? "{}";
-
-                    onMessageGenerated(new ChatMessage { Role = "tool_progress", Content = $"执行中: {funcName}..." });
-
-                    string result = funcName switch
+                    string result = acc.FunctionName switch
                     {
-                        "start_smart_cleanup" => await StartSmartCleanupAsync(funcArgs),
-                        "execute_cleanup" => await ExecuteCleanupAsync(funcArgs, requestConfirmation),
+                        "start_smart_cleanup" => await StartSmartCleanupAsync(acc.FunctionArguments),
+                        "execute_cleanup" => await ExecuteCleanupAsync(acc.FunctionArguments, requestConfirmation),
                         "analyze_latest_cleanup_log" => await AnalyzeLatestCleanupLogAsync(),
-                        "navigate_to_feature" => await NavigateToFeatureAsync(funcArgs),
-                        "add_dev_log_record" => await AddDevLogRecordAsync(funcArgs),
-                        _ => $"未知操作: {funcName}"
+                        "navigate_to_feature" => await NavigateToFeatureAsync(acc.FunctionArguments),
+                        "add_dev_log_record" => await AddDevLogRecordAsync(acc.FunctionArguments),
+                        "remember_user_preference" => await RememberUserPreferenceAsync(acc.FunctionArguments),
+                        _ => $"未知操作: {acc.FunctionName}"
                     };
 
                     messages.Add(new ChatMessage
                     {
                         Role = "tool",
-                        ToolCallId = callId,
+                        ToolCallId = acc.Id,
                         Content = result
                     });
                 }
@@ -505,8 +596,16 @@ namespace BlueSapphire.Services
 
             string err = "后台任务执行次数已达上限，系统已中断连续操作。";
             messages.Add(new ChatMessage { Role = "assistant", Content = err });
-            onMessageGenerated(new ChatMessage { Role = "assistant", Content = err });
+            onMessageGenerated("assistant", err, false);
             return err;
+        }
+
+        private class AccumulatingToolCall
+        {
+            public string Id { get; set; } = "";
+            public string Type { get; set; } = "function";
+            public string FunctionName { get; set; } = "";
+            public string FunctionArguments { get; set; } = "";
         }
     }
 }

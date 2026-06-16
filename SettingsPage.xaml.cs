@@ -10,6 +10,8 @@ using System;
 using System.IO;
 using System.Reflection;
 using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
+using BlueSapphire.Services;
 
 namespace BlueSapphire
 {
@@ -72,14 +74,122 @@ namespace BlueSapphire
             ParticleSwitch.IsOn = targetState;
             ParticleSwitch.Toggled += ParticleSwitch_Toggled;
 
+            ApiProviderComboBox.SelectionChanged -= ApiProviderComboBox_SelectionChanged;
+            string provider = AppSettings.Get("DeepSeekApiProvider", "Official");
+            ApiProviderComboBox.SelectedIndex = provider == "SiliconFlow" ? 1 : 0;
+            ApiProviderComboBox.SelectionChanged += ApiProviderComboBox_SelectionChanged;
+
             DeepSeekApiKeyBox.PasswordChanged -= DeepSeekApiKeyBox_PasswordChanged;
-            DeepSeekApiKeyBox.Password = AppSettings.GetSecret("DeepSeekApiKey") ?? string.Empty;
+            DeepSeekApiKeyBox.Password = AppSettings.GetSecret($"DeepSeekApiKey_{provider}") ?? AppSettings.GetSecret("DeepSeekApiKey") ?? string.Empty;
             DeepSeekApiKeyBox.PasswordChanged += DeepSeekApiKeyBox_PasswordChanged;
+
+            ApiModelComboBox.SelectionChanged -= ApiModelComboBox_SelectionChanged;
+            string savedModel = AppSettings.Get($"DeepSeekApiModel_{provider}", AppSettings.Get("DeepSeekApiModel", provider == "SiliconFlow" ? "deepseek-ai/DeepSeek-V3" : "deepseek-chat"));
+            if (!string.IsNullOrEmpty(savedModel))
+            {
+                ApiModelComboBox.Items.Add(new ComboBoxItem { Content = savedModel, Tag = savedModel });
+                ApiModelComboBox.SelectedIndex = 0;
+            }
+            ApiModelComboBox.SelectionChanged += ApiModelComboBox_SelectionChanged;
         }
 
         private void DeepSeekApiKeyBox_PasswordChanged(object sender, RoutedEventArgs e)
         {
+            string provider = AppSettings.Get("DeepSeekApiProvider", "Official");
+            AppSettings.SaveSecret($"DeepSeekApiKey_{provider}", DeepSeekApiKeyBox.Password);
+            
+            // 为了兼容性，也保存一份到默认的 key 中（如果之前没有特定提供商配置，方便回滚）
             AppSettings.SaveSecret("DeepSeekApiKey", DeepSeekApiKeyBox.Password);
+        }
+
+        private void ApiProviderComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (ApiProviderComboBox.SelectedItem is ComboBoxItem item && item.Tag is string tag)
+            {
+                string oldProvider = AppSettings.Get("DeepSeekApiProvider", "Official");
+                if (oldProvider != tag)
+                {
+                    AppSettings.Save("DeepSeekApiProvider", tag);
+                    
+                    DeepSeekApiKeyBox.PasswordChanged -= DeepSeekApiKeyBox_PasswordChanged;
+                    DeepSeekApiKeyBox.Password = AppSettings.GetSecret($"DeepSeekApiKey_{tag}") ?? AppSettings.GetSecret("DeepSeekApiKey") ?? string.Empty;
+                    DeepSeekApiKeyBox.PasswordChanged += DeepSeekApiKeyBox_PasswordChanged;
+
+                    if (ApiModelComboBox != null)
+                    {
+                        ApiModelComboBox.Items.Clear();
+                        ApiModelComboBox.PlaceholderText = "供应商已切换，请重新获取模型";
+                    }
+                }
+            }
+        }
+
+        private void ApiModelComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (ApiModelComboBox.SelectedItem is ComboBoxItem item && item.Tag is string tag)
+            {
+                string provider = AppSettings.Get("DeepSeekApiProvider", "Official");
+                AppSettings.Save($"DeepSeekApiModel_{provider}", tag);
+                AppSettings.Save("DeepSeekApiModel", tag); // For compatibility
+            }
+        }
+
+        private async void RefreshModelsBtn_Click(object sender, RoutedEventArgs e)
+        {
+            await FetchModelsAsync();
+        }
+
+        private async void ApiModelComboBox_DropDownOpened(object sender, object e)
+        {
+            if (ApiModelComboBox.Items.Count <= 1)
+            {
+                await FetchModelsAsync();
+            }
+        }
+
+        private async Task FetchModelsAsync()
+        {
+            try
+            {
+                RefreshModelsBtn.IsEnabled = false;
+                ApiModelComboBox.PlaceholderText = "正在获取模型...";
+                
+                string currentSelection = (ApiModelComboBox.SelectedItem as ComboBoxItem)?.Tag as string;
+                ApiModelComboBox.Items.Clear();
+
+                // 强制保存最新的 API Key 到对应提供商
+                string provider = AppSettings.Get("DeepSeekApiProvider", "Official");
+                AppSettings.SaveSecret($"DeepSeekApiKey_{provider}", DeepSeekApiKeyBox.Password);
+
+                var aiService = App.Current.Services.GetRequiredService<DeepSeekAIService>();
+                var result = await aiService.GetAvailableModelsAsync();
+
+                if (result.Models.Count > 0)
+                {
+                    string savedModel = AppSettings.Get($"DeepSeekApiModel_{provider}", AppSettings.Get("DeepSeekApiModel", ""));
+                    int selectedIndex = -1;
+                    for (int i = 0; i < result.Models.Count; i++)
+                    {
+                        ApiModelComboBox.Items.Add(new ComboBoxItem { Content = result.Models[i], Tag = result.Models[i] });
+                        if (result.Models[i] == savedModel || result.Models[i] == currentSelection) selectedIndex = i;
+                    }
+                    if (selectedIndex >= 0) ApiModelComboBox.SelectedIndex = selectedIndex;
+                    else ApiModelComboBox.SelectedIndex = 0;
+                    
+                    ApiModelComboBox.PlaceholderText = "请选择连接模型";
+                }
+                else
+                {
+                    // 将真实的报错信息显示给用户
+                    ApiModelComboBox.PlaceholderText = !string.IsNullOrEmpty(result.Error) 
+                        ? result.Error 
+                        : "获取失败，请检查 API Key";
+                }
+            }
+            finally
+            {
+                RefreshModelsBtn.IsEnabled = true;
+            }
         }
 
         private void ParticleSwitch_Toggled(object sender, RoutedEventArgs e)

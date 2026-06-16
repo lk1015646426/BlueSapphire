@@ -7,12 +7,17 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <Grid Padding="40">
-        <StackPanel Spacing="25" MaxWidth="750" HorizontalAlignment="Stretch">
+    <Grid Padding="40,40,40,20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
 
-            <TextBlock Text="系统设置" FontSize="32" FontWeight="Bold" Foreground="White" CharacterSpacing="80" Margin="0,0,0,5"/>
-
-            <Rectangle Height="1" HorizontalAlignment="Stretch" Margin="0,0,0,10">
+        <!-- 顶部标题 -->
+        <StackPanel Grid.Row="0" MaxWidth="800" HorizontalAlignment="Stretch" Margin="0,0,0,30">
+            <TextBlock Text="系统设置" FontSize="32" FontWeight="Bold" Foreground="White" CharacterSpacing="80" Margin="0,0,0,15"/>
+            <Rectangle Height="1" HorizontalAlignment="Stretch">
                 <Rectangle.Fill>
                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
                         <GradientStop Color="#CC00FFFF" Offset="0"/>
@@ -20,72 +25,112 @@
                     </LinearGradientBrush>
                 </Rectangle.Fill>
             </Rectangle>
+        </StackPanel>
 
-            <Border Background="#08FFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1" Padding="25,20" CornerRadius="8">
-                <Grid>
-                    <TextBlock Text="神经网络粒子引擎" FontSize="18" FontWeight="SemiBold" Foreground="#F0FFFFFF" VerticalAlignment="Center" CharacterSpacing="25"/>
+        <!-- 核心设置区 -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled">
+            <StackPanel MaxWidth="800" HorizontalAlignment="Stretch" Spacing="15">
+                
+                <TextBlock Text="通用配置" FontSize="15" FontWeight="SemiBold" Foreground="#A0FFFFFF" Margin="5,0,0,0" CharacterSpacing="20"/>
+                
+                <Border Background="#0AFFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1" CornerRadius="8">
+                    <StackPanel>
+                        <!-- 粒子引擎设置 -->
+                        <Grid Padding="25,20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <StackPanel VerticalAlignment="Center" Margin="0,0,20,0">
+                                <TextBlock Text="神经网络粒子引擎" FontSize="18" FontWeight="SemiBold" Foreground="#F0FFFFFF" CharacterSpacing="25"/>
+                                <TextBlock Text="开启或关闭背景的动态神经节点连线特效" Foreground="#80FFFFFF" FontSize="13" Margin="0,6,0,0"/>
+                            </StackPanel>
+                            
+                            <ToggleSwitch x:Name="ParticleSwitch" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" IsOn="True" Margin="0"/>
+                        </Grid>
 
-                    <ToggleSwitch x:Name="ParticleSwitch" HorizontalAlignment="Right" VerticalAlignment="Center" IsOn="True" Margin="0,0,0,-6"/>
-                </Grid>
-            </Border>
+                        <Rectangle Height="1" Fill="#1AFFFFFF" Margin="25,0"/>
 
-            <Border Background="#08FFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1" Padding="25,20" CornerRadius="8">
-                <StackPanel Spacing="10">
-                    <TextBlock Text="AI 智能引擎 (DeepSeek)" FontSize="18" FontWeight="SemiBold" Foreground="#F0FFFFFF" CharacterSpacing="25" Margin="0,0,0,5"/>
-                    <TextBlock Text="配置 DeepSeek API 密钥，解锁“蓝宝石”智能对话控制与日志分析功能。" Foreground="#80FFFFFF" FontSize="14" TextWrapping="Wrap"/>
-                    <PasswordBox x:Name="DeepSeekApiKeyBox" PlaceholderText="输入你的 sk-... 密钥" PasswordChar="•" MaxWidth="500" HorizontalAlignment="Left" Margin="0,5,0,0" PasswordChanged="DeepSeekApiKeyBox_PasswordChanged"/>
-                </StackPanel>
-            </Border>
-
-            <Border Background="#08FFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1" Padding="30" CornerRadius="8">
-
-                <StackPanel Background="Transparent" 
-                            PointerPressed="SecretVersion_PointerPressed"
-                            PointerEntered="SecretVersion_PointerEntered"
-                            PointerExited="SecretVersion_PointerExited" 
-                            Spacing="15">
-
-                    <StackPanel.Resources>
-                        <Storyboard x:Name="VersionClickStoryboard">
-                            <DoubleAnimation Storyboard.TargetName="VersionScale"
-                                             Storyboard.TargetProperty="ScaleX"
-                                             From="1.0" To="0.8" Duration="0:0:0.1" AutoReverse="True"/>
-                            <DoubleAnimation Storyboard.TargetName="VersionScale"
-                                             Storyboard.TargetProperty="ScaleY"
-                                             From="1.0" To="0.8" Duration="0:0:0.1" AutoReverse="True"/>
-                            <ColorAnimation Storyboard.TargetName="VersionBrush"
-                                            Storyboard.TargetProperty="Color"
-                                            From="#00FFFF" To="White" Duration="0:0:0.1" AutoReverse="True"/>
-                        </Storyboard>
-                    </StackPanel.Resources>
-
-                    <TextBlock Text="蓝宝石工具箱" FontSize="26" FontWeight="Bold" Foreground="White" CharacterSpacing="60"/>
-
-                    <StackPanel Orientation="Horizontal" Spacing="15" VerticalAlignment="Center">
-
-                        <TextBlock x:Name="VersionTextBlock" 
-                                   Text="{x:Bind AppDisplayVersion, Mode=OneWay}" 
-                                   FontSize="16" 
-                                   FontWeight="SemiBold" 
-                                   CharacterSpacing="20" 
-                                   RenderTransformOrigin="0.5,0.5"
-                                   VerticalAlignment="Center">
-                            <TextBlock.Foreground>
-                                <SolidColorBrush x:Name="VersionBrush" Color="#00FFFF"/>
-                            </TextBlock.Foreground>
-                            <TextBlock.RenderTransform>
-                                <ScaleTransform x:Name="VersionScale" ScaleX="1" ScaleY="1"/>
-                            </TextBlock.RenderTransform>
-                        </TextBlock>
-
-                        <TextBlock Text="|" Foreground="#30FFFFFF" FontSize="16" VerticalAlignment="Center" Margin="0,-2,0,0"/>
-
-                        <TextBlock Text="{x:Bind AppBuildDate, Mode=OneWay}" Foreground="#80FFFFFF" FontSize="14" VerticalAlignment="Center" CharacterSpacing="10"/>
+                        <!-- AI 引擎设置 -->
+                        <Grid Padding="25,20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,40,0">
+                                <TextBlock Text="AI 智能引擎" FontSize="18" FontWeight="SemiBold" Foreground="#F0FFFFFF" CharacterSpacing="25"/>
+                                <TextBlock Text="配置智能引擎 API 密钥，解锁“蓝宝石”智能对话控制与自动日志分析功能。支持官方 DeepSeek 与硅基流动接口。" Foreground="#80FFFFFF" FontSize="13" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                            </StackPanel>
+                            
+                            <StackPanel Grid.Column="1" Spacing="12" VerticalAlignment="Center" Width="280">
+                                <ComboBox x:Name="ApiProviderComboBox" HorizontalAlignment="Stretch" SelectionChanged="ApiProviderComboBox_SelectionChanged">
+                                    <ComboBoxItem Content="DeepSeek 官方 API" Tag="Official"/>
+                                    <ComboBoxItem Content="硅基流动 (SiliconFlow)" Tag="SiliconFlow"/>
+                                </ComboBox>
+                                <PasswordBox x:Name="DeepSeekApiKeyBox" HorizontalAlignment="Stretch" PlaceholderText="输入你的 sk-... 密钥" PasswordChar="•" PasswordRevealMode="Peek" PasswordChanged="DeepSeekApiKeyBox_PasswordChanged"/>
+                                
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <ComboBox x:Name="ApiModelComboBox" HorizontalAlignment="Stretch" PlaceholderText="请先测试连接并获取模型" SelectionChanged="ApiModelComboBox_SelectionChanged" DropDownOpened="ApiModelComboBox_DropDownOpened"/>
+                                    <Button x:Name="RefreshModelsBtn" Grid.Column="1" Width="40" Height="32" ToolTipService.ToolTip="测试连接并获取模型列表" Click="RefreshModelsBtn_Click">
+                                        <FontIcon Glyph="&#xE72C;" FontSize="14"/>
+                                    </Button>
+                                </Grid>
+                            </StackPanel>
+                        </Grid>
                     </StackPanel>
+                </Border>
 
-                </StackPanel>
-            </Border>
+            </StackPanel>
+        </ScrollViewer>
 
+        <!-- 底部版本信息 -->
+        <StackPanel Grid.Row="2" HorizontalAlignment="Center" Margin="0,20,0,0"
+                    PointerPressed="SecretVersion_PointerPressed"
+                    PointerEntered="SecretVersion_PointerEntered"
+                    PointerExited="SecretVersion_PointerExited" 
+                    Background="Transparent">
+            
+            <StackPanel.Resources>
+                <Storyboard x:Name="VersionClickStoryboard">
+                    <DoubleAnimation Storyboard.TargetName="VersionScale"
+                                     Storyboard.TargetProperty="ScaleX"
+                                     From="1.0" To="0.8" Duration="0:0:0.1" AutoReverse="True"/>
+                    <DoubleAnimation Storyboard.TargetName="VersionScale"
+                                     Storyboard.TargetProperty="ScaleY"
+                                     From="1.0" To="0.8" Duration="0:0:0.1" AutoReverse="True"/>
+                    <ColorAnimation Storyboard.TargetName="VersionBrush"
+                                    Storyboard.TargetProperty="Color"
+                                    From="#00FFFF" To="White" Duration="0:0:0.1" AutoReverse="True"/>
+                </Storyboard>
+            </StackPanel.Resources>
+
+            <TextBlock Text="蓝宝石工具箱" FontSize="16" FontWeight="Bold" Foreground="#60FFFFFF" CharacterSpacing="40" HorizontalAlignment="Center" Margin="0,0,0,8"/>
+
+            <StackPanel Orientation="Horizontal" Spacing="15" HorizontalAlignment="Center">
+                <TextBlock x:Name="VersionTextBlock" 
+                           Text="{x:Bind AppDisplayVersion, Mode=OneWay}" 
+                           FontSize="13" 
+                           FontWeight="SemiBold" 
+                           CharacterSpacing="15" 
+                           RenderTransformOrigin="0.5,0.5">
+                    <TextBlock.Foreground>
+                        <SolidColorBrush x:Name="VersionBrush" Color="#00FFFF"/>
+                    </TextBlock.Foreground>
+                    <TextBlock.RenderTransform>
+                        <ScaleTransform x:Name="VersionScale" ScaleX="1" ScaleY="1"/>
+                    </TextBlock.RenderTransform>
+                </TextBlock>
+
+                <TextBlock Text="|" Foreground="#30FFFFFF" FontSize="13" VerticalAlignment="Center" Margin="0,-2,0,0"/>
+
+                <TextBlock Text="{x:Bind AppBuildDate, Mode=OneWay}" Foreground="#50FFFFFF" FontSize="13" VerticalAlignment="Center" CharacterSpacing="10"/>
+            </StackPanel>
         </StackPanel>
     </Grid>
 </Page>

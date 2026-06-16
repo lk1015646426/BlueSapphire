@@ -16,24 +16,39 @@
 
         <StackPanel Grid.Row="0" Margin="0,0,0,20">
             <TextBlock Text="智能助理" FontSize="28" FontWeight="Bold" Foreground="White"/>
-            <TextBlock Text="由 DeepSeek 强力驱动，支持自然语言控制与审计日志分析。" Foreground="#80FFFFFF" Margin="0,5,0,0"/>
+            <TextBlock Text="由 DeepSeek 强力驱动，支持自然语言控制与系统管家功能。" Foreground="#80FFFFFF" Margin="0,5,0,0"/>
+            <StackPanel Orientation="Horizontal" Margin="0,8,0,0" VerticalAlignment="Center">
+                <Ellipse x:Name="ConnectionStatusIndicator" Width="8" Height="8" Fill="#60FFFFFF" Margin="0,0,8,0"/>
+                <TextBlock x:Name="ConnectionStatusText" Text="连接状态检测中..." FontSize="12" Foreground="#80FFFFFF"/>
+            </StackPanel>
         </StackPanel>
 
-        <Border Grid.Row="1" Background="#0AFFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1" CornerRadius="8" Padding="10">
+        <!-- 聊天记录显示区 -->
+        <Border Grid.Row="1" Background="#05FFFFFF" BorderBrush="#11FFFFFF" BorderThickness="1" CornerRadius="12" Padding="15">
             <ScrollViewer x:Name="ChatScrollViewer" VerticalScrollBarVisibility="Auto">
                 <ItemsControl x:Name="ChatList">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Grid Margin="0,10">
+                            <Grid Margin="0,12">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
+                                
                                 <Border HorizontalAlignment="{Binding Alignment}" 
                                         Background="{Binding BackgroundBrush}" 
-                                        CornerRadius="8" 
-                                        Padding="15,10"
-                                        MaxWidth="600">
-                                    <TextBlock Text="{Binding Content}" TextWrapping="Wrap" Foreground="White" LineHeight="22"/>
+                                        CornerRadius="12" 
+                                        Padding="16,12"
+                                        MaxWidth="700"
+                                        BorderThickness="1"
+                                        BorderBrush="#1AFFFFFF">
+                                    
+                                    <!-- 开启 IsTextSelectionEnabled="True" 允许鼠标选中文本进行复制 -->
+                                    <TextBlock Text="{Binding Content}" 
+                                               TextWrapping="Wrap" 
+                                               Foreground="#F5FFFFFF" 
+                                               LineHeight="24" 
+                                               FontSize="14" 
+                                               IsTextSelectionEnabled="True"/>
                                 </Border>
                             </Grid>
                         </DataTemplate>
@@ -42,26 +57,38 @@
             </ScrollViewer>
         </Border>
 
-        <Grid Grid.Row="2" Margin="0,20,0,0">
+        <!-- 底部输入区 -->
+        <Grid Grid.Row="2" Margin="0,20,0,0" ColumnSpacing="12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
             <TextBox x:Name="InputBox" 
-                     PlaceholderText="输入指令，例如：帮我清理一下系统垃圾..." 
-                     Height="45" 
+                     PlaceholderText="输入你的需求，例如：帮我清理一下系统垃圾..." 
+                     MinHeight="48" 
+                     MaxHeight="120"
+                     TextWrapping="Wrap"
+                     AcceptsReturn="False"
+                     CornerRadius="12"
+                     Background="#0AFFFFFF"
+                     BorderBrush="#22FFFFFF"
                      VerticalContentAlignment="Center" 
+                     Padding="16,0,16,0"
+                     FontSize="14"
                      KeyDown="InputBox_KeyDown"/>
             
             <Button x:Name="SendBtn" 
-                    Content="发送" 
                     Grid.Column="1" 
-                    Margin="10,0,0,0" 
-                    Height="45" 
-                    Width="80" 
+                    Height="48" 
+                    Width="48" 
+                    CornerRadius="12"
                     Style="{ThemeResource AccentButtonStyle}" 
-                    Click="SendBtn_Click"/>
+                    Click="SendBtn_Click"
+                    ToolTipService.ToolTip="发送消息">
+                <!-- 纸飞机发送图标 -->
+                <FontIcon Glyph="&#xE122;" FontSize="18"/>
+            </Button>
         </Grid>
     </Grid>
 </Page>

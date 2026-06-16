@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -115,6 +115,7 @@ namespace BlueSapphire
             services.AddSingleton<BlueSapphire.Services.CleanerScanService>();
             services.AddSingleton<BlueSapphire.Services.CleanerDeepScanService>();
             services.AddSingleton<BlueSapphire.Services.CleanerExecutionService>();
+            services.AddSingleton<BlueSapphire.Services.AIMemoryService>();
 
             // 注册 ViewModel
             services.AddTransient<MediaManagerViewModel>();
