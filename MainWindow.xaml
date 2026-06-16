@@ -37,6 +37,7 @@
                         SelectionChanged="NavView_SelectionChanged"
                         PaneDisplayMode="Left"
                         IsSettingsVisible="True"
+                        IsBackButtonVisible="Collapsed"
                         Background="{x:Null}" 
                         IsPaneOpen="True"
                         OpenPaneLength="160">

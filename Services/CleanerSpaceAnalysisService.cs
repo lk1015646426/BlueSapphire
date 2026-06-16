@@ -21,21 +21,6 @@ namespace BlueSapphire.Services
 
         public CleanerSpaceAnalysisService(
             CleanerRiskEvaluator riskEvaluator,
-            CleanerLockService lockService, AIClassifierService? aiClassifier = null)
-            : this(
-                riskEvaluator,
-                lockService,
-                aiClassifier,
-                256L * 1024L * 1024L,
-                512L * 1024L * 1024L,
-                24,
-                1024,
-                50000)
-        {
-        }
-
-        public CleanerSpaceAnalysisService(
-            CleanerRiskEvaluator riskEvaluator,
             CleanerLockService lockService,
             AIClassifierService? aiClassifier = null,
             long largeDirectoryThresholdBytes = 256L * 1024L * 1024L,

@@ -165,10 +165,40 @@ namespace BlueSapphire.Services
         {
             logs ??= new List<DevLogItem>();
 
-            string json = JsonSerializer.Serialize(logs, new JsonSerializerOptions { WriteIndented = true });
+            string json = JsonSerializer.Serialize(logs, new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
             string tempFilePath = DataFilePath + ".tmp";
             await File.WriteAllTextAsync(tempFilePath, json);
             File.Move(tempFilePath, DataFilePath, true);
+
+#if DEBUG
+            try
+            {
+                var projAssetPath = TryGetProjectAssetPath();
+                if (projAssetPath != null)
+                {
+                    File.Copy(DataFilePath, projAssetPath, true);
+                    _logger.LogInformation($"Dev logs auto-synced to source directory: {projAssetPath}");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to auto-sync dev logs to source directory.");
+            }
+#endif
+        }
+
+        private string? TryGetProjectAssetPath()
+        {
+            var dir = AppContext.BaseDirectory;
+            while (dir != null && Directory.Exists(dir))
+            {
+                if (File.Exists(Path.Combine(dir, "BlueSapphire.csproj")))
+                {
+                    return Path.Combine(dir, "Assets", FileName);
+                }
+                dir = Directory.GetParent(dir)?.FullName;
+            }
+            return null;
         }
 
         private bool IsWritableInCurrentEnvironment()

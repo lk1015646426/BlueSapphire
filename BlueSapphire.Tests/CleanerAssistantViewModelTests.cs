@@ -1,3 +1,4 @@
+﻿using Microsoft.Extensions.Logging.Abstractions;
 using BlueSapphire.Models;
 using BlueSapphire.Services;
 using BlueSapphire.ViewModels;
@@ -252,11 +253,11 @@ public class CleanerAssistantViewModelTests : IDisposable
         CleanerLaunchActionService launchActionService = new(() => string.Empty);
         CleanerDriveService driveService = new();
         CleanerRiskEvaluator riskEvaluator = new();
-        CleanerSpaceAnalysisService spaceAnalysisService = new(riskEvaluator, lockService);
+        CleanerSpaceAnalysisService spaceAnalysisService = new(riskEvaluator, lockService, (AIClassifierService?)null);
         CleanerOrphanResidueService orphanResidueService = new(lockService);
 
         CleanerScanService scanService = new(ruleService, riskEvaluator, stateStore, lockService, privilegeService);
-        CleanerDeepScanService deepScanService = new(scanService, stateStore, spaceAnalysisService, orphanResidueService);
+        CleanerDeepScanService deepScanService = new(scanService, stateStore, spaceAnalysisService, orphanResidueService, NullLogger<CleanerDeepScanService>.Instance);
         CleanerTelemetryService telemetryService = new(stateStore, auditService, ruleService, profileService);
         CleanerRecommendationService recommendationService = new();
         CleanerExecutionService executionService = new(

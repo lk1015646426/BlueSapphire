@@ -9,6 +9,7 @@ using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using System;
 using System.Collections.Generic;
@@ -21,10 +22,12 @@ namespace BlueSapphire
 {
     public sealed partial class MainWindow : Window
     {
+
         public bool IsParticleEffectEnabled { get; private set; } = true;
 
         public System.Collections.Generic.IReadOnlyList<ITool> Tools => _tools;
         private List<ITool> _tools = new List<ITool>();
+        private System.Collections.ObjectModel.ObservableCollection<NavigationViewItem> _navItems = new System.Collections.ObjectModel.ObservableCollection<NavigationViewItem>();
         private List<Particle> _particles = new List<Particle>();
         private Random _random = new Random();
         private Vector2 _mousePosition = new Vector2(-1000, -1000);
@@ -45,6 +48,8 @@ namespace BlueSapphire
         public MainWindow()
         {
             this.InitializeComponent();
+
+            NavView.MenuItemsSource = _navItems;
 
             _gridArray = new List<Particle>[MaxGridCols, MaxGridRows];
             for (int i = 0; i < MaxGridCols; i++)
@@ -131,9 +136,9 @@ namespace BlueSapphire
         private void LoadTools()
         {
             RegisterTool(App.Current.Services.GetRequiredService<HomeTool>());
+            RegisterTool(App.Current.Services.GetRequiredService<AICopilotTool>());
             RegisterTool(App.Current.Services.GetRequiredService<MediaManagerTool>());
             RegisterTool(App.Current.Services.GetRequiredService<CleanerAssistantTool>());
-            RegisterTool(App.Current.Services.GetRequiredService<AICopilotTool>());
         }
 
         private void RegisterTool(ITool tool)
@@ -146,7 +151,26 @@ namespace BlueSapphire
                 Icon = new SymbolIcon(tool.Icon),
                 Tag = tool.Id
             };
-            NavView.MenuItems.Add(navItem);
+
+            _navItems.Add(navItem);
+        }
+
+
+
+
+
+        private static T? FindVisualChild<T>(DependencyObject parent, string name = "") where T : FrameworkElement
+        {
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is T typedChild && (string.IsNullOrEmpty(name) || typedChild.Name == name))
+                    return typedChild;
+
+                var result = FindVisualChild<T>(child, name);
+                if (result != null) return result;
+            }
+            return null;
         }
 
         private void NavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
@@ -167,7 +191,7 @@ namespace BlueSapphire
                 return;
             }
 
-            var item = NavView.MenuItems.OfType<NavigationViewItem>().FirstOrDefault(i => string.Equals(i.Tag as string, tag, StringComparison.OrdinalIgnoreCase));
+            var item = _navItems.FirstOrDefault(i => string.Equals(i.Tag as string, tag, StringComparison.OrdinalIgnoreCase));
             if (item != null)
             {
                 NavView.SelectedItem = item;
@@ -179,8 +203,7 @@ namespace BlueSapphire
             string? requestedToolId = ParseRequestedToolId(App.LaunchArguments);
             if (!string.IsNullOrWhiteSpace(requestedToolId))
             {
-                NavigationViewItem? match = NavView.MenuItems
-                    .OfType<NavigationViewItem>()
+                NavigationViewItem? match = _navItems
                     .FirstOrDefault(item => string.Equals(item.Tag as string, requestedToolId, StringComparison.OrdinalIgnoreCase));
 
                 if (match != null)
@@ -190,9 +213,9 @@ namespace BlueSapphire
                 }
             }
 
-            if (NavView.MenuItems.Count > 0)
+            if (_navItems.Count > 0)
             {
-                NavView.SelectedItem = NavView.MenuItems[0];
+                NavView.SelectedItem = _navItems[0];
             }
         }
 

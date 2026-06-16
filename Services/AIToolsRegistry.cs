@@ -15,6 +15,7 @@ namespace BlueSapphire.Services
         private readonly CleanerScanService _scanService;
         private readonly CleanerExecutionService _executionService;
         private readonly CleanerAuditService _auditService;
+        private readonly DevLogDataService _devLogDataService;
 
         private List<CleanerScanItem>? _lastScanResults;
 
@@ -22,12 +23,14 @@ namespace BlueSapphire.Services
             DeepSeekAIService aiService, 
             CleanerScanService scanService, 
             CleanerExecutionService executionService, 
-            CleanerAuditService auditService)
+            CleanerAuditService auditService,
+            DevLogDataService devLogDataService)
         {
             _aiService = aiService;
             _scanService = scanService;
             _executionService = executionService;
             _auditService = auditService;
+            _devLogDataService = devLogDataService;
         }
 
         public ChatMessage GetSystemPrompt(IEnumerable<string> features)
@@ -52,6 +55,7 @@ namespace BlueSapphire.Services
 2. execute_cleanup：执行实际的清理操作。你可以指定清理 categories_to_clean (例如 ['Safe', 'app_cache'])。
 3. analyze_latest_cleanup_log：读取最近一次清理的日志。
 4. navigate_to_feature：跳转到指定功能界面。
+5. add_dev_log_record：自动帮用户生成并写入开发日志（发布记录）。当用户告诉你他们做了哪些开发、总结了什么内容时，你可以提取标题、版本号、级别等信息，调用此工具直接写入。
 
 【核心交互流程与约束 - 必须严格遵守】
 1. 需求理解：当用户表达磁盘空间不足时，先询问他们想扫描哪些盘，或者直接调用 start_smart_cleanup 进行默认扫描。
@@ -95,6 +99,10 @@ namespace BlueSapphire.Services
                     else if (name == "navigate_to_feature")
                     {
                         return await NavigateToFeatureAsync(args);
+                    }
+                    else if (name == "add_dev_log_record")
+                    {
+                        return await AddDevLogRecordAsync(args);
                     }
                 }
                 return "未找到对应的指令。";
@@ -265,6 +273,42 @@ namespace BlueSapphire.Services
             }
         }
 
+        private async Task<string> AddDevLogRecordAsync(string args)
+        {
+            try
+            {
+                var doc = JsonDocument.Parse(args);
+                var root = doc.RootElement;
+
+                string title = root.TryGetProperty("title", out var tProp) ? tProp.GetString() ?? "更新记录" : "更新记录";
+                string version = root.TryGetProperty("version", out var vProp) ? vProp.GetString() ?? "1.0.0" : "1.0.0";
+                string level = root.TryGetProperty("level", out var lProp) ? lProp.GetString() ?? "常规迭代" : "常规迭代";
+                string summary = root.TryGetProperty("summary", out var sProp) ? sProp.GetString() ?? "修复了一些问题并提升了体验。" : "修复了一些问题并提升了体验。";
+                string fullContent = root.TryGetProperty("fullContent", out var fProp) ? fProp.GetString() ?? summary : summary;
+
+                var newItem = new DevLogItem
+                {
+                    Title = title,
+                    Version = version,
+                    UpdateLevel = level,
+                    Description = summary,
+                    FullContent = fullContent,
+                    Status = DevLogStatus.Completed,
+                    Timestamp = DateTime.Now
+                };
+
+                var logs = await _devLogDataService.LoadLogsAsync();
+                logs.Insert(0, newItem);
+                await _devLogDataService.SaveLogsAsync(logs);
+
+                return $"已成功为您生成并保存版本 {version} 的开发日志！您可以前往“开发日志与版本记录”页面查看。如果页面已经打开，可能需要重新进入以刷新数据。";
+            }
+            catch (Exception ex)
+            {
+                return $"生成开发日志失败: {ex.Message}";
+            }
+        }
+
         private async Task<string> NavigateToFeatureAsync(string args)
         {
             var doc = JsonDocument.Parse(args);
@@ -370,6 +414,28 @@ namespace BlueSapphire.Services
                             required = new[] { "feature" }
                         })
                     }
+                },
+                new ChatTool
+                {
+                    Type = "function",
+                    Function = new ChatFunction
+                    {
+                        Name = "add_dev_log_record",
+                        Description = "Automatically generates and saves a development log entry based on the user's summary of their work. Use this when the user describes what they've developed or asks to record a dev log.",
+                        Parameters = JsonSerializer.SerializeToNode(new
+                        {
+                            type = "object",
+                            properties = new
+                            {
+                                title = new { type = "string", description = "A short and concise title for the update." },
+                                version = new { type = "string", description = "The version number, e.g. '1.0.6'. If the user doesn't provide one, default to '1.0.0' or ask them." },
+                                level = new { type = "string", description = "The update level. Must be one of: '常规迭代' (Regular iteration), '核心跃迁' (Major feature/update), '漏洞修复' (Bug fixes). Default is '常规迭代'.", @enum = new[] { "常规迭代", "核心跃迁", "漏洞修复" } },
+                                summary = new { type = "string", description = "A brief 1-2 sentence summary of the update." },
+                                fullContent = new { type = "string", description = "The full, detailed release notes formatted in Markdown. Can include bullet points." }
+                            },
+                            required = new[] { "title", "version", "level", "summary", "fullContent" }
+                        })
+                    }
                 }
             };
         }
@@ -424,6 +490,7 @@ namespace BlueSapphire.Services
                         "execute_cleanup" => await ExecuteCleanupAsync(funcArgs, requestConfirmation),
                         "analyze_latest_cleanup_log" => await AnalyzeLatestCleanupLogAsync(),
                         "navigate_to_feature" => await NavigateToFeatureAsync(funcArgs),
+                        "add_dev_log_record" => await AddDevLogRecordAsync(funcArgs),
                         _ => $"未知操作: {funcName}"
                     };
 
