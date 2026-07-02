@@ -6,18 +6,21 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace BlueSapphire.Services
 {
     public sealed class CleanerScanService
     {
         private static readonly TimeSpan IncrementalReuseWindow = TimeSpan.FromMinutes(5);
+        private readonly SemaphoreSlim _scanThrottle = new(Math.Max(2, Environment.ProcessorCount / 2));
 
         private readonly CleanerRuleService _ruleService;
         private readonly CleanerRiskEvaluator _riskEvaluator;
         private readonly CleanerStateStore _stateStore;
         private readonly CleanerLockService _lockService;
         private readonly CleanerPrivilegeService _privilegeService;
+        private readonly ILogger<CleanerScanService>? _logger;
         private CachedQuickScanSegment? _cachedQuickScan;
 
         public CleanerScanService(
@@ -25,13 +28,15 @@ namespace BlueSapphire.Services
             CleanerRiskEvaluator riskEvaluator,
             CleanerStateStore stateStore,
             CleanerLockService lockService,
-            CleanerPrivilegeService privilegeService)
+            CleanerPrivilegeService privilegeService,
+            ILogger<CleanerScanService>? logger = null)
         {
             _ruleService = ruleService;
             _riskEvaluator = riskEvaluator;
             _stateStore = stateStore;
             _lockService = lockService;
             _privilegeService = privilegeService;
+            _logger = logger;
         }
 
         public async Task<CleanerScanReport> ScanAsync(
@@ -40,6 +45,7 @@ namespace BlueSapphire.Services
             IProgress<CleanerScanProgress>? progress,
             CancellationToken cancellationToken)
         {
+            _logger?.LogInformation("[CleanerScanService] 开始执行扫描，作用域: {Scope}", scope);
             DateTimeOffset start = DateTimeOffset.Now;
             IReadOnlyList<CleanerRuleDefinition> rules = await _ruleService.GetRulesAsync();
             IReadOnlyList<CleanerExclusionEntry> exclusions = await _stateStore.LoadExclusionsAsync();
@@ -86,17 +92,24 @@ namespace BlueSapphire.Services
                 var quickTasks = quickRules.Select(async rule =>
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    
-                    int currentProgress = Interlocked.Increment(ref localProgressValue);
-                    progress?.Report(new CleanerScanProgress
+                    await _scanThrottle.WaitAsync(cancellationToken);
+                    try
                     {
-                        StageTitle = scope == CleanerScanScope.Quick ? "快速扫描" : "深度扫描",
-                        Detail = $"正在检查：{rule.Name}",
-                        ProgressValue = currentProgress,
-                        ProgressMax = progressMax
-                    });
+                        int currentProgress = Interlocked.Increment(ref localProgressValue);
+                        progress?.Report(new CleanerScanProgress
+                        {
+                            StageTitle = scope == CleanerScanScope.Quick ? "快速扫描" : "深度扫描",
+                            Detail = $"正在检查：{rule.Name}",
+                            ProgressValue = currentProgress,
+                            ProgressMax = progressMax
+                        });
 
-                    return await ScanRuleAsync(rule, exclusionLookup, cancellationToken);
+                        return await ScanRuleAsync(rule, exclusionLookup, cancellationToken);
+                    }
+                    finally
+                    {
+                        _scanThrottle.Release();
+                    }
                 });
 
                 var quickResults = await Task.WhenAll(quickTasks);
@@ -119,17 +132,24 @@ namespace BlueSapphire.Services
                 var deepTasks = deepOnlyRules.Select(async rule =>
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    
-                    int currentProgress = Interlocked.Increment(ref localDeepProgressValue);
-                    progress?.Report(new CleanerScanProgress
+                    await _scanThrottle.WaitAsync(cancellationToken);
+                    try
                     {
-                        StageTitle = "深度扫描",
-                        Detail = $"正在检查：{rule.Name}",
-                        ProgressValue = currentProgress,
-                        ProgressMax = progressMax
-                    });
+                        int currentProgress = Interlocked.Increment(ref localDeepProgressValue);
+                        progress?.Report(new CleanerScanProgress
+                        {
+                            StageTitle = "深度扫描",
+                            Detail = $"正在检查：{rule.Name}",
+                            ProgressValue = currentProgress,
+                            ProgressMax = progressMax
+                        });
 
-                    return await ScanRuleAsync(rule, exclusionLookup, cancellationToken);
+                        return await ScanRuleAsync(rule, exclusionLookup, cancellationToken);
+                    }
+                    finally
+                    {
+                        _scanThrottle.Release();
+                    }
                 });
 
                 var deepResults = await Task.WhenAll(deepTasks);
@@ -142,6 +162,8 @@ namespace BlueSapphire.Services
             }
 
             DateTimeOffset completedAt = DateTimeOffset.Now;
+            _logger?.LogInformation("[CleanerScanService] 扫描完成，作用域: {Scope}，耗时: {Duration}ms，共发现 {Count} 个清理项，复用缓存项 {ReusedCount} 个",
+                scope, (completedAt - start).TotalMilliseconds, items.Count, reusedItemCount);
 
             return new CleanerScanReport
             {
@@ -474,7 +496,7 @@ namespace BlueSapphire.Services
             bool isLocked = false;
             List<string> lockProbePaths = new();
 
-            IReadOnlyList<string> files = CleanerPathSafety.EnumerateFilesSafely(path, patterns, recursive, exclusions);
+            IEnumerable<string> files = CleanerPathSafety.EnumerateFilesSafely(path, patterns, recursive, exclusions);
             foreach (string file in files)
             {
                 try

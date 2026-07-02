@@ -13,6 +13,7 @@ using System.Threading.Tasks;
 using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using BlueSapphire.Services;
+using System.Collections.ObjectModel;
 
 namespace BlueSapphire
 {
@@ -58,6 +59,16 @@ namespace BlueSapphire
                 _versionTapCount = 0;
                 _clickResetTimer.Stop();
             };
+
+            var skillManager = App.Current.Services.GetRequiredService<WebSkillManager>();
+            SkillsList.ItemsSource = skillManager.Skills;
+
+            var mcpManager = App.Current.Services.GetRequiredService<McpServerManager>();
+            mcpManager.OnServersChanged += RefreshMcpServersList;
+            RefreshMcpServersList();
+            
+            // 尝试启动所有已启用的 MCP 服务器
+            _ = mcpManager.StartAllEnabledServersAsync();
         }
 
         private async void LoadVersionInfo()
@@ -114,7 +125,7 @@ namespace BlueSapphire
             ParticleSwitch.Toggled += ParticleSwitch_Toggled;
 
             ApiProviderComboBox.SelectionChanged -= ApiProviderComboBox_SelectionChanged;
-            string provider = AppSettings.Get("DeepSeekApiProvider", "Official");
+            string provider = AppSettings.Get("DeepSeekApiProvider", "Official") ?? "Official";
             ApiProviderComboBox.SelectedIndex = provider == "SiliconFlow" ? 1 : 0;
             ApiProviderComboBox.SelectionChanged += ApiProviderComboBox_SelectionChanged;
 
@@ -123,7 +134,7 @@ namespace BlueSapphire
             DeepSeekApiKeyBox.PasswordChanged += DeepSeekApiKeyBox_PasswordChanged;
 
             ApiModelComboBox.SelectionChanged -= ApiModelComboBox_SelectionChanged;
-            string savedModel = AppSettings.Get($"DeepSeekApiModel_{provider}", AppSettings.Get("DeepSeekApiModel", provider == "SiliconFlow" ? "deepseek-ai/DeepSeek-V3" : "deepseek-chat"));
+            string savedModel = AppSettings.Get($"DeepSeekApiModel_{provider}", AppSettings.Get("DeepSeekApiModel", provider == "SiliconFlow" ? "deepseek-ai/DeepSeek-V3" : "deepseek-chat")) ?? string.Empty;
             if (!string.IsNullOrEmpty(savedModel))
             {
                 ApiModelComboBox.Items.Add(new ComboBoxItem { Content = savedModel, Tag = savedModel });
@@ -134,7 +145,7 @@ namespace BlueSapphire
 
         private void DeepSeekApiKeyBox_PasswordChanged(object sender, RoutedEventArgs e)
         {
-            string provider = AppSettings.Get("DeepSeekApiProvider", "Official");
+            string provider = AppSettings.Get("DeepSeekApiProvider", "Official") ?? "Official";
             AppSettings.SaveSecret($"DeepSeekApiKey_{provider}", DeepSeekApiKeyBox.Password);
             
             // 为了兼容性，也保存一份到默认的 key 中（如果之前没有特定提供商配置，方便回滚）
@@ -145,7 +156,7 @@ namespace BlueSapphire
         {
             if (ApiProviderComboBox.SelectedItem is ComboBoxItem item && item.Tag is string tag)
             {
-                string oldProvider = AppSettings.Get("DeepSeekApiProvider", "Official");
+                string oldProvider = AppSettings.Get("DeepSeekApiProvider", "Official") ?? "Official";
                 if (oldProvider != tag)
                 {
                     AppSettings.Save("DeepSeekApiProvider", tag);
@@ -167,7 +178,7 @@ namespace BlueSapphire
         {
             if (ApiModelComboBox.SelectedItem is ComboBoxItem item && item.Tag is string tag)
             {
-                string provider = AppSettings.Get("DeepSeekApiProvider", "Official");
+                string provider = AppSettings.Get("DeepSeekApiProvider", "Official") ?? "Official";
                 AppSettings.Save($"DeepSeekApiModel_{provider}", tag);
                 AppSettings.Save("DeepSeekApiModel", tag); // For compatibility
             }
@@ -193,11 +204,11 @@ namespace BlueSapphire
                 RefreshModelsBtn.IsEnabled = false;
                 ApiModelComboBox.PlaceholderText = "正在获取模型...";
                 
-                string currentSelection = (ApiModelComboBox.SelectedItem as ComboBoxItem)?.Tag as string;
+                string? currentSelection = (ApiModelComboBox.SelectedItem as ComboBoxItem)?.Tag as string;
                 ApiModelComboBox.Items.Clear();
 
                 // 强制保存最新的 API Key 到对应提供商
-                string provider = AppSettings.Get("DeepSeekApiProvider", "Official");
+                string provider = AppSettings.Get("DeepSeekApiProvider", "Official") ?? "Official";
                 AppSettings.SaveSecret($"DeepSeekApiKey_{provider}", DeepSeekApiKeyBox.Password);
 
                 var aiService = App.Current.Services.GetRequiredService<DeepSeekAIService>();
@@ -205,7 +216,7 @@ namespace BlueSapphire
 
                 if (result.Models.Count > 0)
                 {
-                    string savedModel = AppSettings.Get($"DeepSeekApiModel_{provider}", AppSettings.Get("DeepSeekApiModel", ""));
+                    string savedModel = AppSettings.Get($"DeepSeekApiModel_{provider}", AppSettings.Get("DeepSeekApiModel", "")) ?? string.Empty;
                     int selectedIndex = -1;
                     for (int i = 0; i < result.Models.Count; i++)
                     {
@@ -340,6 +351,186 @@ namespace BlueSapphire
         {
             ProtectedCursor = Microsoft.UI.Input.InputSystemCursor.Create(Microsoft.UI.Input.InputSystemCursorShape.Arrow);
         }
+
+        // --- MCP Server Management UI ---
+        public ObservableCollection<McpServerUIModel> McpServers { get; } = new();
+
+        private void RefreshMcpServersList()
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                var mcpManager = App.Current.Services.GetRequiredService<McpServerManager>();
+                McpServers.Clear();
+                foreach (var server in mcpManager.GetServers())
+                {
+                    bool isRunning = mcpManager.IsServerRunning(server.Id);
+                    McpServers.Add(new McpServerUIModel
+                    {
+                        Id = server.Id,
+                        Name = server.Name,
+                        Command = $"{server.Command} {server.Arguments}",
+                        StatusText = isRunning ? "● 运行中" : "○ 已停止",
+                        StatusColor = isRunning ? new SolidColorBrush(Microsoft.UI.Colors.LightGreen) : new SolidColorBrush(Microsoft.UI.Colors.Gray)
+                    });
+                }
+                McpServersList.ItemsSource = McpServers;
+            });
+        }
+
+        private async void AddMcpBtn_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new ContentDialog
+            {
+                Title = "添加 MCP 服务器",
+                PrimaryButtonText = "添加",
+                CloseButtonText = "取消",
+                XamlRoot = this.XamlRoot
+            };
+
+            var nameBox = new TextBox { PlaceholderText = "例如：Puppeteer", Margin = new Thickness(0, 0, 0, 10) };
+            var cmdBox = new TextBox { PlaceholderText = "命令，例如：npx", Margin = new Thickness(0, 0, 0, 10) };
+            var argsBox = new TextBox { PlaceholderText = "参数，例如：-y @modelcontextprotocol/server-puppeteer", Margin = new Thickness(0, 0, 0, 10) };
+            var envBox = new TextBox 
+            { 
+                PlaceholderText = "格式: KEY=VALUE (换行分隔，如 GITHUB_TOKEN=abc)", 
+                AcceptsReturn = true, 
+                TextWrapping = TextWrapping.Wrap,
+                Height = 80,
+                Margin = new Thickness(0, 0, 0, 10) 
+            };
+
+            var panel = new StackPanel();
+            panel.Children.Add(new TextBlock { Text = "服务器名称", Margin = new Thickness(0, 0, 0, 5) });
+            panel.Children.Add(nameBox);
+            panel.Children.Add(new TextBlock { Text = "执行命令", Margin = new Thickness(0, 0, 0, 5) });
+            panel.Children.Add(cmdBox);
+            panel.Children.Add(new TextBlock { Text = "执行参数", Margin = new Thickness(0, 0, 0, 5) });
+            panel.Children.Add(argsBox);
+            panel.Children.Add(new TextBlock { Text = "环境变量 (可选)", Margin = new Thickness(0, 0, 0, 5) });
+            panel.Children.Add(envBox);
+
+            dialog.Content = panel;
+
+            var result = await dialog.ShowAsync();
+            if (result == ContentDialogResult.Primary && !string.IsNullOrWhiteSpace(nameBox.Text) && !string.IsNullOrWhiteSpace(cmdBox.Text))
+            {
+                var envDict = new System.Collections.Generic.Dictionary<string, string>();
+                if (!string.IsNullOrWhiteSpace(envBox.Text))
+                {
+                    var lines = envBox.Text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var line in lines)
+                    {
+                        var parts = line.Split('=', 2);
+                        if (parts.Length == 2)
+                        {
+                            envDict[parts[0].Trim()] = parts[1].Trim();
+                        }
+                    }
+                }
+
+                var config = new McpServerConfig
+                {
+                    Name = nameBox.Text,
+                    Command = cmdBox.Text,
+                    Arguments = argsBox.Text,
+                    EnvironmentVariables = envDict,
+                    IsEnabled = true
+                };
+
+                var mcpManager = App.Current.Services.GetRequiredService<McpServerManager>();
+                mcpManager.AddOrUpdateServer(config);
+                await mcpManager.StartServerAsync(config.Id);
+            }
+        }
+
+        private void DeleteMcpBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.Tag is string id)
+            {
+                var mcpManager = App.Current.Services.GetRequiredService<McpServerManager>();
+                mcpManager.RemoveServer(id);
+            }
+        }
+
+        private async void AddSkillBtn_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new ContentDialog
+            {
+                Title = "添加远程 OpenAPI 技能",
+                PrimaryButtonText = "添加",
+                CloseButtonText = "取消",
+                XamlRoot = this.XamlRoot
+            };
+
+            var urlBox = new TextBox { PlaceholderText = "例如：https://api.example.com/openapi.json", Margin = new Thickness(0, 0, 0, 10) };
+
+            var panel = new StackPanel();
+            panel.Children.Add(new TextBlock { Text = "技能在线规范地址 (URL)", Margin = new Thickness(0, 0, 0, 5) });
+            panel.Children.Add(urlBox);
+            
+            dialog.Content = panel;
+
+            var result = await dialog.ShowAsync();
+            if (result == ContentDialogResult.Primary && !string.IsNullOrWhiteSpace(urlBox.Text))
+            {
+                // 获取用户输入的URL并展示代理选项弹窗
+                var proxyDialog = new Views.SkillProxyConfigDialog("新技能")
+                {
+                    XamlRoot = this.XamlRoot
+                };
+
+                var proxyResult = await proxyDialog.ShowAsync();
+                
+                if (!proxyDialog.Result.HasValue)
+                {
+                    // 用户点击了取消按钮或关闭了对话框，中止添加过程
+                    return;
+                }
+
+                bool useDomestic = proxyDialog.Result.Value;
+
+                var skillManager = App.Current.Services.GetRequiredService<WebSkillManager>();
+                
+                // 将用户的代理选择传给添加逻辑，以便首次加载就使用正确的网络配置
+                var (addedSkill, errorMsg) = await skillManager.AddSkillAsync(urlBox.Text, useDomestic);
+                
+                if (addedSkill == null)
+                {
+                    var errorDialog = new ContentDialog
+                    {
+                        Title = "技能添加失败",
+                        Content = $"无法加载该技能，请检查网址是否正确，或尝试切换网络选项。\n\n错误原因: {errorMsg}",
+                        CloseButtonText = "确定",
+                        XamlRoot = this.XamlRoot
+                    };
+                    await errorDialog.ShowAsync();
+                }
+                else
+                {
+                    // 若需要更新名称等
+                    addedSkill.UseDomesticNetwork = useDomestic;
+                    skillManager.SaveConfig();
+                }
+            }
+        }
+
+        private void DeleteSkillBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.Tag is string id)
+            {
+                var skillManager = App.Current.Services.GetRequiredService<WebSkillManager>();
+                skillManager.RemoveSkillAsync(id);
+            }
+        }
+    }
+
+    public class McpServerUIModel
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Command { get; set; } = "";
+        public string StatusText { get; set; } = "";
+        public Brush StatusColor { get; set; } = new SolidColorBrush(Microsoft.UI.Colors.White);
     }
 }
 

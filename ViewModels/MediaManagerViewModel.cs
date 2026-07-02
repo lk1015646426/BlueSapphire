@@ -161,7 +161,7 @@ namespace BlueSapphire.ViewModels
         {
             get
             {
-                string field = CurrentSortField switch
+                string sortFieldName = CurrentSortField switch
                 {
                     "Date" => "日期",
                     "Size" => "大小",
@@ -169,7 +169,7 @@ namespace BlueSapphire.ViewModels
                 };
 
                 string direction = IsSortDescending ? "降序" : "升序";
-                return $"{field} · {direction}";
+                return $"{sortFieldName} · {direction}";
             }
         }
 
@@ -421,6 +421,24 @@ namespace BlueSapphire.ViewModels
                 SetBusy(false);
                 _logger.LogError(ex, "Rename_Process_Critical");
                 await _view.ShowTipAsync($"重命名预处理失败: {ex.Message}");
+            }
+        }
+
+        [RelayCommand]
+        private void CancelOperation()
+        {
+            var cts = _globalCts;
+            if (cts != null && !cts.IsCancellationRequested)
+            {
+                StatusDetailText = "正在取消操作...";
+                Task.Run(() =>
+                {
+                    try
+                    {
+                        cts.Cancel();
+                    }
+                    catch { }
+                });
             }
         }
 
@@ -708,7 +726,7 @@ namespace BlueSapphire.ViewModels
                 $"图片转 {targetName}",
                 $"已加入 {filteredItems.Count} 张图片，目标：{targetName}",
                 (_, _, item) => $"正在转换为 {targetName}：{item.FileName}",
-                path => _imageProcessingService.ConvertAsync(path, options));
+                (path, token) => _imageProcessingService.ConvertAsync(path, options, token));
         }
 
         [RelayCommand]
@@ -745,7 +763,7 @@ namespace BlueSapphire.ViewModels
                 $"高级图片编辑",
                 $"已加入 {items.Count} 张图片进行处理",
                 (_, _, item) => $"正在处理：{item.FileName}",
-                path => _imageProcessingService.ProcessAdvancedAsync(path, options));
+                (path, token) => _imageProcessingService.ProcessAdvancedAsync(path, options, token));
         }
 
         [RelayCommand]
@@ -767,7 +785,7 @@ namespace BlueSapphire.ViewModels
                 $"AI 增强",
                 $"已加入 {items.Count} 张图片，图片增强",
                 (_, _, item) => $"正在增强：{item.FileName}",
-                path => _imageProcessingService.EnhanceAsync(path, options));
+                (path, token) => _imageProcessingService.EnhanceAsync(path, options, token));
         }
 
         private async Task RunImageOperationAndPresentAsync(
@@ -776,7 +794,7 @@ namespace BlueSapphire.ViewModels
             string operationName,
             string queueReadyText,
             Func<int, int, ImageItem, string> buildQueueDetailText,
-            Func<string, Task<ImageProcessResult>> processAsync)
+            Func<string, CancellationToken, Task<ImageProcessResult>> processAsync)
         {
             if (items.Count == 0)
             {
@@ -802,79 +820,148 @@ namespace BlueSapphire.ViewModels
             string operationName,
             string queueReadyText,
             Func<int, int, ImageItem, string> buildQueueDetailText,
-            Func<string, Task<ImageProcessResult>> processAsync)
+            Func<string, CancellationToken, Task<ImageProcessResult>> processAsync)
         {
+            _globalCts?.Cancel();
+            _globalCts = new CancellationTokenSource();
+            var token = _globalCts.Token;
+
             SetImageQueueState("图片队列：准备中", queueReadyText);
             SetBusy(true, busyText, 0, items.Count);
 
             int successCount = 0;
             int failCount = 0;
             int skippedCount = 0;
+            int processedCount = 0;
             var messages = new List<string>();
             var ghostPaths = new List<string>();
 
+            using var semaphore = new SemaphoreSlim(Environment.ProcessorCount);
+
             try
             {
-                for (int i = 0; i < items.Count; i++)
+                var tasks = items.Select(item => Task.Run(async () =>
                 {
-                    var item = items[i];
-                    RunOnUi(() =>
+                    if (token.IsCancellationRequested)
                     {
-                        ProgressValue = i + 1;
-                        ProgressMax = items.Count;
-                        StatusMainText = $"{busyText} {i + 1}/{items.Count}";
-                        StatusDetailText = item.FileName ?? string.Empty;
-                        SetImageQueueState($"图片队列：{i + 1}/{items.Count}", buildQueueDetailText(i + 1, items.Count, item));
-                    });
-
-                    var file = await TryGetStorageFileAsync(item.ImagePath);
-                    if (file == null)
-                    {
-                        skippedCount++;
-                        if (!string.IsNullOrWhiteSpace(item.ImagePath))
-                        {
-                            ghostPaths.Add(item.ImagePath);
-                        }
-
-                        continue;
+                        return;
                     }
 
-                    ImageProcessResult result;
                     try
                     {
-                        result = await processAsync(file.Path);
+                        await semaphore.WaitAsync(token);
                     }
-                    catch (Exception ex)
+                    catch (OperationCanceledException)
                     {
-                        _logger.LogError(ex, "{OperationName} ({FileName})", operationName, file.Name);
-                        result = ImageProcessResult.Failed(file.Path, ex.Message);
+                        return;
                     }
 
-                    if (result.Success)
+                    try
                     {
-                        successCount++;
-                        if (!string.IsNullOrWhiteSpace(result.OutputPath))
+                        if (token.IsCancellationRequested)
                         {
-                            await TrackOutputPathAsync(result.OutputPath);
+                            return;
+                        }
+
+                        int current = Interlocked.Increment(ref processedCount);
+                        RunOnUi(() =>
+                        {
+                            ProgressValue = current;
+                            ProgressMax = items.Count;
+                            StatusMainText = $"{busyText} {current}/{items.Count}";
+                            StatusDetailText = item.FileName ?? string.Empty;
+                            SetImageQueueState($"图片队列：{current}/{items.Count}", buildQueueDetailText(current, items.Count, item));
+                        });
+
+                        var file = await TryGetStorageFileAsync(item.ImagePath);
+                        if (file == null)
+                        {
+                            Interlocked.Increment(ref skippedCount);
+                            if (!string.IsNullOrWhiteSpace(item.ImagePath))
+                            {
+                                lock (ghostPaths)
+                                {
+                                    ghostPaths.Add(item.ImagePath);
+                                }
+                            }
+
+                            return;
+                        }
+
+                        if (token.IsCancellationRequested)
+                        {
+                            return;
+                        }
+
+                        ImageProcessResult result;
+                        try
+                        {
+                            result = await processAsync(file.Path, token);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            lock (messages)
+                            {
+                                messages.Add($"{file.Name}: 操作已被用户取消。");
+                            }
+                            return;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "{OperationName} ({FileName})", operationName, file.Name);
+                            result = ImageProcessResult.Failed(file.Path, ex.Message);
+                        }
+
+                        if (result.Success)
+                        {
+                            Interlocked.Increment(ref successCount);
+                            if (!string.IsNullOrWhiteSpace(result.OutputPath))
+                            {
+                                await TrackOutputPathAsync(result.OutputPath);
+                            }
+                        }
+                        else
+                        {
+                            Interlocked.Increment(ref failCount);
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(result.Message))
+                        {
+                            lock (messages)
+                            {
+                                messages.Add($"{file.Name}: {result.Message}");
+                            }
                         }
                     }
-                    else
+                    finally
                     {
-                        failCount++;
+                        semaphore.Release();
                     }
+                }, token));
 
-                    if (!string.IsNullOrWhiteSpace(result.Message))
-                    {
-                        messages.Add($"{file.Name}: {result.Message}");
-                    }
-                }
+                await Task.WhenAll(tasks);
+            }
+            catch (Exception ex) when (ex is OperationCanceledException || token.IsCancellationRequested)
+            {
+                // Cancelled, message handled below
             }
             finally
             {
                 SetBusy(false);
             }
 
-            await RemoveGhostFilesAsync(ghostPaths);
+            if (token.IsCancellationRequested)
+            {
+                lock (messages)
+                {
+                    if (!messages.Contains("操作已被用户取消。"))
+                    {
+                        messages.Add("操作已被用户取消。");
+                    }
+                }
+            }
+
+            await RemoveGhostFilesAsync(ghostPaths, refreshView: false);
             await RefreshViewFromCacheAsync();
 
             string summary = BuildOperationSummary(operationName, successCount, failCount, skippedCount, messages);
@@ -932,12 +1019,15 @@ namespace BlueSapphire.ViewModels
                 ProgressValue = 0;
             });
 
+            bool isLargeDataset = totalFiles > 500;
+            int uiStep = totalFiles > 5000 ? 200 : (totalFiles > 1000 ? 50 : 10);
+
             var tasks = files.Select(async file =>
             {
                 await semaphore.WaitAsync();
                 try
                 {
-                    var item = await CreateImageItemAsync(file);
+                    var item = await CreateImageItemAsync(file, !isLargeDataset);
                     concurrentItems.Add(item);
                 }
                 catch (Exception ex)
@@ -948,7 +1038,7 @@ namespace BlueSapphire.ViewModels
                 {
                     semaphore.Release();
                     int current = Interlocked.Increment(ref processedCount);
-                    if (current % 10 == 0 || current == totalFiles)
+                    if (current % uiStep == 0 || current == totalFiles)
                     {
                         RunOnUi(() =>
                         {
@@ -1023,14 +1113,46 @@ namespace BlueSapphire.ViewModels
                 _lastVisibleItems = sortedList;
 
                 int offset = 0;
-                Images = new IncrementalLoadingCollection<ImageItem>((_, count) =>
+                Images = new IncrementalLoadingCollection<ImageItem>((ct, count) =>
                 {
-                    var batch = sortedList
-                        .Skip(offset)
-                        .Take((int)count)
-                        .ToList();
+                    int takeCount = Math.Min((int)count, sortedList.Count - offset);
+                    if (takeCount <= 0)
+                    {
+                        return Task.FromResult<IEnumerable<ImageItem>>(Array.Empty<ImageItem>());
+                    }
 
-                    offset += batch.Count;
+                    var batch = sortedList.GetRange(offset, takeCount);
+                    offset += takeCount;
+
+                    // 后台异步填充当前分页可视窗口内图片的 EXIF 元数据（高阶分辨率与色彩位深）
+                    _ = Task.Run(async () =>
+                    {
+                        foreach (var item in batch)
+                        {
+                            if (ct.IsCancellationRequested) break;
+                            if (item.ImageWidth == 0 && item.ImageHeight == 0)
+                            {
+                                try
+                                {
+                                    var file = await StorageFile.GetFileFromPathAsync(item.ImagePath);
+                                    var meta = await _imageMetadataService.TryReadAsync(file);
+                                    if (meta != null)
+                                    {
+                                        RunOnUi(() =>
+                                        {
+                                            item.ImageWidth = meta.Width;
+                                            item.ImageHeight = meta.Height;
+                                            item.ImageFormat = meta.FormatName;
+                                            item.ImageBitDepth = meta.BitDepth;
+                                            item.ImageDateTaken = meta.DateTaken;
+                                        });
+                                    }
+                                }
+                                catch { }
+                            }
+                        }
+                    });
+
                     return Task.FromResult<IEnumerable<ImageItem>>(batch);
                 });
                 
@@ -1038,26 +1160,49 @@ namespace BlueSapphire.ViewModels
             });
         }
 
-        private async Task<ImageItem> CreateImageItemAsync(StorageFile file)
+        private async Task<ImageItem> CreateImageItemAsync(StorageFile file, bool loadMetadata = true)
         {
-            var properties = await file.GetBasicPropertiesAsync();
+            ulong fileSize = 0;
+            DateTimeOffset dateCreated = file.DateCreated;
+            try
+            {
+                var fi = new FileInfo(file.Path);
+                if (fi.Exists)
+                {
+                    fileSize = (ulong)fi.Length;
+                    dateCreated = fi.CreationTimeUtc;
+                }
+                else
+                {
+                    var properties = await file.GetBasicPropertiesAsync();
+                    fileSize = properties.Size;
+                }
+            }
+            catch
+            {
+                try { var properties = await file.GetBasicPropertiesAsync(); fileSize = properties.Size; } catch { }
+            }
+
             var item = new ImageItem
             {
                 FileName = file.Name,
                 ImagePath = file.Path,
-                DateCreated = file.DateCreated,
-                FileSize = properties.Size,
+                DateCreated = dateCreated,
+                FileSize = fileSize,
                 CustomTags = await _mediaTagService.GetTagsAsync(file.Path)
             };
 
-            var metadata = await _imageMetadataService.TryReadAsync(file);
-            if (metadata != null)
+            if (loadMetadata)
             {
-                item.ImageWidth = metadata.Width;
-                item.ImageHeight = metadata.Height;
-                item.ImageFormat = metadata.FormatName;
-                item.ImageBitDepth = metadata.BitDepth;
-                item.ImageDateTaken = metadata.DateTaken;
+                var metadata = await _imageMetadataService.TryReadAsync(file);
+                if (metadata != null)
+                {
+                    item.ImageWidth = metadata.Width;
+                    item.ImageHeight = metadata.Height;
+                    item.ImageFormat = metadata.FormatName;
+                    item.ImageBitDepth = metadata.BitDepth;
+                    item.ImageDateTaken = metadata.DateTaken;
+                }
             }
 
             return item;
@@ -1133,36 +1278,34 @@ namespace BlueSapphire.ViewModels
             int fail = 0;
             var deletedPaths = new List<string>();
 
-            for (int i = 0; i < files.Count; i++)
+            const int chunkSize = 50;
+            for (int i = 0; i < files.Count; i += chunkSize)
             {
-                var file = files[i];
-                bool result = await _nativeFileService.MoveToRecycleBinAsync(file.Path);
-                if (result)
-                {
-                    success++;
-                    deletedPaths.Add(file.Path);
-                }
-                else
-                {
-                    fail++;
-                }
+                var chunk = files.Skip(i).Take(chunkSize).ToList();
+                var paths = chunk.Select(f => f.Path).ToList();
 
-                int current = i + 1;
+                var successfulPaths = await _nativeFileService.MoveToRecycleBinBatchAsync(paths);
+                success += successfulPaths.Count;
+                fail += (chunk.Count - successfulPaths.Count);
+                deletedPaths.AddRange(successfulPaths);
+
+                int current = Math.Min(i + chunk.Count, files.Count);
                 RunOnUi(() =>
                 {
                     ProgressValue = current;
                     ProgressMax = files.Count;
                     StatusMainText = $"正在移至回收站... ({current}/{files.Count})";
-                    StatusDetailText = file.Name;
+                    StatusDetailText = current == files.Count ? "处理完成" : chunk.Last().Name;
                 });
             }
 
             await _mediaTagService.RemoveTagsAsync(deletedPaths);
+            var deletedPathSet = new HashSet<string>(deletedPaths, StringComparer.OrdinalIgnoreCase);
             lock (_cachedAllItems)
             {
                 _cachedAllItems.RemoveAll(item =>
                     !string.IsNullOrWhiteSpace(item.ImagePath) &&
-                    deletedPaths.Contains(item.ImagePath, StringComparer.OrdinalIgnoreCase));
+                    deletedPathSet.Contains(item.ImagePath));
             }
 
             SetBusy(false);
@@ -1232,14 +1375,13 @@ namespace BlueSapphire.ViewModels
             }
         }
 
-        private async Task RemoveGhostFilesAsync(IEnumerable<string> ghostPaths)
+        private async Task RemoveGhostFilesAsync(IEnumerable<string> ghostPaths, bool refreshView = true)
         {
-            var paths = ghostPaths
+            var pathSet = ghostPaths
                 .Where(path => !string.IsNullOrWhiteSpace(path))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            if (paths.Count == 0)
+            if (pathSet.Count == 0)
             {
                 return;
             }
@@ -1248,11 +1390,14 @@ namespace BlueSapphire.ViewModels
             {
                 _cachedAllItems.RemoveAll(item =>
                     !string.IsNullOrWhiteSpace(item.ImagePath) &&
-                    paths.Contains(item.ImagePath, StringComparer.OrdinalIgnoreCase));
+                    pathSet.Contains(item.ImagePath));
             }
 
-            await _mediaTagService.RemoveTagsAsync(paths);
-            await RefreshViewFromCacheAsync();
+            await _mediaTagService.RemoveTagsAsync(pathSet);
+            if (refreshView)
+            {
+                await RefreshViewFromCacheAsync();
+            }
         }
 
         private Dictionary<string, HashSet<string>> BuildDirectoryNameReservations()

@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace BlueSapphire.Services
 {
@@ -28,6 +29,7 @@ namespace BlueSapphire.Services
         private readonly CleanerProfileService _profileService;
         private readonly string _builtInRuleFilePath;
         private readonly HttpClient _httpClient;
+        private readonly ILogger<CleanerRuleService>? _logger;
 
         private IReadOnlyList<CleanerRuleDefinition>? _cachedRules;
         private IReadOnlyList<CleanerRuleDefinition>? _cachedKnownRules;
@@ -36,8 +38,10 @@ namespace BlueSapphire.Services
         public CleanerRuleService(
             CleanerStateStore stateStore,
             string? builtInRuleFilePath = null,
-            HttpClient? httpClient = null)
-            : this(stateStore, new CleanerProfileService(stateStore), builtInRuleFilePath, httpClient)
+            HttpClient? httpClient = null,
+            IHttpClientFactory? httpClientFactory = null,
+            ILogger<CleanerRuleService>? logger = null)
+            : this(stateStore, new CleanerProfileService(stateStore), builtInRuleFilePath, httpClient, httpClientFactory, logger)
         {
         }
 
@@ -45,12 +49,15 @@ namespace BlueSapphire.Services
             CleanerStateStore stateStore,
             CleanerProfileService profileService,
             string? builtInRuleFilePath = null,
-            HttpClient? httpClient = null)
+            HttpClient? httpClient = null,
+            IHttpClientFactory? httpClientFactory = null,
+            ILogger<CleanerRuleService>? logger = null)
         {
             _stateStore = stateStore;
             _profileService = profileService;
             _builtInRuleFilePath = builtInRuleFilePath ?? Path.Combine(AppContext.BaseDirectory, "Assets", "CleanerRules.json");
-            _httpClient = httpClient ?? SharedClient;
+            _httpClient = httpClient ?? httpClientFactory?.CreateClient() ?? SharedClient;
+            _logger = logger;
         }
 
         public async Task<IReadOnlyList<CleanerRuleDefinition>> GetRulesAsync()
@@ -118,6 +125,7 @@ namespace BlueSapphire.Services
             updateState.LastBundleSource = ResolveBundleSource(bundle, "远程规则包");
             await _stateStore.SaveRuleUpdateStateAsync(updateState);
 
+            _logger?.LogInformation("[CleanerRuleService] 远程规则包刷新完成，版本: {Version}, 规则数: {Count}", bundle.Version, bundle.Rules.Count);
             InvalidateCache();
             return await GetStatusAsync();
         }
@@ -221,6 +229,9 @@ namespace BlueSapphire.Services
                 ActiveRolloutChannel = profile.RolloutChannel,
                 DeviceBucket = profile.DeviceBucket
             };
+
+            _logger?.LogInformation("[CleanerRuleService] 规则目录加载完成: 内置 {BuiltInCount}，生效 {EffectiveCount}，外部 {ExternalCount}，禁用 {DisabledCount}",
+                _cachedStatus.BuiltInRuleCount, _cachedStatus.EffectiveRuleCount, _cachedStatus.ExternalRuleCount, _cachedStatus.DisabledRuleCount);
         }
 
         private async Task<CleanerRuleBundleDocument?> LoadExternalBundleAsync()

@@ -82,4 +82,46 @@ public class MediaRenameServiceTests
 
         Assert.Equal(DateTimeOffset.MinValue, result);
     }
+
+    private static string GetRealWorldSampleImage()
+    {
+        string? dir = AppDomain.CurrentDomain.BaseDirectory;
+        while (dir != null && !Directory.Exists(Path.Combine(dir, "TestData", "MediaRealWorld")))
+        {
+            dir = Path.GetDirectoryName(dir);
+        }
+        if (dir == null) throw new FileNotFoundException("Could not find TestData/MediaRealWorld directory");
+        string samplePath = Path.Combine(dir, "TestData", "MediaRealWorld", "sample-image.png");
+        if (!File.Exists(samplePath)) throw new FileNotFoundException($"Sample image not found at {samplePath}");
+        return samplePath;
+    }
+
+    // ================================================================
+    // Test 8: 使用真实世界样本文件测试 ResolveBestTimestampAsync 回退逻辑
+    // ================================================================
+    [Fact]
+    public async Task ResolveBestTimestampAsync_WithRealWorldSampleImage_ReturnsValidTimestamp()
+    {
+        string samplePath = GetRealWorldSampleImage();
+        Windows.Storage.StorageFile file = await Windows.Storage.StorageFile.GetFileFromPathAsync(samplePath);
+
+        DateTimeOffset timestamp = await _service.ResolveBestTimestampAsync(file);
+
+        Assert.True(_service.HasUsableTimestamp(timestamp));
+    }
+
+    // ================================================================
+    // Test 9: 使用真实世界样本文件测试 SmartParseDateAsync
+    // ================================================================
+    [Fact]
+    public async Task SmartParseDateAsync_WithRealWorldSampleImage_ExecutesWithoutException()
+    {
+        string samplePath = GetRealWorldSampleImage();
+        Windows.Storage.StorageFile file = await Windows.Storage.StorageFile.GetFileFromPathAsync(samplePath);
+
+        DateTimeOffset timestamp = await _service.SmartParseDateAsync(file);
+
+        // sample-image.png 文件名没有带时间戳，应当安全返回 MinValue
+        Assert.Equal(DateTimeOffset.MinValue, timestamp);
+    }
 }

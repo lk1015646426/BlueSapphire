@@ -299,9 +299,8 @@ namespace BlueSapphire.Services
                     double currentQuality = (minQuality + maxQuality) / 2.0;
                     
                     using var memoryStream = new InMemoryRandomAccessStream();
-                    var encoder = await BitmapEncoder.CreateAsync(encoderId, memoryStream);
                     var propertySet = new BitmapPropertySet { { "ImageQuality", new BitmapTypedValue((float)currentQuality, PropertyType.Single) } };
-                    await encoder.BitmapProperties.SetPropertiesAsync(propertySet);
+                    var encoder = await BitmapEncoder.CreateAsync(encoderId, memoryStream, propertySet);
 
                     encoder.SetPixelData(
                         decoder.BitmapPixelFormat,
@@ -383,7 +382,9 @@ namespace BlueSapphire.Services
                     ExifOrientationMode.RespectExifOrientation,
                     ColorManagementMode.ColorManageToSRgb);
 
+                cancellationToken.ThrowIfCancellationRequested();
                 byte[] pixels = pixelProvider.DetachPixelData();
+                cancellationToken.ThrowIfCancellationRequested();
                 byte[] enhancedPixels = EnhancePixels(pixels, decoder.PixelWidth, decoder.PixelHeight, settings);
 
                 var (encoderId, extension, displayName) = ResolvePreferredEditableFormat(sourcePath);
@@ -673,6 +674,8 @@ namespace BlueSapphire.Services
                     encoder = await BitmapEncoder.CreateAsync(encoderId, destinationStream);
                 }
 
+                cancellationToken.ThrowIfCancellationRequested();
+
                 encoder.SetPixelData(
                     BitmapPixelFormat.Bgra8,
                     encoderId == BitmapEncoder.JpegEncoderId ? BitmapAlphaMode.Ignore : BitmapAlphaMode.Premultiplied,
@@ -732,6 +735,7 @@ namespace BlueSapphire.Services
                 }
 
                 BitmapTransform effectiveTransform = transform ?? new BitmapTransform();
+                cancellationToken.ThrowIfCancellationRequested();
                 var pixelProvider = await decoder.GetPixelDataAsync(
                     decoder.BitmapPixelFormat,
                     encoderId == BitmapEncoder.JpegEncoderId ? BitmapAlphaMode.Ignore : decoder.BitmapAlphaMode,
@@ -739,6 +743,7 @@ namespace BlueSapphire.Services
                     ExifOrientationMode.RespectExifOrientation,
                     ColorManagementMode.ColorManageToSRgb);
 
+                cancellationToken.ThrowIfCancellationRequested();
                 byte[] pixels = pixelProvider.DetachPixelData();
                 uint width = effectiveTransform.ScaledWidth > 0
                     ? effectiveTransform.ScaledWidth

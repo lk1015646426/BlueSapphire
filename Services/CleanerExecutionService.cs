@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace BlueSapphire.Services
 {
@@ -15,19 +16,22 @@ namespace BlueSapphire.Services
         private readonly CleanerLockService _lockService;
         private readonly CleanerPrivilegeService _privilegeService;
         private readonly CleanerBoundaryGuard _boundaryGuard;
+        private readonly ILogger<CleanerExecutionService>? _logger;
 
         public CleanerExecutionService(
             NativeFileService nativeFileService,
             CleanerStateStore stateStore,
             CleanerLockService lockService,
             CleanerPrivilegeService privilegeService,
-            CleanerBoundaryGuard boundaryGuard)
+            CleanerBoundaryGuard boundaryGuard,
+            ILogger<CleanerExecutionService>? logger = null)
         {
             _nativeFileService = nativeFileService;
             _stateStore = stateStore;
             _lockService = lockService;
             _privilegeService = privilegeService;
             _boundaryGuard = boundaryGuard;
+            _logger = logger;
         }
 
         public async Task<CleanerCleanupBatch> ExecuteAsync(
@@ -44,6 +48,7 @@ namespace BlueSapphire.Services
                 SelectedItemCount = items.Count,
                 EstimatedBytes = items.Sum(item => item.SizeBytes)
             };
+            _logger?.LogInformation("[CleanerExecutionService] 开始执行清理批次 {BatchId}，共选中 {Count} 项，预计释放 {Bytes} 字节", batch.BatchId, batch.SelectedItemCount, batch.EstimatedBytes);
 
             int completedItems = 0;
             object entriesLock = new();
@@ -102,6 +107,7 @@ namespace BlueSapphire.Services
                 ProgressMax = Math.Max(1, items.Count)
             });
 
+            _logger?.LogInformation("[CleanerExecutionService] 清理批次 {BatchId} 执行完毕，实际释放 {Bytes} 字节，共 {Count} 个记录", batch.BatchId, batch.ReleasedBytes, batch.Entries.Count);
             return batch;
         }
 
@@ -212,7 +218,7 @@ namespace BlueSapphire.Services
                 ItemName = item.Name,
                 Category = item.Category,
                 OriginalPath = targetPath,
-                SizeBytes = CalculateSize(targetPath),
+                SizeBytes = File.Exists(targetPath) ? new FileInfo(targetPath).Length : item.SizeBytes,
                 ExecutionMode = item.ExecutionMode,
                 RiskLevel = item.RiskLevel,
                 RequiresElevation = item.RequiresElevation,
@@ -480,7 +486,7 @@ namespace BlueSapphire.Services
             return destination;
         }
 
-        private static async Task MovePathAsync(string sourcePath, string destinationPath)
+        private static async Task MovePathAsync(string sourcePath, string destinationPath, CancellationToken cancellationToken = default)
         {
             string? parent = Path.GetDirectoryName(destinationPath);
             if (!string.IsNullOrWhiteSpace(parent))
@@ -496,20 +502,20 @@ namespace BlueSapphire.Services
                 }
                 catch (IOException)
                 {
-                    await using (FileStream sourceStream = File.OpenRead(sourcePath))
-                    await using (FileStream destinationStream = File.Create(destinationPath))
+                    try
                     {
-                        await sourceStream.CopyToAsync(destinationStream);
-                    }
-                    try 
-                    {
-                        File.Delete(sourcePath);
+                        await using (FileStream sourceStream = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 * 1024, FileOptions.Asynchronous))
+                        await using (FileStream destinationStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None, 1024 * 1024, FileOptions.Asynchronous))
+                        {
+                            await sourceStream.CopyToAsync(destinationStream, 1024 * 1024, cancellationToken);
+                        }
+                        DeleteFileSafely(sourcePath);
                     }
                     catch
                     {
                         if (File.Exists(destinationPath))
                         {
-                            File.Delete(destinationPath); // Rollback
+                            try { DeleteFileSafely(destinationPath); } catch { }
                         }
                         throw;
                     }
@@ -531,15 +537,26 @@ namespace BlueSapphire.Services
                 }
                 catch (IOException ex) when (!CleanerPathSafety.IsLockConflict(ex))
                 {
-                    CopyDirectorySafely(sourcePath, destinationPath);
-                    DeleteDirectorySafely(sourcePath);
+                    try
+                    {
+                        await CopyDirectoryAsync(sourcePath, destinationPath, cancellationToken);
+                        DeleteDirectorySafely(sourcePath);
+                    }
+                    catch
+                    {
+                        if (Directory.Exists(destinationPath))
+                        {
+                            try { DeleteDirectorySafely(destinationPath); } catch { }
+                        }
+                        throw;
+                    }
                 }
 
                 await Task.CompletedTask;
             }
         }
 
-        private static void CopyDirectorySafely(string sourcePath, string destinationPath)
+        private static async Task CopyDirectoryAsync(string sourcePath, string destinationPath, CancellationToken cancellationToken = default)
         {
             if (CleanerPathSafety.IsReparsePoint(sourcePath))
             {
@@ -547,23 +564,41 @@ namespace BlueSapphire.Services
             }
 
             Directory.CreateDirectory(destinationPath);
+            Stack<(string Source, string Dest)> stack = new();
+            stack.Push((sourcePath, destinationPath));
 
-            foreach (string file in CleanerPathSafety.SafeEnumerateFiles(sourcePath))
+            while (stack.Count > 0)
             {
-                string destinationFile = Path.Combine(destinationPath, Path.GetFileName(file));
-                File.Copy(file, destinationFile, true);
-            }
+                cancellationToken.ThrowIfCancellationRequested();
+                var (currentSource, currentDest) = stack.Pop();
 
-            foreach (string directory in CleanerPathSafety.SafeEnumerateDirectories(sourcePath))
-            {
-                if (CleanerPathSafety.IsReparsePoint(directory))
+                foreach (string file in CleanerPathSafety.SafeEnumerateFiles(currentSource))
                 {
-                    continue;
+                    cancellationToken.ThrowIfCancellationRequested();
+                    string destFile = Path.Combine(currentDest, Path.GetFileName(file));
+                    await using var sourceStream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 * 1024, FileOptions.Asynchronous);
+                    await using var destStream = new FileStream(destFile, FileMode.Create, FileAccess.Write, FileShare.None, 1024 * 1024, FileOptions.Asynchronous);
+                    await sourceStream.CopyToAsync(destStream, 1024 * 1024, cancellationToken);
                 }
 
-                string destinationDirectory = Path.Combine(destinationPath, Path.GetFileName(directory));
-                CopyDirectorySafely(directory, destinationDirectory);
+                foreach (string directory in CleanerPathSafety.SafeEnumerateDirectories(currentSource))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (CleanerPathSafety.IsReparsePoint(directory))
+                    {
+                        continue;
+                    }
+
+                    string destDirectory = Path.Combine(currentDest, Path.GetFileName(directory));
+                    Directory.CreateDirectory(destDirectory);
+                    stack.Push((directory, destDirectory));
+                }
             }
+        }
+
+        private static void CopyDirectorySafely(string sourcePath, string destinationPath)
+        {
+            CopyDirectoryAsync(sourcePath, destinationPath, CancellationToken.None).GetAwaiter().GetResult();
         }
 
         private static void DeleteFileSafely(string file)
@@ -614,42 +649,58 @@ namespace BlueSapphire.Services
                 return;
             }
 
+            Stack<string> traverseStack = new();
+            Stack<string> deleteOrder = new();
+            traverseStack.Push(path);
+
             List<Exception> exceptions = new();
 
-            foreach (string file in CleanerPathSafety.SafeEnumerateFiles(path))
+            while (traverseStack.Count > 0)
             {
-                try
+                string current = traverseStack.Pop();
+                deleteOrder.Push(current);
+
+                foreach (string dir in CleanerPathSafety.SafeEnumerateDirectories(current))
                 {
-                    DeleteFileSafely(file);
-                }
-                catch (Exception ex)
-                {
-                    exceptions.Add(ex);
+                    if (CleanerPathSafety.IsReparsePoint(dir))
+                    {
+                        try
+                        {
+                            Directory.Delete(dir, false);
+                        }
+                        catch (Exception ex)
+                        {
+                            exceptions.Add(ex);
+                        }
+                        continue;
+                    }
+                    traverseStack.Push(dir);
                 }
             }
 
-            foreach (string directory in CleanerPathSafety.SafeEnumerateDirectories(path))
+            while (deleteOrder.Count > 0)
             {
-                if (CleanerPathSafety.IsReparsePoint(directory))
+                string current = deleteOrder.Pop();
+                if (!Directory.Exists(current))
+                {
+                    continue;
+                }
+
+                foreach (string file in CleanerPathSafety.SafeEnumerateFiles(current))
                 {
                     try
                     {
-                        Directory.Delete(directory, false);
+                        DeleteFileSafely(file);
                     }
                     catch (Exception ex)
                     {
                         exceptions.Add(ex);
                     }
-                    continue;
                 }
 
                 try
                 {
-                    DeleteDirectorySafely(directory);
-                }
-                catch (AggregateException aggEx)
-                {
-                    exceptions.AddRange(aggEx.InnerExceptions);
+                    Directory.Delete(current, false);
                 }
                 catch (Exception ex)
                 {
@@ -657,11 +708,7 @@ namespace BlueSapphire.Services
                 }
             }
 
-            if (exceptions.Count == 0)
-            {
-                Directory.Delete(path, false);
-            }
-            else
+            if (exceptions.Count > 0)
             {
                 throw new AggregateException($"目录 {path} 中有 {exceptions.Count} 个项无法删除。", exceptions);
             }
@@ -728,40 +775,6 @@ namespace BlueSapphire.Services
         private static bool Exists(string path)
         {
             return File.Exists(path) || Directory.Exists(path);
-        }
-
-        private static long CalculateSize(string path)
-        {
-            try
-            {
-                if (File.Exists(path))
-                {
-                    return new FileInfo(path).Length;
-                }
-
-                if (!Directory.Exists(path))
-                {
-                    return 0;
-                }
-
-                long total = 0;
-                foreach (string file in CleanerPathSafety.EnumerateFilesSafely(path, ["*"], recursive: true, Array.Empty<string>()))
-                {
-                    try
-                    {
-                        total += new FileInfo(file).Length;
-                    }
-                    catch
-                    {
-                    }
-                }
-
-                return total;
-            }
-            catch
-            {
-                return 0;
-            }
         }
     }
 }

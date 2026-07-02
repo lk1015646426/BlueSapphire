@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging.Abstractions;
 using BlueSapphire.Services;
 using Microsoft.Extensions.Logging;
 using Windows.Storage;
@@ -144,6 +144,77 @@ public class MediaDeduplicationServiceTests
 
             // 不同大小的文件不应该形成组
             Assert.All(groups, g => Assert.True(g.Count >= 2));
+        }
+        finally
+        {
+            if (Directory.Exists(testDir)) Directory.Delete(testDir, true);
+        }
+    }
+
+    private static string GetRealWorldSampleImage()
+    {
+        string? dir = AppDomain.CurrentDomain.BaseDirectory;
+        while (dir != null && !Directory.Exists(Path.Combine(dir, "TestData", "MediaRealWorld")))
+        {
+            dir = Path.GetDirectoryName(dir);
+        }
+        if (dir == null) throw new FileNotFoundException("Could not find TestData/MediaRealWorld directory");
+        string samplePath = Path.Combine(dir, "TestData", "MediaRealWorld", "sample-image.png");
+        if (!File.Exists(samplePath)) throw new FileNotFoundException($"Sample image not found at {samplePath}");
+        return samplePath;
+    }
+
+    // ================================================================
+    // Test 6: 使用真实世界样本文件测试精确重复识别
+    // ================================================================
+    [Fact]
+    public async Task FindDuplicatesAsync_WithRealWorldSampleImage_DetectsExactDuplicates()
+    {
+        string samplePath = GetRealWorldSampleImage();
+        string testDir = Path.Combine(Path.GetTempPath(), "BlueSapphireDedupRealExact", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(testDir);
+        try
+        {
+            File.Copy(samplePath, Path.Combine(testDir, "sample_copy1.png"));
+            File.Copy(samplePath, Path.Combine(testDir, "sample_copy2.png"));
+            StorageFolder folder = await StorageFolder.GetFolderFromPathAsync(testDir);
+
+            var groups = await _service.FindDuplicatesAsync(
+                folder,
+                new Progress<(double Value, string Message, string Detail)>(),
+                CancellationToken.None);
+
+            Assert.Single(groups);
+            Assert.Equal(2, groups[0].Count);
+        }
+        finally
+        {
+            if (Directory.Exists(testDir)) Directory.Delete(testDir, true);
+        }
+    }
+
+    // ================================================================
+    // Test 7: 使用真实世界样本文件测试相似图片识别
+    // ================================================================
+    [Fact]
+    public async Task FindSimilarImagesAsync_WithRealWorldSampleImage_DetectsSimilarImages()
+    {
+        string samplePath = GetRealWorldSampleImage();
+        string testDir = Path.Combine(Path.GetTempPath(), "BlueSapphireDedupRealSimilar", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(testDir);
+        try
+        {
+            File.Copy(samplePath, Path.Combine(testDir, "similar_1.png"));
+            File.Copy(samplePath, Path.Combine(testDir, "similar_2.png"));
+            StorageFolder folder = await StorageFolder.GetFolderFromPathAsync(testDir);
+
+            var groups = await _service.FindSimilarImagesAsync(
+                folder,
+                new Progress<(double Value, string Message, string Detail)>(),
+                CancellationToken.None);
+
+            Assert.Single(groups);
+            Assert.Equal(2, groups[0].Count);
         }
         finally
         {

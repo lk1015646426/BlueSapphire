@@ -253,7 +253,7 @@
                         </DropDownButton.Flyout>
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE8CB;" FontSize="12"/>
-                            <TextBlock Text="排序: 名称" FontSize="13"/>
+                            <TextBlock Text="{x:Bind ViewModel.SortButtonText, Mode=OneWay}" FontSize="13"/>
                         </StackPanel>
                     </DropDownButton>
                     
@@ -420,6 +420,11 @@
                              Maximum="{x:Bind ViewModel.ProgressMax, Mode=OneWay}"
                              Value="{x:Bind ViewModel.ProgressValue, Mode=OneWay}"
                              Visibility="{x:Bind ViewModel.IsProgressVisible, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"/>
+                <Button Content="取消操作"
+                        Command="{x:Bind ViewModel.CancelOperationCommand}"
+                        Style="{StaticResource AccentButtonStyle}"
+                        HorizontalAlignment="Center"
+                        Margin="0,12,0,0"/>
             </StackPanel>
         </Grid>
     </Grid>

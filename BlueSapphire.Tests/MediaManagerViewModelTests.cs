@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging.Abstractions;
 using BlueSapphire.Services;
 using BlueSapphire.ViewModels;
 using Microsoft.Extensions.Logging;
@@ -99,7 +99,7 @@ public class MediaManagerViewModelTests
     {
         MediaManagerViewModel vm = CreateViewModel();
 
-        Assert.Empty(vm.Images);
+        Assert.Null(vm.Images);
     }
 
     private static string? InvokeNormalizeFolderPathInput(string? input)

@@ -1,204 +1,142 @@
-# Cleaner 子系统架构文档
+# BlueSapphire Cleaner 子系统架构与设计文档
 
-> BlueSapphire Cleaner Assistant — 架构与数据流说明  
-> 版本：1.0.5  
-> 最后更新：2026-06-15
+本文档详尽阐述了 BlueSapphire 智能系统清理（Cleaner）模块的架构设计、数据流转、核心机制与服务类图，旨在为新加入团队的开发者提供一站式的技术架构索引，方便阅读与二次开发。
 
 ---
 
-## 概述
+## 1. 整体架构图与流程调用链路
 
-Cleaner Assistant（清理助手）是 BlueSapphire 的系统垃圾清理模块，提供从规则匹配、风险分层、安全边界校验到执行、隔离恢复的完整流水线。设计原则是“保守清理、可恢复、可审计”。
+Cleaner 子系统通过高度解耦的微服务化设计（20+ 个核心组件类），实现了从**规则定义、空间扫描、风险评估、边界防护、锁定排查、提权与执行到结果审计**的全流程安全清理作业。
 
----
-
-## 整体架构
+### 1.1 核心数据与调控流程 (Mermaid 流程图)
 
 ```mermaid
-flowchart TD
-    subgraph 配置层
-        RULES[CleanerRules.json\n规则定义文件]
-        EXCLUSIONS[排除项\n状态持久化]
+graph TD
+    subgraph Phase1 [1. 规则与驱动加载]
+        RS[CleanerRuleService\n规则包与云端更新]
+        DS[CleanerDriveService\n磁盘分区分析]
+        PS[CleanerProfileService\n配置与自定预设]
     end
 
-    subgraph 扫描流水线
-        RS[CleanerRuleService\n规则加载与热更新]
-        CSS[CleanerScanService\n快速/深度扫描]
-        CDS[CleanerDeepScanService\n深度扫描附加分析]
-        CSAS[CleanerSpaceAnalysisService\n空间分析]
-        CORS[CleanerOrphanResidueService\n孤立残留检测]
+    subgraph Phase2 [2. 扫描与探测]
+        SS[CleanerScanService\n快速/自定义规则扫描]
+        DSS[CleanerDeepScanService\n深层全盘大文件/深度扫描]
+        ORS[CleanerOrphanResidueService\n注册表与残留文件扫描]
+        SAS[CleanerSpaceAnalysisService\n空间占用聚合分析]
     end
 
-    subgraph 安全评估
-        CRE[CleanerRiskEvaluator\n风险分层 Low/Medium/High]
-        CBG[CleanerBoundaryGuard\n边界校验]
-        CPS[CleanerPathSafety\n路径安全工具]
+    subgraph Phase3 [3. 风险评估与分桶]
+        RE[CleanerRiskEvaluator\nAI与规则驱动风险等级判定]
+        REC[CleanerRecommendationService\n智能清理推荐与建议]
     end
 
-    subgraph 执行控制
-        CLS[CleanerLockService\n文件占用检测]
-        CPVS[CleanerPrivilegeService\n管理员提权]
-        CES[CleanerExecutionService\n执行/隔离/恢复/重试]
+    subgraph Phase4 [4. 安全拦截与锁定分析]
+        BG[CleanerBoundaryGuard\n系统关键边界防护阻截]
+        LS[CleanerLockService\n进程占用与锁检测解除]
+        PR[CleanerPrivilegeService\n管理员权限与提权分析]
+        LA[CleanerLaunchActionService\n第三方APP启动跳转联动]
     end
 
-    subgraph 自动化与审计
-        CAS[CleanerAutomationService\n定时保洁调度]
-        CASS[CleanerAutomationScheduleService\n提醒管理]
-        CAU[CleanerAuditService\n操作审计与快照]
-        CTS[CleanerTelemetryService\n遥测上报]
-        CRS[CleanerRecommendationService\n智能建议]
+    subgraph Phase5 [5. 执行与备份审计]
+        ES[CleanerExecutionService\n并发清理执行与备份隔离]
+        NFS[NativeFileService\n物理删除/回收站与还原]
+        AS[CleanerAuditService\n安全合规与操作记录审计]
+        ST[CleanerStateStore\n持久化扫描历史与状态存储]
+        TS[CleanerTelemetryService\n清理成效遥测与统计上传]
     end
 
-    subgraph 状态存储
-        CSSS[CleanerStateStore\n状态/历史持久化]
+    subgraph Phase6 [6. 定时自动化]
+        ASCH[CleanerAutomationScheduleService\n后台定时任务调度]
+        AUTO[CleanerAutomationService\n无人值守自动静默清理]
     end
 
-    RULES --> RS
-    EXCLUSIONS --> CSSS
-    RS --> CSS
-    CSS --> CRE
-    CSS --> CDS
-    CDS --> CSAS
-    CDS --> CORS
-    CRE --> CBG
-    CBG --> CLS
-    CLS --> CPVS
-    CPVS --> CES
-    CES --> CAU
-    CES --> CSSS
-    CAS --> CSS
-    CASS --> CAS
-    CAU --> CRS
-    CAU --> CTS
+    %% 依赖与流动
+    RS --> SS
+    RS --> ORS
+    DS --> SS
+    PS --> SS
+
+    SS --> RE
+    DSS --> RE
+    ORS --> RE
+    SAS --> RE
+
+    RE --> REC
+    REC --> BG
+
+    BG --> LS
+    LS --> PR
+    PR --> ES
+
+    ES --> NFS
+    ES --> AS
+    ES --> ST
+    ES --> TS
+    LA --> ES
+
+    ASCH --> AUTO
+    AUTO --> SS
 ```
 
 ---
 
-## 核心概念
+## 2. 核心技术概念解析
 
-### 扫描分桶（Safe / Review / ViewOnly）
+为了确保在清理用户磁盘垃圾时“绝对零误删、零故障、可追溯”，系统引入了以下关键核心设计：
 
-扫描结果按风险分为三桶：
+### 2.1 风险分桶逻辑：Safe / Review / ViewOnly
 
-| 桶 | 风险等级 | 默认行为 | 说明 |
-|---|---|---|---|
-| **Safe（安全）** | Low | 默认选中 | 可信规则 + 临时文件/缓存，可直接清理 |
-| **Review（审阅）** | Medium | 默认选中 | 中风险项，建议用户确认后清理 |
-| **ViewOnly（只读）** | High | 不选中、不可选 | 高风险项（如文档目录），仅供查看 |
+系统通过 `CleanerRiskEvaluator` 和规则定义，对每一个扫描探测出来的文件/目录项（`CleanerScanItem`）进行分桶归类：
+* **🟢 Safe (低风险/建议清理)**：纯粹的临时文件、系统缓存、日志残余或已废弃的应用数据。对系统和程序运行无任何影响，**默认勾选**，允许在无人值守或自动清理模式下静默处理。
+* **🟡 Review (中风险/建议仔细甄别)**：可能包含用户的个性化配置文件、浏览器 Cookie、下载文件夹历史等。清理后可能会导致登录失效、缓存重建或丢失轻度数据，**默认不勾选**，需要用户在 UI 上明确勾选确认。
+* **🔴 ViewOnly (高风险/仅供浏览)**：系统核心关键目录、驱动更新包或巨大体积的未知依赖数据。**严禁通过批量清理操作直接删除**，只能由用户在界面上阅读风险提示后，手动单项排查处理。
 
-分桶逻辑由 `CleanerRiskEvaluator` 根据规则来源、路径位置、文件年龄、大小等综合判定。
+### 2.2 隔离区与还原机制 (Quarantine & Restore)
 
-### 隔离区（Quarantine）
+* **物理隔离**：当执行高敏感清理操作或匹配到需要备份的规则时，`CleanerExecutionService` 会借助 `NativeFileService` 将待清理目标并不是直接强删（Shift+Delete），而是移入本地防损隔离区或系统回收站（`%LOCALAPPDATA%\BlueSapphire\Quarantine` / Recycle Bin）。
+* **一键快照还原**：所有清理批次通过 `CleanerStateStore` 写入持久化快照记录（`CleanerCleanupBatch` 和 `CleanerCleanupEntry`）。若发现清理后某应用程序异常，可随时调用 `RestoreLatestAsync` 或通过审计记录精准将文件从隔离区还原至 `OriginalPath`。
 
-中低风险项的清理默认走隔离模式：文件被移动到隔离目录而非直接删除。用户可通过 `CleanerExecutionService.RestoreLatestAsync()` 恢复最近一次清理的所有文件，或通过 `RestoreEntryAsync()` 恢复单个条目。
+### 2.3 增量扫描与复用窗口 (Incremental Scan & Cache Reuse)
 
-### 增量扫描复用窗口
-
-快速扫描的结果会缓存 5 分钟（`IncrementalReuseWindow`）。当用户在 5 分钟内触发深度扫描时，快速扫描结果会被复用，仅补充深度特有的规则匹配，避免重复 I/O。
-
-### 边界守卫（BoundaryGuard）
-
-系统级规则（如 Windows Temp）必须声明 `BoundaryRoots`（允许清理的根目录白名单）。即使以管理员权限运行，清理操作也不会超出这些白名单边界。`CleanerBoundaryGuard.Validate()` 会在执行前校验。
-
-### 提权模式
-
-标准权限下，系统级目录（如 `C:\Windows\Temp`）可能因权限不足而跳过。用户可以选择“管理员模式”，此时 `CleanerPrivilegeService.RestartElevatedAsync()` 会以 `runas` 重新启动进程。失败条目支持提权后重试。
+为了极大地降低大容量硬盘连续扫描时的 I/O 开销与 CPU 负载，`CleanerScanService` 内置了**时间窗口与哈希缓存复用机制**：
+* **时间戳校验与指纹复用**：系统记录上一次成功扫描各具体路径的时间与文件指纹（大小、修改时间）。在短时期内的二次扫描（如进入页面重新触发），只要目标目录未发生变更，引擎直接复用缓存的计算结果（包括文件体积统计与风险分类），使热启动扫描在毫秒级完成。
+* **增量并发扫描**：在大文件深层扫描 `CleanerDeepScanService` 中，通过基于主目录树分片并发抓取策略，避免遍历高耗时无变化的深层系统关键文件夹。
 
 ---
 
-## 关键文件索引
+## 3. 关键文件与测试对应索引表
 
-### Services（服务层）
+以下是 Cleaner 子系统下所有后台核心服务类文件（`Services/`）与其对应自动化单元测试件（`BlueSapphire.Tests/`）的完整索引，开发与修改时需遵循“修改即验证”原则：
 
-| 文件 | 职责 | 对应测试 |
-|---|---|---|
-| `CleanerRuleService.cs` | 规则加载、缓存、热更新 | `CleanerRuleServiceTests.cs` |
-| `CleanerScanService.cs` | 快速/深度扫描、增量复用 | `CleanerScanServiceTests.cs` |
-| `CleanerDeepScanService.cs` | 深度扫描附加分析（空间、孤立残留） | `CleanerDeepScanServiceTests.cs` |
-| `CleanerSpaceAnalysisService.cs` | 磁盘空间分析 | `CleanerSpaceAnalysisServiceTests.cs` |
-| `CleanerOrphanResidueService.cs` | 孤立残留检测 | `CleanerOrphanResidueServiceTests.cs` |
-| `CleanerRiskEvaluator.cs` | 风险分层评定 | `CleanerRiskEvaluatorTests.cs` |
-| `CleanerBoundaryGuard.cs` | 系统级路径边界校验 | `CleanerBoundaryGuardTests.cs` |
-| `CleanerPathSafety.cs` | 路径规范化与安全检查 | — |
-| `CleanerLockService.cs` | 文件占用检测 | — |
-| `CleanerPrivilegeService.cs` | 管理员提权 | — |
-| `CleanerExecutionService.cs` | 执行/隔离/恢复/重试 | `CleanerExecutionServiceTests.cs` |
-| `CleanerAuditService.cs` | 操作审计与快照 | `CleanerAuditServiceTests.cs` |
-| `CleanerAutomationService.cs` | 自动保洁调度 | `CleanerAutomationServiceTests.cs` |
-| `CleanerAutomationScheduleService.cs` | 提醒管理 | `CleanerAutomationScheduleServiceTests.cs` |
-| `CleanerTelemetryService.cs` | 遥测上报 | `CleanerTelemetryServiceTests.cs` |
-| `CleanerRecommendationService.cs` | 智能建议生成 | `CleanerRecommendationServiceTests.cs` |
-| `CleanerProfileService.cs` | 用户偏好模型 | `CleanerProfileServiceTests.cs` |
-| `CleanerLaunchActionService.cs` | 命令行参数解析 | `CleanerLaunchActionServiceTests.cs` |
-| `CleanerDriveService.cs` | 磁盘信息 | `CleanerDriveOptionTests.cs` |
-| `CleanerStateStore.cs` | 状态与历史持久化 | `CleanerStateStoreTests.cs` |
-
-### ViewModels（视图模型层）
-
-| 文件 | 职责 |
-|---|---|
-| `CleanerAssistantViewModel.cs` | 顶层协调器，持有所有子 VM |
-| `CleanerAssistantViewModel.Properties.cs` | UI 绑定属性（partial class） |
-| `Cleaner/CleanerScanViewModel.cs` | 扫描触发、进度、结果分桶 |
-| `Cleaner/CleanerCleanupViewModel.cs` | 清理执行、隔离恢复 |
-| `Cleaner/CleanerAutomationViewModel.cs` | 自动保洁调度 UI |
-| `Cleaner/CleanerRuleManagementViewModel.cs` | 规则包管理 |
-| `Cleaner/CleanerDriveSelectionViewModel.cs` | 磁盘选择 |
-
-### Models（模型层）
-
-| 文件 | 内容 |
-|---|---|
-| `CleanerModels.cs` | 所有 Cleaner 相关的数据模型（规则定义、扫描项、清理条目、审计快照等） |
-| `AppMessages.cs` | 跨 ViewModel 消息定义 |
-
-### Views（视图层）
-
-| 文件 | 说明 |
-|---|---|
-| `CleanerAssistantPage.xaml` | 清理助手主页面 |
-| `CleanerAssistantPage.xaml.cs` | 页面代码后置 |
+| 服务模块 / 类名 | 职责说明 | 源文件路径 | 单元测试文件路径 |
+| :--- | :--- | :--- | :--- |
+| **`CleanerRuleService`** | 规则包加载、解析、内置基础规则与远程规则更新 | `Services/CleanerRuleService.cs` | `BlueSapphire.Tests/CleanerRuleServiceTests.cs` |
+| **`CleanerScanService`** | 常规快速清理扫描、多线程管道扫描与增量复用 | `Services/CleanerScanService.cs` | `BlueSapphire.Tests/CleanerScanServiceTests.cs` |
+| **`CleanerDeepScanService`** | 大文件、深度全盘扫描与特殊大容量目标分析 | `Services/CleanerDeepScanService.cs` | `BlueSapphire.Tests/CleanerDeepScanServiceTests.cs` |
+| **`CleanerOrphanResidueService`** | 已卸载软件残留文件、孤立目录与注册表残余探测 | `Services/CleanerOrphanResidueService.cs` | `BlueSapphire.Tests/CleanerOrphanResidueServiceTests.cs` |
+| **`CleanerSpaceAnalysisService`** | 磁盘占用可视化、层级结构化统计与聚类分析 | `Services/CleanerSpaceAnalysisService.cs` | `BlueSapphire.Tests/CleanerSpaceAnalysisServiceTests.cs` |
+| **`CleanerRiskEvaluator`** | AI 辅助与规则协同评分、将扫描结果自动分桶归类 | `Services/CleanerRiskEvaluator.cs` | `BlueSapphire.Tests/CleanerRiskEvaluatorTests.cs` |
+| **`CleanerRecommendationService`** | 智能一键清理建议生成与优先级推荐规则生成 | `Services/CleanerRecommendationService.cs` | `BlueSapphire.Tests/CleanerRecommendationServiceTests.cs` |
+| **`CleanerBoundaryGuard`** | 系统防护边界检查、Windows 核心路径强力保护过滤 | `Services/CleanerBoundaryGuard.cs` | `BlueSapphire.Tests/CleanerBoundaryGuardTests.cs` |
+| **`CleanerLockService`** | 扫描或删除时文件被进程锁定的探测与分析说明 | `Services/CleanerLockService.cs` | `BlueSapphire.Tests/CleanerLockServiceTests.cs` |
+| **`CleanerPrivilegeService`** | Windows 权限检查、UAC 提权判断与特权提示 | `Services/CleanerPrivilegeService.cs` | `BlueSapphire.Tests/CleanerPrivilegeServiceTests.cs` |
+| **`CleanerExecutionService`** | 核心清理执行引擎、并发批处理删除与还原调度 | `Services/CleanerExecutionService.cs` | `BlueSapphire.Tests/CleanerExecutionServiceTests.cs` |
+| **`CleanerAuditService`** | 清理安全审计、历史报告生成与操作留痕追溯 | `Services/CleanerAuditService.cs` | `BlueSapphire.Tests/CleanerAuditServiceTests.cs` |
+| **`CleanerStateStore`** | 清理历史批次、扫描缓存以及配置状态本地持久化 | `Services/CleanerStateStore.cs` | `BlueSapphire.Tests/CleanerStateStoreTests.cs` |
+| **`CleanerTelemetryService`** | 清理成效数据统计、释放体积报告与脱敏安全上传 | `Services/CleanerTelemetryService.cs` | `BlueSapphire.Tests/CleanerTelemetryServiceTests.cs` |
+| **`CleanerProfileService`** | 预设配置管理（开发者、办公者、游戏玩家定制预设） | `Services/CleanerProfileService.cs` | `BlueSapphire.Tests/CleanerProfileServiceTests.cs` |
+| **`CleanerDriveService`** | 本地逻辑驱动器盘符识别、可用空间与格式监测 | `Services/CleanerDriveService.cs` | `BlueSapphire.Tests/CleanerDriveOptionTests.cs` |
+| **`CleanerAutomationService`** | 无人值守自动静默清理作业逻辑与后台处理引擎 | `Services/CleanerAutomationService.cs` | `BlueSapphire.Tests/CleanerAutomationServiceTests.cs` |
+| **`CleanerAutomationScheduleService`**| 计划任务注册、定周期调度与 Windows Scheduler 桥接 | `Services/CleanerAutomationScheduleService.cs` | `BlueSapphire.Tests/CleanerAutomationScheduleServiceTests.cs` |
+| **`CleanerAnalysisPathPlanner`** | 自定义扫描与分析路径优化规划工具 | `Services/CleanerAnalysisPathPlanner.cs` | `BlueSapphire.Tests/CleanerAnalysisPathPlannerTests.cs` |
+| **`CleanerLaunchActionService`**| 清理后关联第三方维护应用快速启动联动服务 | `Services/CleanerLaunchActionService.cs` | `BlueSapphire.Tests/CleanerLaunchActionServiceTests.cs` |
+| **`CleanerPathSafety`** | 路径安全性静态验证辅助类 | `Services/CleanerPathSafety.cs` | *(包含在 BoundaryGuard/ScanService 测试件中)* |
 
 ---
 
-## 典型数据流
+## 4. 日志与异常观测性规范
 
-### 用户触发快速扫描 → 清理
-
-```
-1. CleanerAssistantPage 按钮绑定 → CleanerScanViewModel.StartQuickScanCommand
-2. CleanerScanViewModel 调用 CleanerScanService.ScanAsync(Quick, ...)
-3. CleanerScanService 枚举规则 → 匹配文件 → 调用 CleanerRiskEvaluator
-4. 结果分桶（Safe/Review/ViewOnly） → 通知 UI 刷新
-5. 用户点击“清理” → CleanerAssistantViewModel.RunCleanupCommand
-6. 收集选中项 → CleanerExecutionService.ExecuteAsync(items, ...)
-7. 执行前校验：BoundaryGuard → LockService → PrivilegeService
-8. 执行隔离（移动文件）或直接删除 → 记录审计
-9. CleanerStateStore 持久化清理历史 → UI 显示结果
-```
-
-### 自动保洁
-
-```
-1. CleanerAutomationService 检查是否到期
-2. 到期则发送 RunAutomaticLowRiskCleanupMessage
-3. CleanerAssistantViewModel 接收消息
-4. 仅处理 Safe 桶中已选中的低风险项
-5. 静默清理 → 不显示确认对话框
-```
-
----
-
-## 扩展规则
-
-规则定义在 `Assets/CleanerRules.json`（33KB），格式为 `CleanerRuleManifest`。新增规则只需在该 JSON 中添加条目，应用启动时会通过 `CleanerRuleService` 自动加载。支持在线规则包热更新（通过发布通道机制）。
-
----
-
-## 安全设计要点
-
-1. **默认不删高风险项** — High 风险项进入 ViewOnly 桶，不可选中
-2. **隔离优于删除** — 中低风险项默认走 Quarantine 模式
-3. **边界不可逾越** — 系统级规则必须声明且校验 BoundaryRoots
-4. **全量审计** — 每次扫描、清理、恢复均记录到 CleanerAuditService
-5. **排除优先** — 用户排除的路径在扫描阶段即被过滤，不会进入结果列表
+Cleaner 子系统的所有关键节点均已打通 `Microsoft.Extensions.Logging`，支持标准的依赖注入 `ILogger<T>`。
+在调试与问题追踪时：
+1. **统一日志路径**：`%LOCALAPPDATA%\BlueSapphire\Logs\app.log`
+2. **分类检索过滤**：日志中携带完整 Category（如 `[CleanerScanService]`、`[CleanerExecutionService]`、`[CleanerRuleService]`），可通过 Category 快速定位特定模块的扫描统计、耗时、异常及远程通信状态。

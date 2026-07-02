@@ -32,16 +32,16 @@ namespace BlueSapphire.ViewModels
         };
 
         [ObservableProperty]
-        private bool _reminderEnabled;
+        public partial bool ReminderEnabled { get; set; }
 
         [ObservableProperty]
-        private bool _autoLowRiskCleanupEnabled;
+        public partial bool AutoLowRiskCleanupEnabled { get; set; }
 
         [ObservableProperty]
-        private int _reminderIntervalDays = 1;
+        public partial int ReminderIntervalDays { get; set; } = 1;
 
         [ObservableProperty]
-        private bool _telemetryEnabled;
+        public partial bool TelemetryEnabled { get; set; }
 
         partial void OnReminderEnabledChanged(bool value) => SaveAutomationSettings();
         partial void OnAutoLowRiskCleanupEnabledChanged(bool value) => SaveAutomationSettings();

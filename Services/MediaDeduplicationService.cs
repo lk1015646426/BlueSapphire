@@ -38,6 +38,7 @@ namespace BlueSapphire.Services
 
             var groupedBySize = new ConcurrentDictionary<ulong, ConcurrentBag<StorageFile>>();
             int processed = 0;
+            long lastReportTicks1 = 0;
             using var semaphore = new SemaphoreSlim(Environment.ProcessorCount * 2);
 
             var sizeTasks = allFiles.Select(async file =>
@@ -64,8 +65,10 @@ namespace BlueSapphire.Services
                 {
                     semaphore.Release();
                     int current = Interlocked.Increment(ref processed);
-                    if (current % 200 == 0 || current == allFiles.Count)
+                    long now = Environment.TickCount64;
+                    if (current == allFiles.Count || now - Interlocked.Read(ref lastReportTicks1) >= 100)
                     {
+                        Interlocked.Exchange(ref lastReportTicks1, now);
                         double percent = allFiles.Count > 0 ? (double)current / allFiles.Count * 100 : 0;
                         progress?.Report((percent, "阶段 1/3: 按大小分组...", $"{current} / {allFiles.Count}"));
                     }
@@ -93,6 +96,7 @@ namespace BlueSapphire.Services
 
             var result = new List<List<StorageFile>>();
             int scanned = 0;
+            long lastReportTicks2 = 0;
 
             foreach (var sizeGroup in sizeGroups)
             {
@@ -117,8 +121,10 @@ namespace BlueSapphire.Services
                     }
 
                     scanned++;
-                    if (scanned % 10 == 0 || scanned == totalSuspects)
+                    long now = Environment.TickCount64;
+                    if (scanned == totalSuspects || now - lastReportTicks2 >= 100)
                     {
+                        lastReportTicks2 = now;
                         double percent = totalSuspects > 0 ? (double)scanned / totalSuspects * 100 : 0;
                         progress?.Report((percent, "正在深度校验 (Tier 2/3)...", $"{scanned} / {totalSuspects}"));
                     }
@@ -183,6 +189,7 @@ namespace BlueSapphire.Services
             var hashResults = new ConcurrentBag<(StorageFile File, ulong Hash, ulong Size)>();
             int processed = 0;
             int total = allFiles.Count;
+            long lastReportTicks3 = 0;
 
             await Parallel.ForEachAsync(
                 allFiles,
@@ -211,8 +218,10 @@ namespace BlueSapphire.Services
                     finally
                     {
                         int cur = Interlocked.Increment(ref processed);
-                        if (cur % 50 == 0 || cur == total)
+                        long now = Environment.TickCount64;
+                        if (cur == total || now - Interlocked.Read(ref lastReportTicks3) >= 100)
                         {
+                            Interlocked.Exchange(ref lastReportTicks3, now);
                             progress?.Report(((double)cur / total * 100,
                                 "阶段 1/2: 极速提取视觉指纹...",
                                 $"{cur} / {total}"));
@@ -225,38 +234,68 @@ namespace BlueSapphire.Services
                 return new List<List<StorageFile>>();
             }
 
-            // ========== Phase 2: Hamming distance clustering ==========
-            progress?.Report((95, "阶段 2/2: 聚类分析...", "正在匹配相似照片"));
+            // ========== Phase 2: BK-Tree Spatial Index Clustering (O(N log N)) ==========
+            progress?.Report((95, "阶段 2/2: 算法空间索引聚类 (BK-Tree)...", "正在构建空间索引与匹配相似照片"));
 
-            var items = hashResults.ToList();
-            var visited = new bool[items.Count];
+            if (hashResults.IsEmpty)
+            {
+                return new List<List<StorageFile>>();
+            }
+
+            BKTreeNode? root = null;
+            var allNodes = new List<BKTreeNode>();
+
+            foreach (var item in hashResults)
+            {
+                if (root == null)
+                {
+                    root = new BKTreeNode(item.File, item.Hash, item.Size);
+                    allNodes.Add(root);
+                }
+                else
+                {
+                    if (root.AddWithNodeReturn(item.File, item.Hash, item.Size, out var newNode))
+                    {
+                        if (newNode != null)
+                        {
+                            allNodes.Add(newNode);
+                        }
+                    }
+                }
+            }
+
             var result = new List<List<StorageFile>>();
 
-            for (int i = 0; i < items.Count; i++)
+            foreach (var node in allNodes)
             {
-                if (visited[i]) continue;
-                visited[i] = true;
+                if (node.Visited) continue;
 
-                var group = new List<(StorageFile File, ulong Size)>
+                var cluster = new List<(StorageFile File, ulong Size)>();
+                var queue = new Queue<BKTreeNode>();
+                queue.Enqueue(node);
+                node.Visited = true;
+
+                while (queue.Count > 0)
                 {
-                    (items[i].File, items[i].Size)
-                };
+                    var current = queue.Dequeue();
+                    cluster.AddRange(current.Items);
 
-                for (int j = i + 1; j < items.Count; j++)
-                {
-                    if (visited[j]) continue;
-
-                    if (MediaScanService.HammingDistance(items[i].Hash, items[j].Hash) <= 5)
+                    var neighbors = new List<BKTreeNode>();
+                    root?.Search(current.Hash, 5, neighbors);
+                    foreach (var neighbor in neighbors)
                     {
-                        group.Add((items[j].File, items[j].Size));
-                        visited[j] = true;
+                        if (!neighbor.Visited)
+                        {
+                            neighbor.Visited = true;
+                            queue.Enqueue(neighbor);
+                        }
                     }
                 }
 
-                if (group.Count > 1)
+                if (cluster.Count > 1)
                 {
                     // Largest file first (highest quality / resolution)
-                    result.Add(group
+                    result.Add(cluster
                         .OrderByDescending(g => g.Size)
                         .Select(g => g.File)
                         .ToList());
@@ -264,6 +303,65 @@ namespace BlueSapphire.Services
             }
 
             return result;
+        }
+
+        private sealed class BKTreeNode
+        {
+            public ulong Hash;
+            public bool Visited;
+            public List<(StorageFile File, ulong Size)> Items = new();
+            public Dictionary<int, BKTreeNode>? Children;
+
+            public BKTreeNode(StorageFile file, ulong hash, ulong size)
+            {
+                Hash = hash;
+                Items.Add((file, size));
+            }
+
+            public bool AddWithNodeReturn(StorageFile file, ulong hash, ulong size, out BKTreeNode? newNode)
+            {
+                int dist = MediaScanService.HammingDistance(Hash, hash);
+                if (dist == 0)
+                {
+                    Items.Add((file, size));
+                    newNode = null;
+                    return false;
+                }
+
+                Children ??= new Dictionary<int, BKTreeNode>();
+                if (Children.TryGetValue(dist, out var child))
+                {
+                    return child.AddWithNodeReturn(file, hash, size, out newNode);
+                }
+                else
+                {
+                    newNode = new BKTreeNode(file, hash, size);
+                    Children[dist] = newNode;
+                    return true;
+                }
+            }
+
+            public void Search(ulong queryHash, int maxDistance, List<BKTreeNode> results)
+            {
+                int dist = MediaScanService.HammingDistance(Hash, queryHash);
+                if (dist <= maxDistance)
+                {
+                    results.Add(this);
+                }
+
+                if (Children == null) return;
+
+                int minDist = dist - maxDistance;
+                int maxDist = dist + maxDistance;
+
+                foreach (var kvp in Children)
+                {
+                    if (kvp.Key >= minDist && kvp.Key <= maxDist)
+                    {
+                        kvp.Value.Search(queryHash, maxDistance, results);
+                    }
+                }
+            }
         }
     }
 }

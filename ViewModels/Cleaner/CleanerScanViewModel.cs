@@ -29,19 +29,19 @@ namespace BlueSapphire.ViewModels.Cleaner
         private int _suspendRefreshCount;
 
         [ObservableProperty]
-        private bool _isBusy;
+        public partial bool IsBusy { get; set; }
 
         [ObservableProperty]
-        private int _progressValue;
+        public partial int ProgressValue { get; set; }
 
         [ObservableProperty]
-        private string _statusMainText = "就绪";
+        public partial string StatusMainText { get; set; } = "就绪";
 
         [ObservableProperty]
-        private string _statusDetailText = "点击下方的快速扫描，检查垃圾和可清理项。";
+        public partial string StatusDetailText { get; set; } = "点击下方的快速扫描，检查垃圾和可清理项。";
 
         [ObservableProperty]
-        private string _lastScanText = "最近扫描：无记录";
+        public partial string LastScanText { get; set; } = "最近扫描：无记录";
 
         private CleanerScanScope _lastScope = CleanerScanScope.Quick;
 
@@ -50,13 +50,13 @@ namespace BlueSapphire.ViewModels.Cleaner
         public CleanerAuditSnapshot? AuditSnapshot { get; private set; }
 
         [ObservableProperty]
-        private ObservableCollection<CleanerScanItem> _safeItems = new();
+        public partial ObservableCollection<CleanerScanItem> SafeItems { get; set; } = new();
 
         [ObservableProperty]
-        private ObservableCollection<CleanerScanItem> _reviewItems = new();
+        public partial ObservableCollection<CleanerScanItem> ReviewItems { get; set; } = new();
 
         [ObservableProperty]
-        private ObservableCollection<CleanerScanItem> _viewOnlyItems = new();
+        public partial ObservableCollection<CleanerScanItem> ViewOnlyItems { get; set; } = new();
         private readonly List<CleanerScanItem> _allItems = new();
 
         public IReadOnlyList<CleanerScanItem> AllItems => _allItems;
@@ -163,8 +163,7 @@ namespace BlueSapphire.ViewModels.Cleaner
             _lastScope = scope;
             SetBusyState(true, scope == CleanerScanScope.Quick ? "正在快速扫描..." : "正在深度扫描...", "准备扫描规则和驱动器");
 
-            CancellationTokenSource cts = new();
-            _currentOperationCts = cts;
+            CancellationTokenSource cts = CreateOperationTokenSource();
 
             var progress = new Progress<CleanerScanProgress>(e =>
             {
@@ -382,6 +381,23 @@ namespace BlueSapphire.ViewModels.Cleaner
             StatusDetailText = detailText;
             ProgressValue = isBusy ? 0 : 100;
             RaiseDashboardProperties();
+        }
+
+        public CancellationTokenSource CreateOperationTokenSource()
+        {
+            if (_currentOperationCts != null && !_currentOperationCts.IsCancellationRequested)
+            {
+                _currentOperationCts.Cancel();
+            }
+            _currentOperationCts?.Dispose();
+            CancellationTokenSource cts = new();
+            _currentOperationCts = cts;
+            return cts;
+        }
+
+        public void ReleaseOperationTokenSource(CancellationTokenSource cts)
+        {
+            ReleaseOperationCts(cts);
         }
 
         private void ReleaseOperationCts(CancellationTokenSource currentCts)

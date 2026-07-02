@@ -99,33 +99,23 @@ namespace BlueSapphire.Views.Dialogs
             var token = _estimationCts.Token;
             EstimatedSizeText.Text = "正在预估大小...";
             
+            var selectedTag = (FormatComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "Jpeg";
+            var targetFormat = selectedTag switch
+            {
+                "Png" => ImageConversionTarget.Png,
+                "Bmp" => ImageConversionTarget.Bmp,
+                "Gif" => ImageConversionTarget.Gif,
+                "Tiff" => ImageConversionTarget.Tiff,
+                _ => ImageConversionTarget.Jpeg
+            };
+            double quality = (QualitySlider?.Value ?? 92.0) / 100.0;
+            
             Task.Run(async () =>
             {
                 try
                 {
                     await Task.Delay(300, token); // Debounce
                     
-                    var targetFormat = ImageConversionTarget.Jpeg;
-                    DispatcherQueue.TryEnqueue(() => 
-                    {
-                        var selectedTag = (FormatComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "Jpeg";
-                        targetFormat = selectedTag switch
-                        {
-                            "Png" => ImageConversionTarget.Png,
-                            "Bmp" => ImageConversionTarget.Bmp,
-                            "Gif" => ImageConversionTarget.Gif,
-                            "Tiff" => ImageConversionTarget.Tiff,
-                            _ => ImageConversionTarget.Jpeg
-                        };
-                    });
-                    
-                    // Wait for UI thread to fetch format
-                    await Task.Delay(10, token);
-                    
-                    double quality = 0.92;
-                    DispatcherQueue.TryEnqueue(() => { quality = QualitySlider.Value / 100.0; });
-                    await Task.Delay(10, token);
-
                     var options = new FormatConvertOptions
                     {
                         TargetFormat = targetFormat,

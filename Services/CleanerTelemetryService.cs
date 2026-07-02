@@ -9,6 +9,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace BlueSapphire.Services
 {
@@ -22,15 +23,7 @@ namespace BlueSapphire.Services
         private readonly CleanerProfileService _profileService;
         private readonly HttpClient _httpClient;
         private readonly Func<Uri, string, CancellationToken, Task<CleanerTelemetryUploadResult>> _uploader;
-
-        public CleanerTelemetryService(
-            CleanerStateStore stateStore,
-            CleanerAuditService auditService,
-            CleanerRuleService ruleService,
-            CleanerProfileService profileService)
-            : this(stateStore, auditService, ruleService, profileService, null, null)
-        {
-        }
+        private readonly ILogger<CleanerTelemetryService>? _logger;
 
         public CleanerTelemetryService(
             CleanerStateStore stateStore,
@@ -38,14 +31,26 @@ namespace BlueSapphire.Services
             CleanerRuleService ruleService,
             CleanerProfileService profileService,
             HttpClient? httpClient = null,
-            Func<Uri, string, CancellationToken, Task<CleanerTelemetryUploadResult>>? uploader = null)
+            Func<Uri, string, CancellationToken, Task<CleanerTelemetryUploadResult>>? uploader = null,
+            IHttpClientFactory? httpClientFactory = null,
+            ILogger<CleanerTelemetryService>? logger = null)
         {
             _stateStore = stateStore;
             _auditService = auditService;
             _ruleService = ruleService;
             _profileService = profileService;
-            _httpClient = httpClient ?? SharedClient;
+            _httpClient = httpClient ?? httpClientFactory?.CreateClient() ?? SharedClient;
             _uploader = uploader ?? UploadCoreAsync;
+            _logger = logger;
+        }
+
+        public CleanerTelemetryService(
+            CleanerStateStore stateStore,
+            CleanerAuditService auditService,
+            CleanerRuleService ruleService,
+            CleanerProfileService profileService)
+            : this(stateStore, auditService, ruleService, profileService, null, null, null, null)
+        {
         }
 
         public async Task<CleanerTelemetryStatus> LoadStatusAsync()
@@ -98,11 +103,13 @@ namespace BlueSapphire.Services
                     ? "上传成功"
                     : $"上传成功 · {result.Message}";
                 await _stateStore.SavePreferencesAsync(preferences);
+                _logger?.LogInformation("[CleanerTelemetryService] 遥测数据上传成功至 {Endpoint}，状态: {Status}", endpoint, preferences.LastTelemetryStatus);
             }
             catch (Exception ex)
             {
                 preferences.LastTelemetryStatus = $"上传失败 · {ex.Message}";
                 await _stateStore.SavePreferencesAsync(preferences);
+                _logger?.LogError(ex, "[CleanerTelemetryService] 遥测数据上传失败至 {Endpoint}", endpoint);
                 throw;
             }
 

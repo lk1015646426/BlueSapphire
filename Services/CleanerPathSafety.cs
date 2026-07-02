@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 
 namespace BlueSapphire.Services
 {
@@ -90,40 +91,79 @@ namespace BlueSapphire.Services
             return separator == Path.DirectorySeparatorChar || separator == Path.AltDirectorySeparatorChar;
         }
 
-        public static IReadOnlyList<string> SafeEnumerateDirectories(string path)
+        public static IEnumerable<string> SafeEnumerateDirectories(string path)
         {
+            IEnumerator<string>? enumerator = null;
             try
             {
-                return Directory.EnumerateDirectories(path).ToArray();
+                enumerator = Directory.EnumerateDirectories(path).GetEnumerator();
             }
             catch
             {
-                return Array.Empty<string>();
+                yield break;
+            }
+
+            using (enumerator)
+            {
+                while (true)
+                {
+                    string item;
+                    try
+                    {
+                        if (!enumerator.MoveNext()) break;
+                        item = enumerator.Current;
+                    }
+                    catch
+                    {
+                        break;
+                    }
+                    yield return item;
+                }
             }
         }
 
-        public static IReadOnlyList<string> SafeEnumerateFiles(string path, string pattern = "*")
+        public static IEnumerable<string> SafeEnumerateFiles(string path, string pattern = "*")
         {
+            IEnumerator<string>? enumerator = null;
             try
             {
-                return Directory.EnumerateFiles(path, pattern, SearchOption.TopDirectoryOnly).ToArray();
+                enumerator = Directory.EnumerateFiles(path, pattern, SearchOption.TopDirectoryOnly).GetEnumerator();
             }
             catch
             {
-                return Array.Empty<string>();
+                yield break;
+            }
+
+            using (enumerator)
+            {
+                while (true)
+                {
+                    string item;
+                    try
+                    {
+                        if (!enumerator.MoveNext()) break;
+                        item = enumerator.Current;
+                    }
+                    catch
+                    {
+                        break;
+                    }
+                    yield return item;
+                }
             }
         }
 
-        public static IReadOnlyList<string> EnumerateFilesSafely(
+        public static IEnumerable<string> EnumerateFilesSafely(
             string root,
             IReadOnlyList<string> patterns,
             bool recursive,
-            IEnumerable<string> exclusions)
+            IEnumerable<string> exclusions,
+            CancellationToken cancellationToken = default)
         {
             string normalizedRoot = NormalizePath(root);
             if (!Directory.Exists(normalizedRoot) || IsReparsePoint(normalizedRoot))
             {
-                return Array.Empty<string>();
+                yield break;
             }
 
             IReadOnlyList<string> effectivePatterns = patterns
@@ -136,12 +176,13 @@ namespace BlueSapphire.Services
                 effectivePatterns = ["*"];
             }
 
-            List<string> files = new();
             Stack<string> pending = new();
             pending.Push(normalizedRoot);
 
             while (pending.Count > 0)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 string current = pending.Pop();
                 if (IsExcluded(current, exclusions))
                 {
@@ -152,10 +193,11 @@ namespace BlueSapphire.Services
                 {
                     foreach (string file in SafeEnumerateFiles(current, pattern))
                     {
+                        cancellationToken.ThrowIfCancellationRequested();
                         string normalizedFile = NormalizePath(file);
                         if (!IsExcluded(normalizedFile, exclusions))
                         {
-                            files.Add(normalizedFile);
+                            yield return normalizedFile;
                         }
                     }
                 }
@@ -167,6 +209,7 @@ namespace BlueSapphire.Services
 
                 foreach (string directory in SafeEnumerateDirectories(current))
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     string normalizedDirectory = NormalizePath(directory);
                     if (IsExcluded(normalizedDirectory, exclusions) || IsReparsePoint(normalizedDirectory))
                     {
@@ -176,8 +219,6 @@ namespace BlueSapphire.Services
                     pending.Push(normalizedDirectory);
                 }
             }
-
-            return files;
         }
 
         public static bool IsFileLocked(string path)

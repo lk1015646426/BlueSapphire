@@ -60,7 +60,7 @@ namespace BlueSapphire.ViewModels
         {
             _ruleStatus = await _ruleService.GetStatusAsync();
             NotifyRulePackPropertiesChanged();
-            RulesChanged?.Invoke(this, EventArgs.Empty);
+            NotifyRulesModified();
         }
 
         public CleanerRuleBundleStatus RuleStatus => _ruleStatus;
@@ -107,7 +107,7 @@ namespace BlueSapphire.ViewModels
                 var status = await _ruleService.RefreshFromRemoteAsync(remoteUri, CancellationToken.None);
                 _ruleStatus = status;
                 NotifyRulePackPropertiesChanged();
-                RulesChanged?.Invoke(this, EventArgs.Empty);
+                NotifyRulesModified();
             }
             catch (Exception)
             {
@@ -122,7 +122,7 @@ namespace BlueSapphire.ViewModels
                 var status = await _ruleService.ClearExternalRulePackAsync();
                 _ruleStatus = status;
                 NotifyRulePackPropertiesChanged();
-                RulesChanged?.Invoke(this, EventArgs.Empty);
+                NotifyRulesModified();
             }
             catch (Exception)
             {
@@ -150,7 +150,7 @@ namespace BlueSapphire.ViewModels
                 var status = await _ruleService.EnableAllLocallyDisabledRulesAsync();
                 _ruleStatus = status;
                 NotifyRulePackPropertiesChanged();
-                RulesChanged?.Invoke(this, EventArgs.Empty);
+                NotifyRulesModified();
             }
             catch (Exception)
             {
@@ -215,7 +215,7 @@ namespace BlueSapphire.ViewModels
                 var status = await _ruleService.RefreshFromRemoteAsync(remoteUri, CancellationToken.None);
                 _ruleStatus = status;
                 NotifyRulePackPropertiesChanged();
-                RulesChanged?.Invoke(this, EventArgs.Empty);
+                NotifyRulesModified();
             }
             catch (Exception)
             {
@@ -230,11 +230,17 @@ namespace BlueSapphire.ViewModels
                 var status = await _ruleService.ClearExternalRulePackAsync();
                 _ruleStatus = status;
                 NotifyRulePackPropertiesChanged();
-                RulesChanged?.Invoke(this, EventArgs.Empty);
+                NotifyRulesModified();
             }
             catch (Exception)
             {
             }
+        }
+
+        private void NotifyRulesModified()
+        {
+            RulesChanged?.Invoke(this, EventArgs.Empty);
+            ScanInvalidated?.Invoke(this, EventArgs.Empty);
         }
 
         private void NotifyRulePackPropertiesChanged()

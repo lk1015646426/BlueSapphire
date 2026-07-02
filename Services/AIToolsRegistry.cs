@@ -17,6 +17,9 @@ namespace BlueSapphire.Services
         private readonly CleanerAuditService _auditService;
         private readonly DevLogDataService _devLogDataService;
         private readonly AIMemoryService _memoryService;
+        private readonly McpServerManager _mcpServerManager;
+        private readonly WebSkillManager _webSkillManager;
+        private readonly AgentSkillManager _agentSkillManager;
 
         private List<CleanerScanItem>? _lastScanResults;
 
@@ -26,7 +29,10 @@ namespace BlueSapphire.Services
             CleanerExecutionService executionService, 
             CleanerAuditService auditService,
             DevLogDataService devLogDataService,
-            AIMemoryService memoryService)
+            AIMemoryService memoryService,
+            McpServerManager mcpServerManager,
+            WebSkillManager webSkillManager,
+            AgentSkillManager agentSkillManager)
         {
             _aiService = aiService;
             _scanService = scanService;
@@ -34,6 +40,43 @@ namespace BlueSapphire.Services
             _auditService = auditService;
             _devLogDataService = devLogDataService;
             _memoryService = memoryService;
+            _mcpServerManager = mcpServerManager;
+            _webSkillManager = webSkillManager;
+            _agentSkillManager = agentSkillManager;
+        }
+
+        private static readonly System.Net.Http.HttpClient _directClient = CreateHttpClient(false);
+        private static System.Net.Http.HttpClient? _proxyClient;
+        private static int? _cachedProxyPort = -1;
+
+        private static System.Net.Http.HttpClient CreateHttpClient(bool useProxy, int? proxyPort = null)
+        {
+            var handler = new System.Net.Http.HttpClientHandler();
+            handler.ServerCertificateCustomValidationCallback = (sender, cert, chain, sslPolicyErrors) => true;
+            if (useProxy && proxyPort.HasValue)
+            {
+                handler.Proxy = new System.Net.WebProxy($"http://127.0.0.1:{proxyPort.Value}");
+                handler.UseProxy = true;
+            }
+            else if (!useProxy)
+            {
+                handler.UseProxy = false;
+            }
+            var client = new System.Net.Http.HttpClient(handler) { Timeout = TimeSpan.FromSeconds(30) };
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("BlueSapphire-AI");
+            return client;
+        }
+
+        private System.Net.Http.HttpClient GetHttpClient(bool useProxy)
+        {
+            if (!useProxy) return _directClient;
+            int? currentPort = GetActiveProxyPort();
+            if (_proxyClient == null || _cachedProxyPort != currentPort)
+            {
+                _cachedProxyPort = currentPort;
+                _proxyClient = CreateHttpClient(true, currentPort);
+            }
+            return _proxyClient;
         }
 
         public async Task<ChatMessage> GetSystemPromptAsync(IEnumerable<string> features)
@@ -58,8 +101,24 @@ namespace BlueSapphire.Services
 2. execute_cleanup：执行实际的清理操作。你可以指定清理 categories_to_clean (例如 ['Safe', 'app_cache'])。
 3. analyze_latest_cleanup_log：读取最近一次清理的日志。
 4. navigate_to_feature：跳转到指定功能界面。
-5. add_dev_log_record：自动帮用户生成并写入开发日志（发布记录）。当用户告诉你他们做了哪些开发、总结了什么内容时，你可以提取标题、版本号、级别等信息，调用此工具直接写入。
-
+6. add_mcp_server：根据用户要求，自动安装和挂载一个外部的 Model Context Protocol (MCP) 服务器/扩展。你需要推断出命令（如 npx.cmd 或 uvx）和参数。
+";
+            try
+            {
+                var mcpTools = await _mcpServerManager.GetAllToolsAsync();
+                if (mcpTools.Count > 0)
+                {
+                    systemPrompt += "\n【动态接入的 MCP 外部工具】\n";
+                    foreach (var mcp in mcpTools)
+                    {
+                        var toolPrefixName = $"mcp__{mcp.ServerId}__{mcp.Tool.Name}";
+                        systemPrompt += $"- {toolPrefixName}: {mcp.Tool.Description}\n";
+                    }
+                }
+            }
+            catch { }
+            
+            systemPrompt += @"
 【核心交互流程与约束 - 必须严格遵守】
 1. 需求理解：当用户表达磁盘空间不足时，先询问他们想扫描哪些盘，或者直接调用 start_smart_cleanup 进行默认扫描。
 2. 报告结果：收到 start_smart_cleanup 的结果后，必须使用 Markdown 语法（如表格、加粗、Emoji、列表等）进行优美排版，向用户清晰展示各项详细体积与数量，并且用通俗易懂的语言简单解释这些垃圾文件是用来做什么的，删除它们会有什么好处。
@@ -85,7 +144,52 @@ namespace BlueSapphire.Services
             }
             catch { }
 
+            try
+            {
+                if (_agentSkillManager.Skills.Count > 0)
+                {
+                    systemPrompt += "\n\n【动态注入的 Agent 提示词技能】（以下为你通过技能学习到的特殊指令和能力）：\n";
+                    foreach (var skill in _agentSkillManager.Skills)
+                    {
+                        systemPrompt += $"--- Skill: {skill.Name} ---\n{skill.Instructions}\n--------------------------\n";
+                    }
+                }
+            }
+            catch { }
+
             return new ChatMessage { Role = "system", Content = systemPrompt };
+        }
+
+        private System.Net.Http.HttpClientHandler CreateProxyHandler()
+        {
+            var handler = new System.Net.Http.HttpClientHandler();
+            handler.ServerCertificateCustomValidationCallback = System.Net.Http.HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+            var port = GetActiveProxyPort();
+            if (port.HasValue)
+            {
+                handler.Proxy = new System.Net.WebProxy($"http://127.0.0.1:{port.Value}");
+                handler.UseProxy = true;
+            }
+            return handler;
+        }
+
+        private int? GetActiveProxyPort()
+        {
+            int[] commonPorts = { 7897, 7890, 10809, 10808, 10810, 10811 };
+            try
+            {
+                var properties = System.Net.NetworkInformation.IPGlobalProperties.GetIPGlobalProperties();
+                var listeners = properties.GetActiveTcpListeners();
+                foreach (var port in commonPorts)
+                {
+                    if (listeners.Any(l => (l.Address.ToString() == "127.0.0.1" || l.Address.ToString() == "0.0.0.0") && l.Port == port))
+                    {
+                        return port;
+                    }
+                }
+            }
+            catch { }
+            return null;
         }
 
         public async Task<string> ExecuteToolCallAsync(string toolCallJson, Func<string, Task<bool>>? requestConfirmation = null)
@@ -124,6 +228,40 @@ namespace BlueSapphire.Services
                     else if (name == "remember_user_preference")
                     {
                         return await RememberUserPreferenceAsync(args);
+                    }
+                    else if (name == "add_mcp_server")
+                    {
+                        return await AddMcpServerAsync(args, requestConfirmation);
+                    }
+                    else if (name == "handle_github_url")
+                    {
+                        return await HandleGithubUrlAsync(args);
+                    }
+                    else if (name == "add_skill")
+                    {
+                        return await AddSkillAsync(args);
+                    }
+                    else if (name == "http_request")
+                    {
+                        return await HttpRequestAsync(args);
+                    }
+                    else if (name != null && name.StartsWith("mcp__"))
+                    {
+                        var parts = name.Split(new[] { "__" }, 3, StringSplitOptions.None);
+                        if (parts.Length == 3)
+                        {
+                            var serverId = parts[1];
+                            var toolName = parts[2];
+                            return await _mcpServerManager.CallToolAsync(serverId, toolName, args);
+                        }
+                    }
+                    else if (name != null && name.StartsWith("skill__"))
+                    {
+                        return await _webSkillManager.CallSkillAsync(name, args);
+                    }
+                    else
+                    {
+                        return "未找到对应的指令。";
                     }
                 }
                 return "未找到对应的指令。";
@@ -366,12 +504,306 @@ namespace BlueSapphire.Services
             }
         }
 
-        public static List<ChatTool> BuildCleanerTools(IEnumerable<string> features)
+        private async Task<string> AddMcpServerAsync(string args, Func<string, Task<bool>>? requestConfirmation = null)
+        {
+            try
+            {
+                var doc = JsonDocument.Parse(args);
+                string name = doc.RootElement.GetProperty("name").GetString() ?? "New MCP";
+                string command = doc.RootElement.GetProperty("command").GetString() ?? "npx.cmd";
+                string arguments = doc.RootElement.GetProperty("arguments").GetString() ?? "";
+
+                string cmdLower = command.Trim().ToLowerInvariant();
+                var allowedCommands = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "npx", "npx.cmd", "uvx", "uvx.exe", "node", "node.exe",
+                    "python", "python.exe", "py", "py.exe", "dotnet", "dotnet.exe"
+                };
+
+                string fileName = System.IO.Path.GetFileName(cmdLower);
+                if (!allowedCommands.Contains(cmdLower) && !allowedCommands.Contains(fileName))
+                {
+                    return $"安全拦截: 为保护操作系统安全，系统禁止执行非白名单工具 [{command}]。仅允许挂载受控开发者插件工具（如 npx, uvx, node, python, dotnet）。";
+                }
+
+                string[] dangerousChars = { ";", "|", "&", "`", "$(", "${" };
+                foreach (var dc in dangerousChars)
+                {
+                    if (arguments.Contains(dc, StringComparison.Ordinal))
+                    {
+                        return $"安全拦截: 启动参数中包含敏感的分隔符或链式执行符号 [{dc}]，已驳回该 MCP 服务的挂载申请。";
+                    }
+                }
+
+                if (requestConfirmation != null)
+                {
+                    bool confirmed = await requestConfirmation($"即将挂载并启动第三方 MCP 插件进程 [{name}]\n执行工具: {command} {arguments}\n\n是否允许在本地后台运行该依赖程序？");
+                    if (!confirmed)
+                    {
+                        return "用户已拒绝该 MCP 插件进程的挂载与启动。";
+                    }
+                }
+                
+                Dictionary<string, string> envDict = new();
+                if (doc.RootElement.TryGetProperty("env", out var envProp) && envProp.ValueKind == JsonValueKind.Object)
+                {
+                    foreach (var prop in envProp.EnumerateObject())
+                    {
+                        if (prop.Value.ValueKind == JsonValueKind.String)
+                        {
+                            envDict[prop.Name] = prop.Value.GetString() ?? "";
+                        }
+                    }
+                }
+
+                var config = new BlueSapphire.Models.McpServerConfig
+                {
+                    Name = name,
+                    Command = command,
+                    Arguments = arguments,
+                    EnvironmentVariables = envDict,
+                    IsEnabled = true
+                };
+
+                _mcpServerManager.AddOrUpdateServer(config);
+                await _mcpServerManager.StartServerAsync(config.Id);
+                bool started = _mcpServerManager.IsServerRunning(config.Id);
+
+                if (started)
+                {
+                    return $"已成功挂载 MCP: {name} (启动命令: {command} {arguments})，现在它的能力已经注入你的工具箱，你可以直接使用它了。";
+                }
+                else
+                {
+                    return $"保存了 MCP 配置 {name}，但启动失败。请检查该依赖是否已在环境中全局安装或包名是否正确。";
+                }
+            }
+            catch (Exception ex)
+            {
+                return $"挂载 MCP 失败: {ex.Message}";
+            }
+        }
+
+        private async Task<string> HandleGithubUrlAsync(string args)
+        {
+            try
+            {
+                var doc = JsonDocument.Parse(args);
+                string url = doc.RootElement.GetProperty("url").GetString() ?? "";
+                string action = doc.RootElement.GetProperty("action").GetString() ?? "info";
+
+                var match = System.Text.RegularExpressions.Regex.Match(url, @"github\.com/([^/]+)/([^/]+)");
+                if (!match.Success) return "无效的 GitHub URL。请提供格式为 https://github.com/owner/repo 的链接。";
+
+                string owner = match.Groups[1].Value;
+                string repo = match.Groups[2].Value.Replace(".git", "");
+
+                var client = GetHttpClient(true);
+
+                if (action == "info")
+                {
+                    var apiResp = await client.GetAsync($"https://api.github.com/repos/{owner}/{repo}");
+                    if (!apiResp.IsSuccessStatusCode) return $"获取仓库信息失败: {apiResp.StatusCode} (可能是私有仓库或限制访问)";
+                    
+                    var infoJson = await apiResp.Content.ReadAsStringAsync();
+                    var infoDoc = JsonDocument.Parse(infoJson);
+                    
+                    string description = infoDoc.RootElement.TryGetProperty("description", out var desc) && desc.ValueKind == JsonValueKind.String ? desc.GetString() ?? "无简介" : "无简介";
+                    int stars = infoDoc.RootElement.TryGetProperty("stargazers_count", out var st) ? st.GetInt32() : 0;
+                    string language = infoDoc.RootElement.TryGetProperty("language", out var lang) && lang.ValueKind == JsonValueKind.String ? lang.GetString() ?? "未知" : "未知";
+                    string defaultBranch = infoDoc.RootElement.TryGetProperty("default_branch", out var db) && db.ValueKind == JsonValueKind.String ? db.GetString() ?? "main" : "main";
+
+                    string readmeContent = "无 README";
+                    var readmeResp = await client.GetAsync($"https://raw.githubusercontent.com/{owner}/{repo}/{defaultBranch}/README.md");
+                    if (readmeResp.IsSuccessStatusCode)
+                    {
+                        readmeContent = await readmeResp.Content.ReadAsStringAsync();
+                        if (readmeContent.Length > 2000) readmeContent = readmeContent.Substring(0, 2000) + "...(已截断，后面内容过多)";
+                    }
+
+                    return $"【仓库基本信息】\n" +
+                           $"- 路径: {owner}/{repo}\n" +
+                           $"- 描述: {description}\n" +
+                           $"- Stars: {stars}\n" +
+                           $"- 主要语言: {language}\n" +
+                           $"- 默认分支: {defaultBranch}\n\n" +
+                           $"【README 预览】\n{readmeContent}";
+                }
+                else if (action == "download")
+                {
+                    string defaultBranch = "main";
+                    var apiResp = await client.GetAsync($"https://api.github.com/repos/{owner}/{repo}");
+                    if (apiResp.IsSuccessStatusCode)
+                    {
+                        var infoJson = await apiResp.Content.ReadAsStringAsync();
+                        var infoDoc = JsonDocument.Parse(infoJson);
+                        defaultBranch = infoDoc.RootElement.TryGetProperty("default_branch", out var db) && db.ValueKind == JsonValueKind.String ? db.GetString() ?? "main" : "main";
+                    }
+
+                    string zipUrl = $"https://github.com/{owner}/{repo}/archive/refs/heads/{defaultBranch}.zip";
+                    var zipResp = await client.GetAsync(zipUrl);
+                    if (!zipResp.IsSuccessStatusCode) return $"下载源码失败: {zipResp.StatusCode} (可能是私有仓库)";
+
+                    string downloadsFolder = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "BlueSapphire_GitHub");
+                    System.IO.Directory.CreateDirectory(downloadsFolder);
+                    string savePath = System.IO.Path.Combine(downloadsFolder, $"{owner}_{repo}_{defaultBranch}.zip");
+
+                    using var fs = new System.IO.FileStream(savePath, System.IO.FileMode.Create);
+                    await zipResp.Content.CopyToAsync(fs);
+
+                    return $"源码 ZIP 下载成功！文件已存放在你的本地路径：\n{savePath}\n你可以告诉用户下载已完成并提供此路径。";
+                }
+
+                return "未知的 action，只能是 'info' 或 'download'。";
+            }
+            catch (Exception ex)
+            {
+                return $"处理 GitHub 链接失败: {ex.Message}";
+            }
+        }
+
+        private async Task<string> AddSkillAsync(string args)
+        {
+            try
+            {
+                var doc = JsonDocument.Parse(args);
+                string url = doc.RootElement.GetProperty("url").GetString() ?? "";
+                bool useDomesticNetwork = false;
+                if (doc.RootElement.TryGetProperty("use_domestic_network", out var useDomesticProp))
+                {
+                    useDomesticNetwork = useDomesticProp.GetBoolean();
+                }
+
+                if (!string.IsNullOrWhiteSpace(url))
+                {
+                    string errorDetails = "";
+                    try
+                    {
+                        var (addedSkill, error) = await _webSkillManager.AddSkillAsync(url, useDomesticNetwork);
+                        if (addedSkill != null)
+                        {
+                            return $"已成功作为 Web API 技能加载规范。请查阅你现在的技能列表，你应该已经可以使用它的功能了。";
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        errorDetails += $"Web API 解析失败: {ex.Message}\n";
+                    }
+
+                    try
+                    {
+                        bool isAgentSkill = await _agentSkillManager.AddSkillAsync(url, useDomesticNetwork);
+                        if (isAgentSkill)
+                        {
+                            return $"已成功加载为 Agent 提示词技能 (SKILL.md)。你的能力已得到扩展，可以通过自然语言调用该技能。系统提示词将在下次对话自动更新。";
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        errorDetails += $"Agent Skill 解析失败: {ex.Message}\n";
+                    }
+                    
+                    return $"安装技能失败。无论是 OpenAPI JSON 还是 SKILL.md 解析均未成功。\n\n错误详情：\n{errorDetails}\n请告诉用户具体的错误原因（通常是网络不通、或者 URL 不规范）。";
+                }
+                return "URL 不能为空。";
+            }
+            catch (Exception ex)
+            {
+                return $"添加技能失败: {ex.Message}";
+            }
+        }
+
+        private async Task<string> HttpRequestAsync(string args)
+        {
+            try
+            {
+                var doc = JsonDocument.Parse(args);
+                string url = doc.RootElement.GetProperty("url").GetString() ?? "";
+                if (string.IsNullOrWhiteSpace(url)) return "URL不能为空";
+
+                if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+                {
+                    return "安全拦截: 仅支持合法的 HTTP/HTTPS 协议 URL。";
+                }
+
+                string host = uri.DnsSafeHost.ToLowerInvariant();
+                if (host == "localhost" || host == "127.0.0.1" || host == "::1" || host == "0.0.0.0" || host.StartsWith("169.254.") || host.StartsWith("192.168.") || host.StartsWith("10."))
+                {
+                    return $"安全拦截: 为防止服务端请求伪造 (SSRF) 与内网隐私泄露，系统禁止通过 AI 工具发起对回环地址或内网私有 IP [{host}] 的网络请求。";
+                }
+                if (host.StartsWith("172."))
+                {
+                    var parts = host.Split('.');
+                    if (parts.Length >= 2 && int.TryParse(parts[1], out int second) && second >= 16 && second <= 31)
+                    {
+                        return $"安全拦截: 为防止服务端请求伪造 (SSRF) 与内网隐私泄露，系统禁止通过 AI 工具发起对私有 IP [{host}] 的网络请求。";
+                    }
+                }
+
+                bool useDomesticNetwork = false;
+                if (doc.RootElement.TryGetProperty("use_domestic_network", out var useDomesticProp))
+                {
+                    useDomesticNetwork = useDomesticProp.GetBoolean();
+                }
+
+                string methodStr = "GET";
+                if (doc.RootElement.TryGetProperty("method", out var methProp) && methProp.ValueKind == JsonValueKind.String)
+                {
+                    methodStr = methProp.GetString()?.ToUpperInvariant() ?? "GET";
+                }
+                
+                var method = new System.Net.Http.HttpMethod(methodStr);
+                using var request = new System.Net.Http.HttpRequestMessage(method, url);
+
+                if (doc.RootElement.TryGetProperty("headers", out var headersProp) && headersProp.ValueKind == JsonValueKind.Object)
+                {
+                    foreach (var h in headersProp.EnumerateObject())
+                    {
+                        if (h.Value.ValueKind == JsonValueKind.String)
+                        {
+                            request.Headers.TryAddWithoutValidation(h.Name, h.Value.GetString());
+                        }
+                    }
+                }
+
+                if (doc.RootElement.TryGetProperty("body", out var bodyProp) && bodyProp.ValueKind == JsonValueKind.String)
+                {
+                    string bodyContent = bodyProp.GetString() ?? "";
+                    if (!string.IsNullOrEmpty(bodyContent))
+                    {
+                        request.Content = new System.Net.Http.StringContent(bodyContent, System.Text.Encoding.UTF8, "application/json");
+                    }
+                }
+
+                var client = GetHttpClient(!useDomesticNetwork);
+
+                var response = await client.SendAsync(request);
+                string content = await response.Content.ReadAsStringAsync();
+
+                if (content.Length > 8000)
+                {
+                    content = content.Substring(0, 8000) + "\n...[响应过长已截断]";
+                }
+
+                return $"状态码: {(int)response.StatusCode}\n响应内容:\n{content}";
+            }
+            catch (TaskCanceledException)
+            {
+                return "HTTP 请求失败: 请求超时 (Timeout 30s)。这通常是因为目标网站需要代理才能访问。请告诉用户目标网站因为网络问题无法访问（可能需要开启全局代理）。";
+            }
+            catch (Exception ex)
+            {
+                return $"HTTP 请求失败: {ex.Message}。请如实转告用户此错误（可能是代理问题或网站不可达）。";
+            }
+        }
+
+
+        public async Task<List<ChatTool>> BuildCleanerToolsAsync(IEnumerable<string> features)
         {
             var featureEnum = features.ToList();
             featureEnum.Add("Settings");
 
-            return new List<ChatTool>
+            var baseTools = new List<ChatTool>
             {
                 new ChatTool
                 {
@@ -495,8 +927,133 @@ namespace BlueSapphire.Services
                             required = new[] { "rule" }
                         })
                     }
+                },
+                new ChatTool
+                {
+                    Type = "function",
+                    Function = new ChatFunction
+                    {
+                        Name = "add_mcp_server",
+                        Description = "Automatically configures and starts a new external MCP server. Use this when the user asks you to add an MCP integration (e.g. '@modelcontextprotocol/server-github').",
+                        Parameters = JsonSerializer.SerializeToNode(new
+                        {
+                            type = "object",
+                            properties = new
+                            {
+                                name = new { type = "string", description = "A user-friendly name for this MCP server, e.g. 'GitHub MCP'." },
+                                command = new { type = "string", description = "The executable command. If it's an npm package on Windows, strictly use 'npx.cmd'. If it's a python package, use 'uvx'. E.g. 'npx.cmd'." },
+                                arguments = new { type = "string", description = "The arguments to pass to the command. For npx, usually starts with '-y'. E.g. '-y @modelcontextprotocol/server-github'." },
+                                env = new { type = "object", description = "Optional environment variables required by the MCP (e.g. API keys like GITHUB_TOKEN). Ask the user for these if they are typically required.", additionalProperties = new { type = "string" } }
+                            },
+                            required = new[] { "name", "command", "arguments" }
+                        })
+                    }
+                },
+                new ChatTool
+                {
+                    Type = "function",
+                    Function = new ChatFunction
+                    {
+                        Name = "handle_github_url",
+                        Description = "Process a public GitHub URL. Use this when the user gives you a GitHub URL and wants you to get its info or download it.",
+                        Parameters = JsonSerializer.SerializeToNode(new
+                        {
+                            type = "object",
+                            properties = new
+                            {
+                                url = new { type = "string", description = "The GitHub URL (e.g. https://github.com/microsoft/vscode)." },
+                                action = new { type = "string", description = "What to do with the URL. Must be 'info' (to fetch description, stars, and read README) or 'download' (to download the source code zip).", @enum = new[] { "info", "download" } }
+                            },
+                            required = new[] { "url", "action" }
+                        })
+                    }
+                },
+                new ChatTool
+                {
+                    Type = "function",
+                    Function = new ChatFunction
+                    {
+                        Name = "add_skill",
+                        Description = "Automatically install a skill given a URL. The URL can point to an OpenAPI (Swagger) JSON specification OR a SKILL.md (Agent Prompt Skill) directory or github repository. Always use this to 'install' or 'add' skills for the user.",
+                        Parameters = JsonSerializer.SerializeToNode(new
+                        {
+                            type = "object",
+                            properties = new
+                            {
+                                url = new
+                                {
+                                    type = "string",
+                                    description = "The HTTP/HTTPS URL of the OpenAPI JSON specification, or a GitHub repository / directory link containing a SKILL.md file."
+                                },
+                                use_domestic_network = new
+                                {
+                                    type = "boolean",
+                                    description = "If true, bypasses the system proxy to access domestic (Chinese) APIs/sites. If false, uses the system proxy for overseas sites."
+                                }
+                            },
+                            required = new[] { "url" }
+                        })
+                    }
+                },
+                new ChatTool
+                {
+                    Type = "function",
+                    Function = new ChatFunction
+                    {
+                        Name = "http_request",
+                        Description = "Make a generic HTTP/HTTPS request to fetch external APIs or web pages. Use this tool when a skill or user instruction requires you to retrieve external web data. Do NOT use this for large file downloads.",
+                        Parameters = JsonSerializer.SerializeToNode(new
+                        {
+                            type = "object",
+                            properties = new
+                            {
+                                url = new { type = "string", description = "The target URL." },
+                                method = new { type = "string", description = "HTTP method (GET, POST, PUT, DELETE, etc.). Default is GET.", @enum = new[] { "GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS" } },
+                                headers = new { type = "object", description = "Optional HTTP headers.", additionalProperties = new { type = "string" } },
+                                body = new { type = "string", description = "Optional request body (JSON string, form data, etc.) for POST/PUT requests." },
+                                use_domestic_network = new
+                                {
+                                    type = "boolean",
+                                    description = "If true, bypasses the system proxy to access domestic (Chinese) APIs/sites. If false, uses the system proxy for overseas sites."
+                                }
+                            },
+                            required = new[] { "url" }
+                        })
+                    }
                 }
             };
+
+            try
+            {
+                var mcpTools = await _mcpServerManager.GetAllToolsAsync();
+                foreach (var mcp in mcpTools)
+                {
+                    baseTools.Add(new ChatTool
+                    {
+                        Type = "function",
+                        Function = new ChatFunction
+                        {
+                            Name = $"mcp__{mcp.ServerId}__{mcp.Tool.Name}",
+                            Description = mcp.Tool.Description,
+                            Parameters = mcp.Tool.InputSchema
+                        }
+                    });
+                }
+            }
+            catch { }
+
+            // 添加在线 Web Skills
+            try
+            {
+                var skillTools = _webSkillManager.GetTools();
+                if (skillTools != null && skillTools.Count > 0)
+                {
+                    baseTools.AddRange(skillTools);
+                }
+            }
+            catch { }
+
+            return baseTools;
         }
 
         public async Task<string> RunAgentLoopAsync(
@@ -505,7 +1062,7 @@ namespace BlueSapphire.Services
             Action<string, string, bool> onMessageGenerated,
             Func<string, Task<bool>> requestConfirmation)
         {
-            var tools = BuildCleanerTools(features);
+            var tools = await BuildCleanerToolsAsync(features);
             int maxRounds = 5;
 
             for (int round = 0; round < maxRounds; round++)
@@ -546,7 +1103,7 @@ namespace BlueSapphire.Services
                 {
                     if (!string.IsNullOrWhiteSpace(fullContent))
                     {
-                        messages.Add(new ChatMessage { Role = "assistant", Content = fullContent });
+                        lock (messages) { messages.Add(new ChatMessage { Role = "assistant", Content = fullContent }); }
                     }
                     return "OK";
                 }
@@ -563,39 +1120,60 @@ namespace BlueSapphire.Services
 
                 var toolCallsNode = JsonDocument.Parse(toolCallsArrayJson).RootElement;
 
-                messages.Add(new ChatMessage
+                lock (messages)
                 {
-                    Role = "assistant",
-                    Content = fullContent,
-                    ToolCalls = toolCallsNode
-                });
+                    messages.Add(new ChatMessage
+                    {
+                        Role = "assistant",
+                        Content = fullContent,
+                        ToolCalls = toolCallsNode
+                    });
+                }
 
                 foreach (var acc in toolCallsList)
                 {
                     onMessageGenerated("tool_progress", $"执行中: {acc.FunctionName}...", false);
 
-                    string result = acc.FunctionName switch
+                    string result;
+                    if (acc.FunctionName == "start_smart_cleanup") result = await StartSmartCleanupAsync(acc.FunctionArguments);
+                    else if (acc.FunctionName == "execute_cleanup") result = await ExecuteCleanupAsync(acc.FunctionArguments, requestConfirmation);
+                    else if (acc.FunctionName == "analyze_latest_cleanup_log") result = await AnalyzeLatestCleanupLogAsync();
+                    else if (acc.FunctionName == "navigate_to_feature") result = await NavigateToFeatureAsync(acc.FunctionArguments);
+                    else if (acc.FunctionName == "add_dev_log_record") result = await AddDevLogRecordAsync(acc.FunctionArguments);
+                    else if (acc.FunctionName == "remember_user_preference") result = await RememberUserPreferenceAsync(acc.FunctionArguments);
+                    else if (acc.FunctionName == "add_mcp_server") result = await AddMcpServerAsync(acc.FunctionArguments, requestConfirmation);
+                    else if (acc.FunctionName == "handle_github_url") result = await HandleGithubUrlAsync(acc.FunctionArguments);
+                    else if (acc.FunctionName == "add_skill") result = await AddSkillAsync(acc.FunctionArguments);
+                    else if (acc.FunctionName == "http_request") result = await HttpRequestAsync(acc.FunctionArguments);
+                    else if (acc.FunctionName != null && acc.FunctionName.StartsWith("mcp__"))
                     {
-                        "start_smart_cleanup" => await StartSmartCleanupAsync(acc.FunctionArguments),
-                        "execute_cleanup" => await ExecuteCleanupAsync(acc.FunctionArguments, requestConfirmation),
-                        "analyze_latest_cleanup_log" => await AnalyzeLatestCleanupLogAsync(),
-                        "navigate_to_feature" => await NavigateToFeatureAsync(acc.FunctionArguments),
-                        "add_dev_log_record" => await AddDevLogRecordAsync(acc.FunctionArguments),
-                        "remember_user_preference" => await RememberUserPreferenceAsync(acc.FunctionArguments),
-                        _ => $"未知操作: {acc.FunctionName}"
-                    };
+                        var parts = acc.FunctionName.Split(new[] { "__" }, 3, StringSplitOptions.None);
+                        if (parts.Length == 3) result = await _mcpServerManager.CallToolAsync(parts[1], parts[2], acc.FunctionArguments);
+                        else result = $"未知操作: {acc.FunctionName}";
+                    }
+                    else if (acc.FunctionName != null && acc.FunctionName.StartsWith("skill__"))
+                    {
+                        result = await _webSkillManager.CallSkillAsync(acc.FunctionName, acc.FunctionArguments);
+                    }
+                    else
+                    {
+                        result = $"未知操作: {acc.FunctionName}";
+                    }
 
-                    messages.Add(new ChatMessage
+                    lock (messages)
                     {
-                        Role = "tool",
-                        ToolCallId = acc.Id,
-                        Content = result
-                    });
+                        messages.Add(new ChatMessage
+                        {
+                            Role = "tool",
+                            ToolCallId = acc.Id,
+                            Content = result
+                        });
+                    }
                 }
             }
 
             string err = "后台任务执行次数已达上限，系统已中断连续操作。";
-            messages.Add(new ChatMessage { Role = "assistant", Content = err });
+            lock (messages) { messages.Add(new ChatMessage { Role = "assistant", Content = err }); }
             onMessageGenerated("assistant", err, false);
             return err;
         }

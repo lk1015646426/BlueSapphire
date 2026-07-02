@@ -228,7 +228,6 @@ namespace BlueSapphire.ViewModels.Cleaner
                 bool confirmed = await _view.ShowRestoreConfirmationAsync(LatestCleanupSummaryText);
                 if (!confirmed) return;
 
-                IProgress<CleanerExecutionProgress>? progress = null;
                 CleanerRestoreSummary summary = await _executionService.RestoreLatestAsync(CancellationToken.None);
                 
                 await ReloadHistoryAndExclusionsAsync();
@@ -251,7 +250,6 @@ namespace BlueSapphire.ViewModels.Cleaner
                 if (!confirmed) return;
 
                 if (_latestBatch == null) return;
-                IProgress<CleanerExecutionProgress>? progress = null;
                 CleanerRestoreSummary summary = await _executionService.RestoreEntryAsync(_latestBatch.BatchId, entry.EntryId, CancellationToken.None);
                 
                 await ReloadHistoryAndExclusionsAsync();

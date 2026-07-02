@@ -22,7 +22,7 @@ namespace BlueSapphire.Services
 
         public async Task<ChatMessage> SendChatAsync(List<ChatMessage> messages, List<ChatTool>? tools = null, CancellationToken cancellationToken = default)
         {
-            string provider = AppSettings.Get("DeepSeekApiProvider", "Official");
+            string provider = AppSettings.Get("DeepSeekApiProvider", "Official") ?? "Official";
             string? apiKey = AppSettings.GetSecret($"DeepSeekApiKey_{provider}");
             if (string.IsNullOrWhiteSpace(apiKey)) apiKey = AppSettings.GetSecret("DeepSeekApiKey");
 
@@ -36,7 +36,7 @@ namespace BlueSapphire.Services
                 : "https://api.deepseek.com/v1/chat/completions";
             
             string defaultModel = provider == "SiliconFlow" ? "deepseek-ai/DeepSeek-V3" : "deepseek-chat";
-            string modelName = AppSettings.Get($"DeepSeekApiModel_{provider}", AppSettings.Get("DeepSeekApiModel", defaultModel));
+            string modelName = AppSettings.Get($"DeepSeekApiModel_{provider}", AppSettings.Get("DeepSeekApiModel", defaultModel)) ?? defaultModel;
             if (string.IsNullOrWhiteSpace(modelName))
             {
                 modelName = defaultModel;
@@ -85,7 +85,7 @@ namespace BlueSapphire.Services
 
         public async Task<(List<string> Models, string? Error)> GetAvailableModelsAsync(CancellationToken cancellationToken = default)
         {
-            string provider = AppSettings.Get("DeepSeekApiProvider", "Official");
+            string provider = AppSettings.Get("DeepSeekApiProvider", "Official") ?? "Official";
             string? apiKey = AppSettings.GetSecret($"DeepSeekApiKey_{provider}");
             if (string.IsNullOrWhiteSpace(apiKey)) apiKey = AppSettings.GetSecret("DeepSeekApiKey");
 
@@ -145,7 +145,7 @@ namespace BlueSapphire.Services
 
         public async IAsyncEnumerable<ChatStreamEvent> SendChatStreamAsync(List<ChatMessage> messages, List<ChatTool>? tools = null, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            string provider = AppSettings.Get("DeepSeekApiProvider", "Official");
+            string provider = AppSettings.Get("DeepSeekApiProvider", "Official") ?? "Official";
             string? apiKey = AppSettings.GetSecret($"DeepSeekApiKey_{provider}");
             if (string.IsNullOrWhiteSpace(apiKey)) apiKey = AppSettings.GetSecret("DeepSeekApiKey");
 
@@ -160,7 +160,7 @@ namespace BlueSapphire.Services
                 : "https://api.deepseek.com/v1/chat/completions";
             
             string defaultModel = provider == "SiliconFlow" ? "deepseek-ai/DeepSeek-V3" : "deepseek-chat";
-            string modelName = AppSettings.Get($"DeepSeekApiModel_{provider}", AppSettings.Get("DeepSeekApiModel", defaultModel));
+            string modelName = AppSettings.Get($"DeepSeekApiModel_{provider}", AppSettings.Get("DeepSeekApiModel", defaultModel)) ?? defaultModel;
             if (string.IsNullOrWhiteSpace(modelName))
             {
                 modelName = defaultModel;

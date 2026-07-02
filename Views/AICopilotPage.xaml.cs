@@ -10,6 +10,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using BlueSapphire.Helpers;
+using Markdig;
 
 namespace BlueSapphire.Views
 {
@@ -37,9 +38,9 @@ namespace BlueSapphire.Views
             bool isConnected = await _aiService.TestConnectionAsync();
             if (isConnected)
             {
-                string provider = AppSettings.Get("DeepSeekApiProvider", "Official");
+                string provider = AppSettings.Get("DeepSeekApiProvider", "Official") ?? "Official";
                 string defaultModel = provider == "SiliconFlow" ? "deepseek-ai/DeepSeek-V3" : "deepseek-chat";
-                string modelName = AppSettings.Get($"DeepSeekApiModel_{provider}", AppSettings.Get("DeepSeekApiModel", defaultModel));
+                string modelName = AppSettings.Get($"DeepSeekApiModel_{provider}", AppSettings.Get("DeepSeekApiModel", defaultModel)) ?? defaultModel;
                 if (string.IsNullOrWhiteSpace(modelName)) modelName = defaultModel;
                 
                 string providerName = provider == "SiliconFlow" ? "硅基流动" : "官方直连";
@@ -64,7 +65,11 @@ namespace BlueSapphire.Views
                 }
             }
             
-            _messageHistory.Add(await _toolsRegistry.GetSystemPromptAsync(featureEnum));
+            var prompt = await _toolsRegistry.GetSystemPromptAsync(featureEnum);
+            lock (_messageHistory)
+            {
+                _messageHistory.Add(prompt);
+            }
 
             AddMessage("助理", "你好！我是蓝宝石智能引擎。我已全自动感知了系统中安装的工具并加载了您的长期记忆偏好。你可以直接告诉我你想做什么。");
         }
@@ -86,22 +91,30 @@ namespace BlueSapphire.Views
             InputBox.IsEnabled = false;
             SendBtn.IsEnabled = false;
 
-            AddMessage("用户", text);
-            _messageHistory.Add(new ChatMessage { Role = "user", Content = text });
+            try
+            {
+                AddMessage("用户", text);
+                lock (_messageHistory)
+                {
+                    _messageHistory.Add(new ChatMessage { Role = "user", Content = text });
+                }
 
-            // Show typing...
-            var typingBubble = new ChatBubble { Content = "思考中...", IsUser = false };
-            Messages.Add(typingBubble);
-            _ = ScrollToBottomAsync();
+                // Show typing...
+                var typingBubble = new ChatBubble { Content = "思考中...", IsUser = false };
+                Messages.Add(typingBubble);
+                _ = ScrollToBottomAsync();
 
-            await ProcessMessageAsync();
+                await ProcessMessageAsync();
 
-            var tb = Messages.FirstOrDefault(m => m.Content == "思考中...");
-            if (tb != null) Messages.Remove(tb);
-
-            InputBox.IsEnabled = true;
-            SendBtn.IsEnabled = true;
-            InputBox.Focus(FocusState.Programmatic);
+                var tb = Messages.FirstOrDefault(m => m.Content == "思考中...");
+                if (tb != null) Messages.Remove(tb);
+            }
+            finally
+            {
+                InputBox.IsEnabled = true;
+                SendBtn.IsEnabled = true;
+                InputBox.Focus(FocusState.Programmatic);
+            }
         }
 
         private async Task ProcessMessageAsync()
@@ -171,7 +184,8 @@ namespace BlueSapphire.Views
         private void AddMessage(string role, string content)
         {
             bool isUser = role == "用户";
-            Messages.Add(new ChatBubble { Content = content, IsUser = isUser });
+            bool isTool = role == "系统";
+            Messages.Add(new ChatBubble { Content = content, IsUser = isUser, IsTool = isTool });
             _ = ScrollToBottomAsync();
         }
 
@@ -199,11 +213,21 @@ namespace BlueSapphire.Views
         }
 
         public bool IsUser { get; set; }
+        public bool IsTool { get; set; }
 
         public HorizontalAlignment Alignment => IsUser ? HorizontalAlignment.Right : HorizontalAlignment.Left;
-        public SolidColorBrush BackgroundBrush => IsUser 
-            ? new SolidColorBrush(Microsoft.UI.Colors.DeepSkyBlue) { Opacity = 0.8 } 
-            : new SolidColorBrush(Microsoft.UI.Colors.DarkGray) { Opacity = 0.4 };
+        public Visibility UserVisibility => IsUser ? Visibility.Visible : Visibility.Collapsed;
+        public Visibility AIVisibility => (!IsUser && !IsTool) ? Visibility.Visible : Visibility.Collapsed;
+        public Visibility ToolVisibility => IsTool ? Visibility.Visible : Visibility.Collapsed;
+        
+        public string AvatarGlyph => IsUser ? "\xE77B" : (IsTool ? "\xE943" : "\xE9D9"); // E77B Contact, E943 ActionCenter/Tool, E9D9 Bot
+        public string HeaderText => IsUser ? "我" : (IsTool ? "技能执行" : "蓝宝石引擎");
+        
+        public Brush BubbleBackground => IsUser 
+            ? new LinearGradientBrush(new GradientStopCollection { new GradientStop { Color = Microsoft.UI.ColorHelper.FromArgb(255, 0, 90, 200), Offset = 0 }, new GradientStop { Color = Microsoft.UI.ColorHelper.FromArgb(255, 30, 144, 255), Offset = 1 } }, 0) 
+            : (IsTool ? new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(20, 255, 255, 255)) : new SolidColorBrush(Microsoft.UI.Colors.Transparent));
+            
+        public Brush BubbleBorder => IsUser ? new SolidColorBrush(Microsoft.UI.Colors.Transparent) : new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(40, 255, 255, 255));
 
         public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
     }

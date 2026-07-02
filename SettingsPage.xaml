@@ -86,6 +86,95 @@
                     </StackPanel>
                 </Border>
 
+                <TextBlock Text="MCP 扩展插件" FontSize="15" FontWeight="SemiBold" Foreground="#A0FFFFFF" Margin="5,15,0,0" CharacterSpacing="20"/>
+                
+                <Border Background="#0AFFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1" CornerRadius="8">
+                    <StackPanel Padding="25,20">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <StackPanel VerticalAlignment="Center" Margin="0,0,20,0">
+                                <TextBlock Text="外部 Model Context Protocol 服务器" FontSize="18" FontWeight="SemiBold" Foreground="#F0FFFFFF" CharacterSpacing="20"/>
+                                <TextBlock Text="在此添加外部的 MCP 命令行程序。蓝宝石的 AI 大脑将自动挂载它们提供的工具（如网页搜索、操作 GitHub 等）。" Foreground="#80FFFFFF" FontSize="13" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                            </StackPanel>
+                            
+                            <Button x:Name="AddMcpBtn" Grid.Column="1" VerticalAlignment="Center" Content="添加新服务器" Click="AddMcpBtn_Click"/>
+                        </Grid>
+
+                        <ItemsControl x:Name="McpServersList" Margin="0,15,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="White"/>
+                                            <TextBlock Text="{Binding Command}" Foreground="#A0FFFFFF" FontSize="12"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="{Binding StatusText}" Foreground="{Binding StatusColor}" VerticalAlignment="Center" FontSize="12" Margin="0,0,10,0"/>
+                                            <Button Content="删除" Tag="{Binding Id}" Click="DeleteMcpBtn_Click"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Text="Web API 技能 (在线挂载)" FontSize="15" FontWeight="SemiBold" Foreground="#A0FFFFFF" Margin="5,15,0,0" CharacterSpacing="20"/>
+                
+                <Border Background="#0AFFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1" CornerRadius="8">
+                    <StackPanel Padding="25,20">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <StackPanel VerticalAlignment="Center" Margin="0,0,20,0">
+                                <TextBlock Text="远程 OpenAPI 接口聚合" FontSize="18" FontWeight="SemiBold" Foreground="#F0FFFFFF" CharacterSpacing="20"/>
+                                <TextBlock Text="只需填入含有标准 OpenAPI / Swagger 规范格式的 API 网址（例如 aihot 的在线技能），蓝宝石就能瞬间读取并掌握这些在线 Web 接口作为自己的技能。" Foreground="#80FFFFFF" FontSize="13" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                            </StackPanel>
+                            
+                            <Button x:Name="AddSkillBtn" Grid.Column="1" VerticalAlignment="Center" Content="添加技能网址" Click="AddSkillBtn_Click"/>
+                        </Grid>
+
+                        <ItemsControl x:Name="SkillsList" Margin="0,15,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Margin="0,8">
+                                        <Expander.Header>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="White"/>
+                                                    <TextBlock Text="{Binding Url}" Foreground="#A0FFFFFF" FontSize="12" TextTrimming="CharacterEllipsis"/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                                                    <TextBlock Text="{Binding StatusText}" Foreground="{Binding StatusColor}" VerticalAlignment="Center" FontSize="12" Margin="0,0,10,0"/>
+                                                    <Button Content="删除" Tag="{Binding Id}" Click="DeleteSkillBtn_Click"/>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Expander.Header>
+                                        <StackPanel Padding="10">
+                                            <TextBlock Text="{Binding NetworkStatusText}" Foreground="#D0FFFFFF" FontSize="13"/>
+                                        </StackPanel>
+                                    </Expander>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
             </StackPanel>
         </ScrollViewer>
 

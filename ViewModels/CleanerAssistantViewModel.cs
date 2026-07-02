@@ -119,11 +119,12 @@ namespace BlueSapphire.ViewModels
 
             if (!confirmed) return;
 
+            CancellationTokenSource cts = Scan.CreateOperationTokenSource();
             try
             {
                 Scan.SetBusyState(true, "正在执行清理", "优先使用隔离区和回收站，避免不可逆误删。");
                 Progress<CleanerExecutionProgress> progress = new(UpdateExecutionProgress);
-                CleanerCleanupBatch batch = await _executionService.ExecuteAsync(selectedItems, Scan.GetLastScope(), progress, CancellationToken.None);
+                CleanerCleanupBatch batch = await _executionService.ExecuteAsync(selectedItems, Scan.GetLastScope(), progress, cts.Token);
                 
                 Cleanup.ApplyLatestBatch(batch);
                 await _auditService.RecordDeselectionAsync(Scan.AllItems);
@@ -135,12 +136,17 @@ namespace BlueSapphire.ViewModels
                 await Scan.StartQuickScanCommand.ExecuteAsync(null);
                 await Cleanup.ReloadHistoryAndExclusionsAsync();
             }
+            catch (OperationCanceledException)
+            {
+                await _view.ShowTipAsync("已取消", "清理任务已被取消。");
+            }
             catch (Exception ex)
             {
                 await _view.ShowTipAsync("清理失败", ex.Message);
             }
             finally
             {
+                Scan.ReleaseOperationTokenSource(cts);
                 Scan.SetBusyState(false, Scan.StatusMainText, Scan.StatusDetailText);
             }
         }
@@ -194,21 +200,29 @@ namespace BlueSapphire.ViewModels
         private async Task RetryFailedCleanupEntriesCoreAsync(string? batchId, string completionTitle)
         {
             if (string.IsNullOrWhiteSpace(batchId) || _view == null) return;
+            CancellationTokenSource cts = Scan.CreateOperationTokenSource();
             try
             {
                 Scan.SetBusyState(true, "正在重试失败项", "部分项可能需要更高权限或解开占用");
                 Progress<CleanerExecutionProgress> progress = new(UpdateExecutionProgress);
-                CleanerCleanupBatch batch = await _executionService.RetryFailedEntriesAsync(batchId, progress, CancellationToken.None);
+                CleanerCleanupBatch? batch = await _executionService.RetryFailedEntriesAsync(batchId, progress, cts.Token);
                 
-                Cleanup.ApplyLatestBatch(batch);
-                await Cleanup.ReloadHistoryAndExclusionsAsync();
+                if (batch != null)
+                {
+                    Cleanup.ApplyLatestBatch(batch);
+                    await Cleanup.ReloadHistoryAndExclusionsAsync();
 
-                string resultMessage = batch.FailedCount > 0
-                    ? $"重试完成，释放 {CleanerSizeFormatter.Format(batch.ReleasedBytes)}，但仍有 {batch.FailedCount} 项失败。"
-                    : $"重试圆满完成，释放 {CleanerSizeFormatter.Format(batch.ReleasedBytes)}，全部成功！";
+                    string resultMessage = batch.FailedCount > 0
+                        ? $"重试完成，释放 {CleanerSizeFormatter.Format(batch.ReleasedBytes)}，但仍有 {batch.FailedCount} 项失败。"
+                        : $"重试圆满完成，释放 {CleanerSizeFormatter.Format(batch.ReleasedBytes)}，全部成功！";
 
-                await _view.ShowTipAsync(completionTitle, resultMessage);
-                await Scan.StartQuickScanCommand.ExecuteAsync(null);
+                    await _view.ShowTipAsync(completionTitle, resultMessage);
+                    await Scan.StartQuickScanCommand.ExecuteAsync(null);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                await _view.ShowTipAsync("已取消", "重试任务已被取消。");
             }
             catch (Exception ex)
             {
@@ -216,29 +230,16 @@ namespace BlueSapphire.ViewModels
             }
             finally
             {
+                Scan.ReleaseOperationTokenSource(cts);
                 Scan.SetBusyState(false, Scan.StatusMainText, Scan.StatusDetailText);
             }
         }
 
-        private async Task HandleLaunchActionsAsync()
+        private Task HandleLaunchActionsAsync()
         {
-            if (false)
-            {
-                await Scan.StartQuickScanCommand.ExecuteAsync(null);
-            }
-
-            if (false)
-            {
-                await ExecuteAutomaticLowRiskCleanupAsync("命令行自动清理", showCompletionTip: false);
-            }
-
-            if (false)
-            {
-                if (Cleanup.HasLatestCleanupFailures)
-                {
-                    await RetryFailedCleanupEntriesCoreAsync("LATEST", "管理员模式重试完毕");
-                }
-            }
+            // 预留用于处理从命令行参数或外部协议启动时触发的自动化动作
+            // 例如：自动快速扫描、自动低风险清理、自动重试失败项
+            return Task.CompletedTask;
         }
 
         private async Task HandleAutomationAsync()
@@ -270,6 +271,7 @@ namespace BlueSapphire.ViewModels
         {
             if (Scan.IsBusy) return;
 
+            CancellationTokenSource cts = Scan.CreateOperationTokenSource();
             try
             {
                 Scan.SetBusyState(true, $"{title}扫描中...", "自动模式只处理安全的低风险项");
@@ -284,7 +286,7 @@ namespace BlueSapphire.ViewModels
 
                 Scan.SetBusyState(true, $"{title}清理中...", "正在清除...");
                 Progress<CleanerExecutionProgress> progress = new(UpdateExecutionProgress);
-                CleanerCleanupBatch batch = await _executionService.ExecuteAsync(safeItems, CleanerScanScope.Quick, progress, CancellationToken.None);
+                CleanerCleanupBatch batch = await _executionService.ExecuteAsync(safeItems, CleanerScanScope.Quick, progress, cts.Token);
                 
                 await _auditService.RecordCleanupAsync(batch, manualDeselections: 0);
                 CleanerAutomationStatus status = await _automationService.MarkAutoCleanupHandledAsync();
@@ -297,12 +299,17 @@ namespace BlueSapphire.ViewModels
                     await _view.ShowTipAsync(title, $"自动保洁完毕，释放 {CleanerSizeFormatter.Format(batch.ReleasedBytes)}。");
                 }
             }
+            catch (OperationCanceledException)
+            {
+                if (showCompletionTip && _view != null) await _view.ShowTipAsync("已取消", "自动保洁操作已被取消。");
+            }
             catch (Exception ex)
             {
                 if (showCompletionTip && _view != null) await _view.ShowTipAsync("自动保洁失败", ex.Message);
             }
             finally
             {
+                Scan.ReleaseOperationTokenSource(cts);
                 Scan.SetBusyState(false, "自动保洁完成", "");
             }
         }

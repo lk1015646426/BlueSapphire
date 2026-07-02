@@ -96,6 +96,9 @@ namespace BlueSapphire
             services.AddSingleton<BlueSapphire.Services.ImageMetadataService>();
             services.AddSingleton<BlueSapphire.Services.MediaTagService>();
             services.AddSingleton<BlueSapphire.Services.DevLogDataService>();
+            services.AddSingleton<BlueSapphire.Services.McpServerManager>();
+            services.AddSingleton<BlueSapphire.Services.WebSkillManager>();
+            services.AddSingleton<BlueSapphire.Services.AgentSkillManager>();
             services.AddSingleton<BlueSapphire.Services.CleanerRuleService>();
             services.AddSingleton<BlueSapphire.Services.CleanerStateStore>();
             services.AddSingleton<BlueSapphire.Services.CleanerRiskEvaluator>();
@@ -124,6 +127,32 @@ namespace BlueSapphire
             services.AddTransient<CleanerSettingsViewModel>();
 
             services.AddHttpClient();
+            services.AddHttpClient("DeepSeek").ConfigurePrimaryHttpMessageHandler(() => new System.Net.Http.HttpClientHandler
+            {
+                UseProxy = false
+            });
+
+            services.AddHttpClient("ProxyTools").ConfigurePrimaryHttpMessageHandler(() => {
+                var handler = new System.Net.Http.HttpClientHandler();
+                handler.ServerCertificateCustomValidationCallback = System.Net.Http.HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+                int[] commonPorts = { 7897, 7890, 10809, 10808, 10810, 10811 };
+                try
+                {
+                    var properties = System.Net.NetworkInformation.IPGlobalProperties.GetIPGlobalProperties();
+                    var listeners = properties.GetActiveTcpListeners();
+                    foreach (var port in commonPorts)
+                    {
+                        if (System.Linq.Enumerable.Any(listeners, l => (l.Address.ToString() == "127.0.0.1" || l.Address.ToString() == "0.0.0.0") && l.Port == port))
+                        {
+                            handler.Proxy = new System.Net.WebProxy($"http://127.0.0.1:{port}");
+                            handler.UseProxy = true;
+                            break;
+                        }
+                    }
+                }
+                catch { }
+                return handler;
+            });
             services.AddLogging(builder => builder.AddFileLogger());
             return services.BuildServiceProvider();
         }
@@ -182,6 +211,7 @@ namespace BlueSapphire
                 }
 
                 File.AppendAllText(logPath, builder.ToString(), Encoding.UTF8);
+                (Current as App)?.Services?.GetService<ILogger<App>>()?.LogCritical(exception, "[{Source}] 未处理异常: {Message}", source, message);
             }
             catch
             {

@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging.Abstractions;
 using BlueSapphire.Services;
 using Microsoft.Extensions.Logging;
 
@@ -100,6 +100,54 @@ public class MediaTagServiceTests : IDisposable
 
         var tags = await _service.GetTagsAsync(filePath);
         Assert.Empty(tags);
+    }
+
+    private static string GetRealWorldSampleImage()
+    {
+        string? dir = AppDomain.CurrentDomain.BaseDirectory;
+        while (dir != null && !Directory.Exists(Path.Combine(dir, "TestData", "MediaRealWorld")))
+        {
+            dir = Path.GetDirectoryName(dir);
+        }
+        if (dir == null) throw new FileNotFoundException("Could not find TestData/MediaRealWorld directory");
+        string samplePath = Path.Combine(dir, "TestData", "MediaRealWorld", "sample-image.png");
+        if (!File.Exists(samplePath)) throw new FileNotFoundException($"Sample image not found at {samplePath}");
+        return samplePath;
+    }
+
+    // ================================================================
+    // Test 7: 使用真实世界样本文件测试初始查询标签为空
+    // ================================================================
+    [Fact]
+    public async Task GetTagsAsync_WithRealWorldSampleImage_ReturnsEmptyInitially()
+    {
+        string samplePath = GetRealWorldSampleImage();
+        string copyPath = Path.Combine(_dataDir, "sample_tag_init.png");
+        File.Copy(samplePath, copyPath, true);
+
+        var tags = await _service.GetTagsAsync(copyPath);
+
+        Assert.Empty(tags);
+    }
+
+    // ================================================================
+    // Test 8: 使用真实世界样本文件测试标签的设置与持久化读取
+    // ================================================================
+    [Fact]
+    public async Task ReplaceTagsAsync_WithRealWorldSampleImage_SetsAndReadsTags()
+    {
+        string samplePath = GetRealWorldSampleImage();
+        string copyPath = Path.Combine(_dataDir, "sample_tag_persist.png");
+        File.Copy(samplePath, copyPath, true);
+
+        var replaceResult = await _service.ReplaceTagsAsync(copyPath, new[] { "真实图片", "审计测试", "PNG" });
+
+        Assert.True(replaceResult.Success);
+        var tags = await _service.GetTagsAsync(copyPath);
+        Assert.Equal(3, tags.Count);
+        Assert.Contains("真实图片", tags);
+        Assert.Contains("审计测试", tags);
+        Assert.Contains("PNG", tags);
     }
 
     public void Dispose()

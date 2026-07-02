@@ -10,16 +10,19 @@ namespace BlueSapphire.Services
     {
         public CleanerBoundaryValidationResult Validate(CleanerScanItem item, string targetPath, bool isElevated)
         {
+            string normalizedTarget = NormalizePath(targetPath);
+            if (IsBroadProtectedRoot(normalizedTarget))
+            {
+                return CleanerBoundaryValidationResult.Fail(
+                    CleanerFailureReason.BoundaryBlocked,
+                    "目标为系统或主目录核心根路径，已阻止执行。");
+            }
+
             if (item.RequiresElevation && !isElevated)
             {
                 return CleanerBoundaryValidationResult.Fail(
                     CleanerFailureReason.ElevationRequired,
                     "当前对象属于系统级目录，需要管理员模式。");
-            }
-
-            if (!item.RequiresElevation)
-            {
-                return CleanerBoundaryValidationResult.Success();
             }
 
             List<string> boundaryRoots = item.BoundaryRoots
@@ -28,27 +31,43 @@ namespace BlueSapphire.Services
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
-            if (boundaryRoots.Count == 0)
+            if (boundaryRoots.Count > 0)
+            {
+                if (boundaryRoots.Any(IsBroadProtectedRoot))
+                {
+                    return CleanerBoundaryValidationResult.Fail(
+                        CleanerFailureReason.BoundaryBlocked,
+                        "规则边界过宽，已阻止执行。");
+                }
+
+                bool withinBoundary = boundaryRoots.Any(root => IsPathInsideRoot(normalizedTarget, root));
+                if (!withinBoundary)
+                {
+                    return CleanerBoundaryValidationResult.Fail(
+                        CleanerFailureReason.BoundaryBlocked,
+                        "目标超出规则声明的清理边界。");
+                }
+            }
+            else if (item.RequiresElevation)
             {
                 return CleanerBoundaryValidationResult.Fail(
                     CleanerFailureReason.BoundaryBlocked,
                     "系统级规则未声明允许清理的边界根目录。");
             }
-
-            if (boundaryRoots.Any(IsBroadProtectedRoot))
+            else
             {
-                return CleanerBoundaryValidationResult.Fail(
-                    CleanerFailureReason.BoundaryBlocked,
-                    "规则边界过宽，已阻止执行。");
-            }
+                string windows = NormalizePath(Environment.GetFolderPath(Environment.SpecialFolder.Windows));
+                string progFiles = NormalizePath(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles));
+                string progFilesX86 = NormalizePath(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86));
 
-            string normalizedTarget = NormalizePath(targetPath);
-            bool withinBoundary = boundaryRoots.Any(root => IsPathInsideRoot(normalizedTarget, root));
-            if (!withinBoundary)
-            {
-                return CleanerBoundaryValidationResult.Fail(
-                    CleanerFailureReason.BoundaryBlocked,
-                    "目标超出规则声明的系统级清理边界。");
+                if (IsPathInsideRoot(normalizedTarget, windows) ||
+                    IsPathInsideRoot(normalizedTarget, progFiles) ||
+                    IsPathInsideRoot(normalizedTarget, progFilesX86))
+                {
+                    return CleanerBoundaryValidationResult.Fail(
+                        CleanerFailureReason.ElevationRequired,
+                        "清理系统目录下的目标必须声明为提权规则。");
+                }
             }
 
             return CleanerBoundaryValidationResult.Success();

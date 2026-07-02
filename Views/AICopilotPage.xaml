@@ -5,6 +5,8 @@
     xmlns:local="using:BlueSapphire.Views"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:viewmodels="using:BlueSapphire.ViewModels"
+    xmlns:helpers="using:BlueSapphire.Helpers"
     mc:Ignorable="d">
 
     <Grid Padding="40,20,40,40">
@@ -27,28 +29,76 @@
         <Border Grid.Row="1" Background="#05FFFFFF" BorderBrush="#11FFFFFF" BorderThickness="1" CornerRadius="12" Padding="15">
             <ScrollViewer x:Name="ChatScrollViewer" VerticalScrollBarVisibility="Auto">
                 <ItemsControl x:Name="ChatList">
+                    <ItemsControl.ItemContainerTransitions>
+                        <TransitionCollection>
+                            <AddDeleteThemeTransition />
+                        </TransitionCollection>
+                    </ItemsControl.ItemContainerTransitions>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Grid Margin="0,12">
+                            <Grid Margin="0,12" HorizontalAlignment="{Binding Alignment}" MaxWidth="800">
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                
-                                <Border HorizontalAlignment="{Binding Alignment}" 
-                                        Background="{Binding BackgroundBrush}" 
-                                        CornerRadius="12" 
-                                        Padding="16,12"
-                                        MaxWidth="700"
-                                        BorderThickness="1"
-                                        BorderBrush="#1AFFFFFF">
-                                    
-                                    <!-- 开启 IsTextSelectionEnabled="True" 允许鼠标选中文本进行复制 -->
-                                    <TextBlock Text="{Binding Content}" 
-                                               TextWrapping="Wrap" 
-                                               Foreground="#F5FFFFFF" 
-                                               LineHeight="24" 
-                                               FontSize="14" 
-                                               IsTextSelectionEnabled="True"/>
+
+                                <!-- AI Avatar -->
+                                <Border Grid.Column="0" Width="36" Height="36" CornerRadius="18" 
+                                        Background="#1AFFFFFF" BorderBrush="#33FFFFFF" BorderThickness="1"
+                                        VerticalAlignment="Top" Margin="0,0,12,0"
+                                        Visibility="{Binding AIVisibility}">
+                                    <FontIcon Glyph="{Binding AvatarGlyph}" FontSize="16" Foreground="#4DB8FF"/>
+                                </Border>
+
+                                <!-- Message Bubble -->
+                                <Grid Grid.Column="1">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Text="{Binding HeaderText}" FontSize="12" Foreground="#80FFFFFF" Margin="4,0,0,4"
+                                               HorizontalAlignment="{Binding Alignment}"/>
+                                    <Border Grid.Row="1" Background="{Binding BubbleBackground}" 
+                                            CornerRadius="12" 
+                                            Padding="16,12"
+                                            BorderThickness="1"
+                                            BorderBrush="{Binding BubbleBorder}">
+                                        <Grid>
+                                        <!-- User Message (Plain Text) -->
+                                        <TextBlock Text="{Binding Content}" 
+                                                   TextWrapping="Wrap" 
+                                                   Foreground="#F5FFFFFF" 
+                                                   LineHeight="24" 
+                                                   FontSize="14" 
+                                                   IsTextSelectionEnabled="True"
+                                                   Visibility="{Binding UserVisibility}"/>
+                                        
+                                        <!-- AI Message (Markdown) -->
+                                        <RichTextBlock helpers:MarkdownHelper.Markdown="{Binding Content}"
+                                                                    Foreground="#E5E5E5" 
+                                                                    FontSize="14"
+                                                                    Visibility="{Binding AIVisibility}"/>
+                                        
+                                        <!-- Tool / System Message -->
+                                        <StackPanel Orientation="Horizontal" Spacing="8" Visibility="{Binding ToolVisibility}" VerticalAlignment="Center">
+                                            <ProgressRing IsActive="True" Width="14" Height="14" Foreground="#4DB8FF" Margin="0,2,0,0"/>
+                                            <TextBlock Text="{Binding Content}" 
+                                                       TextWrapping="Wrap" 
+                                                       Foreground="#A0FFFFFF" 
+                                                       FontSize="13" 
+                                                       FontStyle="Italic"/>
+                                        </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </Grid>
+
+                                <!-- User Avatar -->
+                                <Border Grid.Column="2" Width="36" Height="36" CornerRadius="18" 
+                                        Background="#1AFFFFFF" BorderBrush="#33FFFFFF" BorderThickness="1"
+                                        VerticalAlignment="Top" Margin="12,0,0,0"
+                                        Visibility="{Binding UserVisibility}">
+                                    <FontIcon Glyph="{Binding AvatarGlyph}" FontSize="16" Foreground="#FFB900"/>
                                 </Border>
                             </Grid>
                         </DataTemplate>
