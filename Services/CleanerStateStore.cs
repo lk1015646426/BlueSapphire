@@ -142,14 +142,7 @@ namespace BlueSapphire.Services
             await fileLock.WaitAsync();
             try
             {
-                if (!File.Exists(PreferencesFilePath))
-                {
-                    return new CleanerPreferenceState();
-                }
-
-                await using FileStream stream = File.OpenRead(PreferencesFilePath);
-                CleanerPreferenceState? value = await JsonSerializer.DeserializeAsync(stream, CleanerStoreJsonContext.Default.CleanerPreferenceState);
-                return value ?? new CleanerPreferenceState();
+                return await ReadPreferencesUnlockedAsync();
             }
             finally
             {
@@ -163,13 +156,26 @@ namespace BlueSapphire.Services
             await fileLock.WaitAsync();
             try
             {
-                string tempFile = PreferencesFilePath + ".tmp";
-                await using (FileStream stream = File.Create(tempFile))
-                {
-                    await JsonSerializer.SerializeAsync(stream, preferences, CleanerStoreJsonContext.Default.CleanerPreferenceState);
-                }
+                await WritePreferencesUnlockedAsync(preferences);
+            }
+            finally
+            {
+                fileLock.Release();
+            }
+        }
 
-                File.Move(tempFile, PreferencesFilePath, true);
+        public async Task<CleanerPreferenceState> UpdatePreferencesAsync(
+            Action<CleanerPreferenceState> update)
+        {
+            ArgumentNullException.ThrowIfNull(update);
+            SemaphoreSlim fileLock = GetLock(PreferencesFilePath);
+            await fileLock.WaitAsync();
+            try
+            {
+                CleanerPreferenceState preferences = await ReadPreferencesUnlockedAsync();
+                update(preferences);
+                await WritePreferencesUnlockedAsync(preferences);
+                return preferences;
             }
             finally
             {
@@ -245,6 +251,49 @@ namespace BlueSapphire.Services
             }
 
             File.Move(tempFile, path, true);
+        }
+
+        private async Task<CleanerPreferenceState> ReadPreferencesUnlockedAsync()
+        {
+            if (!File.Exists(PreferencesFilePath))
+            {
+                return new CleanerPreferenceState();
+            }
+
+            await using FileStream stream = File.OpenRead(PreferencesFilePath);
+            CleanerPreferenceState? value = await JsonSerializer.DeserializeAsync(
+                stream,
+                CleanerStoreJsonContext.Default.CleanerPreferenceState);
+            return value ?? new CleanerPreferenceState();
+        }
+
+        private async Task WritePreferencesUnlockedAsync(CleanerPreferenceState preferences)
+        {
+            string tempFile = PreferencesFilePath + ".tmp";
+            try
+            {
+                await using (FileStream stream = File.Create(tempFile))
+                {
+                    await JsonSerializer.SerializeAsync(
+                        stream,
+                        preferences,
+                        CleanerStoreJsonContext.Default.CleanerPreferenceState);
+                }
+
+                File.Move(tempFile, PreferencesFilePath, true);
+            }
+            catch
+            {
+                try
+                {
+                    if (File.Exists(tempFile)) File.Delete(tempFile);
+                }
+                catch
+                {
+                    // 保留原始异常。
+                }
+                throw;
+            }
         }
     }
 

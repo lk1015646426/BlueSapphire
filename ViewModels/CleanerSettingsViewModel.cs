@@ -2,7 +2,9 @@ using BlueSapphire.Models;
 using BlueSapphire.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Messaging;
+using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace BlueSapphire.ViewModels
@@ -14,6 +16,10 @@ namespace BlueSapphire.ViewModels
         private readonly CleanerAutomationService _automationService;
         private readonly CleanerTelemetryService _telemetryService;
         private bool _isUpdatingFromStatus;
+        private readonly SemaphoreSlim _saveGate = new(1, 1);
+        private readonly object _pendingSaveSync = new();
+        private CancellationTokenSource? _automationSaveCts;
+        private CancellationTokenSource? _telemetrySaveCts;
 
         public CleanerSettingsViewModel(
             CleanerAutomationService automationService,
@@ -79,36 +85,114 @@ namespace BlueSapphire.ViewModels
         private void SaveAutomationSettings()
         {
             if (_isUpdatingFromStatus) return;
-            _ = Task.Run(async () =>
+            bool reminderEnabled = ReminderEnabled;
+            bool autoCleanupEnabled = AutoLowRiskCleanupEnabled;
+            int intervalDays = ReminderIntervalDays;
+            CancellationTokenSource cts = ReplacePendingSave(ref _automationSaveCts);
+            _ = SaveAutomationSettingsAsync(reminderEnabled, autoCleanupEnabled, intervalDays, cts);
+        }
+
+        private async Task SaveAutomationSettingsAsync(
+            bool reminderEnabled,
+            bool autoCleanupEnabled,
+            int intervalDays,
+            CancellationTokenSource cts)
+        {
+            bool enteredGate = false;
+            try
             {
-                try
-                {
-                    await _automationService.SaveSettingsAsync(ReminderEnabled, AutoLowRiskCleanupEnabled, ReminderIntervalDays);
-                }
-                catch (System.Exception ex)
-                {
-                    WeakReferenceMessenger.Default.Send(
-                        new ShowTipMessage("自动化设置保存失败", ex.Message));
-                }
-            });
+                await Task.Delay(350, cts.Token);
+                await _saveGate.WaitAsync(cts.Token);
+                enteredGate = true;
+                cts.Token.ThrowIfCancellationRequested();
+                await _automationService.SaveSettingsAsync(reminderEnabled, autoCleanupEnabled, intervalDays);
+            }
+            catch (OperationCanceledException)
+            {
+                // 新设置会替代仍在等待的旧设置。
+            }
+            catch (Exception ex)
+            {
+                WeakReferenceMessenger.Default.Send(
+                    new ShowTipMessage("自动化设置保存失败", ex.Message));
+            }
+            finally
+            {
+                if (enteredGate) _saveGate.Release();
+                CompletePendingSave(ref _automationSaveCts, cts);
+            }
         }
 
         private void SaveTelemetrySettings()
         {
             if (_isUpdatingFromStatus) return;
-            _ = Task.Run(async () =>
+            bool enabled = TelemetryEnabled;
+            CancellationTokenSource cts = ReplacePendingSave(ref _telemetrySaveCts);
+            _ = SaveTelemetrySettingsAsync(enabled, cts);
+        }
+
+        private async Task SaveTelemetrySettingsAsync(bool enabled, CancellationTokenSource cts)
+        {
+            bool enteredGate = false;
+            try
             {
-                try
+                await Task.Delay(350, cts.Token);
+                await _saveGate.WaitAsync(cts.Token);
+                enteredGate = true;
+                cts.Token.ThrowIfCancellationRequested();
+                var currentStatus = await _telemetryService.LoadStatusAsync();
+                await _telemetryService.SaveSettingsAsync(enabled, currentStatus.Endpoint);
+            }
+            catch (OperationCanceledException)
+            {
+                // 新设置会替代仍在等待的旧设置。
+            }
+            catch (Exception ex)
+            {
+                WeakReferenceMessenger.Default.Send(
+                    new ShowTipMessage("遥测设置保存失败", ex.Message));
+            }
+            finally
+            {
+                if (enteredGate) _saveGate.Release();
+                CompletePendingSave(ref _telemetrySaveCts, cts);
+            }
+        }
+
+        public void Shutdown()
+        {
+            lock (_pendingSaveSync)
+            {
+                _automationSaveCts?.Cancel();
+                _telemetrySaveCts?.Cancel();
+                _automationSaveCts = null;
+                _telemetrySaveCts = null;
+            }
+        }
+
+        private CancellationTokenSource ReplacePendingSave(ref CancellationTokenSource? field)
+        {
+            CancellationTokenSource next = new();
+            lock (_pendingSaveSync)
+            {
+                field?.Cancel();
+                field = next;
+            }
+            return next;
+        }
+
+        private void CompletePendingSave(
+            ref CancellationTokenSource? field,
+            CancellationTokenSource completed)
+        {
+            lock (_pendingSaveSync)
+            {
+                if (ReferenceEquals(field, completed))
                 {
-                    var currentStatus = await _telemetryService.LoadStatusAsync();
-                    await _telemetryService.SaveSettingsAsync(TelemetryEnabled, currentStatus.Endpoint);
+                    field = null;
                 }
-                catch (System.Exception ex)
-                {
-                    WeakReferenceMessenger.Default.Send(
-                        new ShowTipMessage("遥测设置保存失败", ex.Message));
-                }
-            });
+            }
+            completed.Dispose();
         }
     }
 }

@@ -59,45 +59,43 @@ namespace BlueSapphire.Services
                 CancellationToken = cancellationToken
             };
 
-            await Parallel.ForEachAsync(items, options, async (item, ct) =>
+            try
             {
-                ct.ThrowIfCancellationRequested();
-
-                IReadOnlyList<string> targets = ResolveTargets(item);
-                if (targets.Count > 0)
+                await Parallel.ForEachAsync(items, options, async (item, ct) =>
                 {
-                    foreach (string target in targets)
+                    ct.ThrowIfCancellationRequested();
+
+                    IReadOnlyList<string> targets = ResolveTargets(item);
+                    if (targets.Count > 0)
                     {
-                        CleanerCleanupEntry entry = await ExecuteTargetAsync(batch.BatchId, item, target);
-                        lock (entriesLock)
+                        foreach (string target in targets)
                         {
-                            batch.Entries.Add(entry);
+                            ct.ThrowIfCancellationRequested();
+                            CleanerCleanupEntry entry = await ExecuteTargetAsync(batch.BatchId, item, target, ct);
+                            lock (entriesLock)
+                            {
+                                batch.Entries.Add(entry);
+                            }
                         }
                     }
-                }
 
-                int currentCompleted = Interlocked.Increment(ref completedItems);
-                progress?.Report(new CleanerExecutionProgress
-                {
-                    StageTitle = "执行清理",
-                    Detail = $"正在处理：{item.Name}",
-                    ProgressValue = currentCompleted,
-                    ProgressMax = Math.Max(1, items.Count)
+                    int currentCompleted = Interlocked.Increment(ref completedItems);
+                    progress?.Report(new CleanerExecutionProgress
+                    {
+                        StageTitle = "执行清理",
+                        Detail = $"正在处理：{item.Name}",
+                        ProgressValue = currentCompleted,
+                        ProgressMax = Math.Max(1, items.Count)
+                    });
                 });
-            });
-
-            batch.ReleasedBytes = batch.Entries
-                .Where(entry => string.Equals(entry.Status, "Completed", StringComparison.OrdinalIgnoreCase))
-                .Sum(entry => entry.SizeBytes);
-
-            List<CleanerCleanupBatch> history = (await _stateStore.LoadHistoryAsync()).ToList();
-            history.Insert(0, batch);
-            if (history.Count > 20)
+            }
+            catch (OperationCanceledException)
             {
-                history = history.Take(20).ToList();
+                await FinalizeAndSaveBatchAsync(batch);
+                throw;
             }
 
-            await _stateStore.SaveHistoryAsync(history);
+            await FinalizeAndSaveBatchAsync(batch);
 
             progress?.Report(new CleanerExecutionProgress
             {
@@ -129,7 +127,7 @@ namespace BlueSapphire.Services
             foreach (CleanerCleanupEntry entry in batch.Entries.Where(entry => entry.CanRestore && !entry.Restored))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                await RestoreEntryCoreAsync(entry, summary);
+                await RestoreEntryCoreAsync(entry, summary, cancellationToken);
             }
 
             await _stateStore.SaveHistoryAsync(history);
@@ -158,7 +156,7 @@ namespace BlueSapphire.Services
 
             CleanerRestoreSummary summary = new();
             cancellationToken.ThrowIfCancellationRequested();
-            await RestoreEntryCoreAsync(entry, summary);
+            await RestoreEntryCoreAsync(entry, summary, cancellationToken);
             await _stateStore.SaveHistoryAsync(history);
 
             summary.Message = summary.RestoredCount > 0
@@ -174,7 +172,9 @@ namespace BlueSapphire.Services
             CancellationToken cancellationToken)
         {
             List<CleanerCleanupBatch> history = (await _stateStore.LoadHistoryAsync()).ToList();
-            CleanerCleanupBatch? batch = history.FirstOrDefault(candidate => string.Equals(candidate.BatchId, batchId, StringComparison.OrdinalIgnoreCase));
+            CleanerCleanupBatch? batch = string.Equals(batchId, "LATEST", StringComparison.OrdinalIgnoreCase)
+                ? history.FirstOrDefault(candidate => candidate.Entries.Any(entry => entry.CanRetryEntry))
+                : history.FirstOrDefault(candidate => string.Equals(candidate.BatchId, batchId, StringComparison.OrdinalIgnoreCase));
             if (batch == null)
             {
                 return null;
@@ -196,7 +196,7 @@ namespace BlueSapphire.Services
                     ProgressMax = Math.Max(1, retryEntries.Count)
                 });
 
-                await RetryEntryCoreAsync(entry);
+                await RetryEntryCoreAsync(entry, cancellationToken);
                 processed++;
             }
 
@@ -208,7 +208,11 @@ namespace BlueSapphire.Services
             return batch;
         }
 
-        private async Task<CleanerCleanupEntry> ExecuteTargetAsync(string batchId, CleanerScanItem item, string targetPath)
+        private async Task<CleanerCleanupEntry> ExecuteTargetAsync(
+            string batchId,
+            CleanerScanItem item,
+            string targetPath,
+            CancellationToken cancellationToken)
         {
             CleanerCleanupEntry entry = new()
             {
@@ -230,6 +234,7 @@ namespace BlueSapphire.Services
 
             try
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 CleanerBoundaryValidationResult boundary = _boundaryGuard.Validate(item, targetPath, _privilegeService.IsElevated);
                 if (!boundary.IsAllowed)
                 {
@@ -250,6 +255,7 @@ namespace BlueSapphire.Services
                 switch (item.ExecutionMode)
                 {
                     case CleanerExecutionMode.Recycle:
+                        cancellationToken.ThrowIfCancellationRequested();
                         entry.Status = await _nativeFileService.MoveToRecycleBinAsync(targetPath) ? "Completed" : "Failed";
                         if (entry.Status != "Completed")
                         {
@@ -260,12 +266,12 @@ namespace BlueSapphire.Services
                         break;
                     case CleanerExecutionMode.Quarantine:
                         string destination = BuildQuarantinePath(batchId, targetPath);
-                        await MovePathAsync(targetPath, destination);
+                        await MovePathAsync(targetPath, destination, cancellationToken);
                         entry.BackupPath = destination;
                         entry.Status = "Completed";
                         break;
                     case CleanerExecutionMode.Permanent:
-                        DeletePath(targetPath);
+                        DeletePath(targetPath, cancellationToken);
                         entry.Status = "Completed";
                         entry.CanRestore = false;
                         break;
@@ -279,6 +285,10 @@ namespace BlueSapphire.Services
                 entry.Status = "PartialSuccess";
                 entry.FailureReason = CleanerFailureReason.AccessDenied;
                 entry.ErrorMessage = "部分文件已被删除，但由于权限或锁定原因，部分文件未能清理。\n" + ex.Message;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -294,7 +304,7 @@ namespace BlueSapphire.Services
             return entry;
         }
 
-        private async Task RetryEntryCoreAsync(CleanerCleanupEntry entry)
+        private async Task RetryEntryCoreAsync(CleanerCleanupEntry entry, CancellationToken cancellationToken)
         {
             entry.ErrorMessage = string.Empty;
             entry.FailureReason = CleanerFailureReason.None;
@@ -304,6 +314,7 @@ namespace BlueSapphire.Services
 
             try
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 CleanerBoundaryValidationResult boundary = _boundaryGuard.Validate(
                     new CleanerScanItem
                     {
@@ -334,6 +345,7 @@ namespace BlueSapphire.Services
                 switch (entry.ExecutionMode)
                 {
                     case CleanerExecutionMode.Recycle:
+                        cancellationToken.ThrowIfCancellationRequested();
                         entry.Status = await _nativeFileService.MoveToRecycleBinAsync(entry.OriginalPath) ? "Completed" : "Failed";
                         if (entry.Status != "Completed")
                         {
@@ -345,12 +357,12 @@ namespace BlueSapphire.Services
                     case CleanerExecutionMode.Quarantine:
                         string retryBatchFolder = DateTimeOffset.Now.ToString("yyyyMMddHHmmss");
                         string destination = BuildQuarantinePath(retryBatchFolder, entry.OriginalPath);
-                        await MovePathAsync(entry.OriginalPath, destination);
+                        await MovePathAsync(entry.OriginalPath, destination, cancellationToken);
                         entry.BackupPath = destination;
                         entry.Status = "Completed";
                         break;
                     case CleanerExecutionMode.Permanent:
-                        DeletePath(entry.OriginalPath);
+                        DeletePath(entry.OriginalPath, cancellationToken);
                         entry.Status = "Completed";
                         entry.CanRestore = false;
                         break;
@@ -365,6 +377,10 @@ namespace BlueSapphire.Services
                 entry.FailureReason = CleanerFailureReason.AccessDenied;
                 entry.ErrorMessage = "部分文件已被删除，但由于权限或锁定原因，部分文件未能清理。\n" + ex.Message;
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 entry.Status = "Failed";
@@ -377,10 +393,14 @@ namespace BlueSapphire.Services
             }
         }
 
-        private static async Task RestoreEntryCoreAsync(CleanerCleanupEntry entry, CleanerRestoreSummary summary)
+        private static async Task RestoreEntryCoreAsync(
+            CleanerCleanupEntry entry,
+            CleanerRestoreSummary summary,
+            CancellationToken cancellationToken)
         {
             try
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (!Exists(entry.BackupPath))
                 {
                     entry.Status = "RestoreMissing";
@@ -390,7 +410,7 @@ namespace BlueSapphire.Services
                 }
 
                 string targetPath = ResolveRestorePath(entry.OriginalPath);
-                await MovePathAsync(entry.BackupPath, targetPath);
+                await MovePathAsync(entry.BackupPath, targetPath, cancellationToken);
 
                 entry.Restored = true;
                 entry.RestoredAt = DateTimeOffset.Now;
@@ -398,6 +418,10 @@ namespace BlueSapphire.Services
                 entry.Status = "Restored";
                 summary.RestoredCount++;
                 summary.RestoredBytes += entry.SizeBytes;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -596,11 +620,6 @@ namespace BlueSapphire.Services
             }
         }
 
-        private static void CopyDirectorySafely(string sourcePath, string destinationPath)
-        {
-            CopyDirectoryAsync(sourcePath, destinationPath, CancellationToken.None).GetAwaiter().GetResult();
-        }
-
         private static void DeleteFileSafely(string file)
         {
             try
@@ -622,8 +641,9 @@ namespace BlueSapphire.Services
             }
         }
 
-        private static void DeletePath(string path)
+        private static void DeletePath(string path, CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (File.Exists(path))
             {
                 DeleteFileSafely(path);
@@ -632,11 +652,11 @@ namespace BlueSapphire.Services
 
             if (Directory.Exists(path))
             {
-                DeleteDirectorySafely(path);
+                DeleteDirectorySafely(path, cancellationToken);
             }
         }
 
-        private static void DeleteDirectorySafely(string path)
+        private static void DeleteDirectorySafely(string path, CancellationToken cancellationToken = default)
         {
             if (!Directory.Exists(path))
             {
@@ -657,11 +677,13 @@ namespace BlueSapphire.Services
 
             while (traverseStack.Count > 0)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 string current = traverseStack.Pop();
                 deleteOrder.Push(current);
 
                 foreach (string dir in CleanerPathSafety.SafeEnumerateDirectories(current))
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     if (CleanerPathSafety.IsReparsePoint(dir))
                     {
                         try
@@ -680,6 +702,7 @@ namespace BlueSapphire.Services
 
             while (deleteOrder.Count > 0)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 string current = deleteOrder.Pop();
                 if (!Directory.Exists(current))
                 {
@@ -688,6 +711,7 @@ namespace BlueSapphire.Services
 
                 foreach (string file in CleanerPathSafety.SafeEnumerateFiles(current))
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     try
                     {
                         DeleteFileSafely(file);
@@ -712,6 +736,22 @@ namespace BlueSapphire.Services
             {
                 throw new AggregateException($"目录 {path} 中有 {exceptions.Count} 个项无法删除。", exceptions);
             }
+        }
+
+        private async Task FinalizeAndSaveBatchAsync(CleanerCleanupBatch batch)
+        {
+            batch.ReleasedBytes = batch.Entries
+                .Where(entry => string.Equals(entry.Status, "Completed", StringComparison.OrdinalIgnoreCase))
+                .Sum(entry => entry.SizeBytes);
+
+            List<CleanerCleanupBatch> history = (await _stateStore.LoadHistoryAsync()).ToList();
+            history.Insert(0, batch);
+            if (history.Count > 20)
+            {
+                history = history.Take(20).ToList();
+            }
+
+            await _stateStore.SaveHistoryAsync(history);
         }
 
         private IReadOnlyList<string> ResolveLockingProcesses(string targetPath)

@@ -21,6 +21,8 @@ jobs:
       APP_NAME: BlueSapphire
       APP_PUBLISHER: BlueSapphire Team
       APP_ID: "{{8D43FBFA-A424-4FED-BDE6-6C586D7D13EE}"
+      SIGNING_CERTIFICATE_BASE64: ${{ secrets.SIGNING_CERTIFICATE_BASE64 }}
+      SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.SIGNING_CERTIFICATE_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -55,9 +57,14 @@ jobs:
             $tag = "v$rawVersion"
           }
 
+          if ($version -notmatch '^(?<core>\d+\.\d+\.\d+)(?:-[0-9A-Za-z.-]+)?$') {
+            throw "Version must use semantic version format, for example 1.2.3 or 1.2.3-preview.1."
+          }
+          $assemblyVersion = "$($Matches.core).0"
           $installerBaseName = "BlueSapphire_Setup_v$version"
 
           "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ASSEMBLY_VERSION=$assemblyVersion" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "RELEASE_TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "INSTALLER_BASENAME=$installerBaseName" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
@@ -65,6 +72,29 @@ jobs:
         shell: pwsh
         run: |
           choco install innosetup --no-progress -y
+
+      - name: Restore, build and test
+        shell: pwsh
+        run: |
+          dotnet restore BlueSapphire.Tests\BlueSapphire.Tests.csproj -r win-x64
+          dotnet build BlueSapphire.Tests\BlueSapphire.Tests.csproj `
+            -c Release `
+            -r win-x64 `
+            --no-restore `
+            -p:TreatWarningsAsErrors=true `
+            -p:Version=${{ env.VERSION }} `
+            -p:AssemblyVersion=${{ env.ASSEMBLY_VERSION }} `
+            -p:FileVersion=${{ env.ASSEMBLY_VERSION }} `
+            -p:InformationalVersion=${{ env.VERSION }}
+          dotnet test BlueSapphire.Tests\BlueSapphire.Tests.csproj `
+            -c Release `
+            -r win-x64 `
+            --no-restore `
+            --no-build `
+            -p:Version=${{ env.VERSION }} `
+            -p:AssemblyVersion=${{ env.ASSEMBLY_VERSION }} `
+            -p:FileVersion=${{ env.ASSEMBLY_VERSION }} `
+            -p:InformationalVersion=${{ env.VERSION }}
 
       - name: Publish BlueSapphire
         shell: pwsh
@@ -75,9 +105,30 @@ jobs:
             -c Release `
             -r win-x64 `
             --self-contained true `
+            --no-restore `
             -p:WindowsPackageType=None `
             -p:Version=${{ env.VERSION }} `
+            -p:AssemblyVersion=${{ env.ASSEMBLY_VERSION }} `
+            -p:FileVersion=${{ env.ASSEMBLY_VERSION }} `
+            -p:InformationalVersion=${{ env.VERSION }} `
             -o $publishDir
+
+          $required = @(
+            "BlueSapphire.exe",
+            "BlueSapphire.dll",
+            "Assets\CleanerRules.json",
+            "Assets\DevMatrixLog.json",
+            "BS.ico"
+          )
+          foreach ($relativePath in $required) {
+            $path = Join-Path $publishDir $relativePath
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+              throw "Published output is missing: $relativePath"
+            }
+            if ((Get-Item -LiteralPath $path).Length -eq 0) {
+              throw "Published output is empty: $relativePath"
+            }
+          }
 
       - name: Resolve ISCC path
         shell: pwsh
@@ -102,6 +153,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path $installerDir | Out-Null
           & "${{ env.ISCC_PATH }}" `
             "/dSourcePath=$publishDir" `
+            "/dMySetupIconFile=$((Resolve-Path -LiteralPath 'BS.ico').Path)" `
             "/dMyAppName=${{ env.APP_NAME }}" `
             "/dMyAppVersion=${{ env.VERSION }}" `
             "/dMyAppPublisher=${{ env.APP_PUBLISHER }}" `
@@ -110,11 +162,52 @@ jobs:
             "/F${{ env.INSTALLER_BASENAME }}" `
             "installer.iss"
 
+      - name: Optionally sign installer
+        if: ${{ env.SIGNING_CERTIFICATE_BASE64 != '' }}
+        shell: pwsh
+        run: |
+          $certificatePath = Join-Path $env:RUNNER_TEMP "codesign.pfx"
+          [IO.File]::WriteAllBytes(
+            $certificatePath,
+            [Convert]::FromBase64String($env:SIGNING_CERTIFICATE_BASE64))
+          $installerPath = Join-Path $env:RUNNER_TEMP "BlueSapphire\installer\${{ env.INSTALLER_BASENAME }}.exe"
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" `
+            -Filter signtool.exe `
+            -Recurse `
+            -ErrorAction Stop |
+            Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          if (-not $signtool) {
+            throw "signtool.exe was not found."
+          }
+          & $signtool.FullName sign `
+            /fd SHA256 `
+            /td SHA256 `
+            /tr http://timestamp.digicert.com `
+            /f $certificatePath `
+            /p $env:SIGNING_CERTIFICATE_PASSWORD `
+            $installerPath
+          if ($LASTEXITCODE -ne 0) {
+            throw "Installer signing failed."
+          }
+          Remove-Item -LiteralPath $certificatePath -Force
+
+      - name: Create checksum
+        shell: pwsh
+        run: |
+          $installerPath = Join-Path $env:RUNNER_TEMP "BlueSapphire\installer\${{ env.INSTALLER_BASENAME }}.exe"
+          $checksumPath = "$installerPath.sha256"
+          $hash = (Get-FileHash -LiteralPath $installerPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  ${{ env.INSTALLER_BASENAME }}.exe" | Set-Content -LiteralPath $checksumPath -Encoding ascii
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           name: BlueSapphire ${{ env.RELEASE_TAG }}
-          files: ${{ runner.temp }}\BlueSapphire\installer\${{ env.INSTALLER_BASENAME }}.exe
+          files: |
+            ${{ runner.temp }}\BlueSapphire\installer\${{ env.INSTALLER_BASENAME }}.exe
+            ${{ runner.temp }}\BlueSapphire\installer\${{ env.INSTALLER_BASENAME }}.exe.sha256
           overwrite_files: true
           generate_release_notes: true

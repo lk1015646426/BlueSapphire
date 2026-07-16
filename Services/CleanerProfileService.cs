@@ -20,22 +20,18 @@ namespace BlueSapphire.Services
 
         public async Task<CleanerProfileState> GetProfileAsync()
         {
-            CleanerPreferenceState preferences = await _stateStore.LoadPreferencesAsync();
-            bool changed = NormalizePreferences(preferences);
-            if (changed)
-            {
-                await _stateStore.SavePreferencesAsync(preferences);
-            }
-
+            CleanerPreferenceState preferences = await _stateStore.UpdatePreferencesAsync(
+                static state => NormalizePreferences(state));
             return BuildProfile(preferences);
         }
 
         public async Task<CleanerProfileState> SetRolloutChannelAsync(string rolloutChannel)
         {
-            CleanerPreferenceState preferences = await _stateStore.LoadPreferencesAsync();
-            preferences.DeviceProfileId = EnsureDeviceProfileId(preferences.DeviceProfileId);
-            preferences.RolloutChannel = NormalizeChannel(rolloutChannel);
-            await _stateStore.SavePreferencesAsync(preferences);
+            CleanerPreferenceState preferences = await _stateStore.UpdatePreferencesAsync(state =>
+            {
+                state.DeviceProfileId = EnsureDeviceProfileId(state.DeviceProfileId);
+                state.RolloutChannel = NormalizeChannel(rolloutChannel);
+            });
             return BuildProfile(preferences);
         }
 

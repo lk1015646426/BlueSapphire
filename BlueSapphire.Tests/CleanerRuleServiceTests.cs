@@ -35,7 +35,7 @@ public class CleanerRuleServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ImportRulePackAsync_MergesOverridesAndDisabledRules()
+    public async Task ImportRulePackAsync_SandboxesExternalRulesWithoutOverridingBuiltIns()
     {
         string builtInPath = Path.Combine(_rootPath, "builtin.json");
         string importPath = Path.Combine(_rootPath, "external.json");
@@ -112,14 +112,19 @@ public class CleanerRuleServiceTests : IDisposable
 
         Assert.True(status.HasExternalBundle);
         Assert.Equal(2, status.BuiltInRuleCount);
-        Assert.Equal(2, status.EffectiveRuleCount);
+        Assert.Equal(3, status.EffectiveRuleCount);
         Assert.Equal(2, status.ExternalRuleCount);
-        Assert.Equal(1, status.DisabledRuleCount);
-        Assert.DoesNotContain(rules, rule => string.Equals(rule.Id, "legacy_rule", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(rules, rule => string.Equals(rule.Id, "new_rule", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(0, status.DisabledRuleCount);
+        Assert.Contains(rules, rule => string.Equals(rule.Id, "legacy_rule", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(rules, rule =>
             string.Equals(rule.Id, "built_in_cache", StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(rule.Name, "覆盖后的缓存", StringComparison.OrdinalIgnoreCase));
+            string.Equals(rule.Name, "内置缓存", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(rules, rule =>
+            string.Equals(rule.Id, "new_rule", StringComparison.OrdinalIgnoreCase) &&
+            rule.ViewOnly &&
+            !rule.DefaultSelected &&
+            rule.RiskLevel == CleanerRiskLevel.High &&
+            rule.ExecutionMode == CleanerExecutionMode.None);
     }
 
     [Fact]

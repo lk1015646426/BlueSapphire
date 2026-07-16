@@ -44,7 +44,9 @@ namespace BlueSapphire.Models
         {
             File = file;
             IsKeepSuggestion = isKeepSuggestion;
-            IsChecked = !isKeepSuggestion;
+            // 删除属于不可逆的高风险选择。扫描结果默认全部不选，
+            // 必须由用户逐项确认后才允许移入回收站。
+            IsChecked = false;
         }
 
         public async Task LoadThumbnailAsync(Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
@@ -55,12 +57,19 @@ namespace BlueSapphire.Models
                 var thumb = await File.GetThumbnailAsync(Windows.Storage.FileProperties.ThumbnailMode.PicturesView, 100);
                 if (thumb != null)
                 {
-                    dispatcherQueue.TryEnqueue(() =>
+                    bool queued = dispatcherQueue.TryEnqueue(() =>
                     {
-                        var bmp = new BitmapImage();
-                        bmp.SetSource(thumb);
-                        Thumbnail = bmp;
+                        using (thumb)
+                        {
+                            var bmp = new BitmapImage();
+                            bmp.SetSource(thumb);
+                            Thumbnail = bmp;
+                        }
                     });
+                    if (!queued)
+                    {
+                        thumb.Dispose();
+                    }
                 }
             }
             catch { }

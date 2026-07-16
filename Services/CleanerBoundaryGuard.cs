@@ -47,6 +47,14 @@ namespace BlueSapphire.Services
                         CleanerFailureReason.BoundaryBlocked,
                         "目标超出规则声明的清理边界。");
                 }
+
+                string matchedBoundary = boundaryRoots.First(root => IsPathInsideRoot(normalizedTarget, root));
+                if (ContainsReparsePointBetween(normalizedTarget, matchedBoundary))
+                {
+                    return CleanerBoundaryValidationResult.Fail(
+                        CleanerFailureReason.ReparsePointSkipped,
+                        "目标路径或其父目录包含符号链接/Junction，无法证明真实路径仍在规则边界内。");
+                }
             }
             else if (item.RequiresElevation)
             {
@@ -68,6 +76,15 @@ namespace BlueSapphire.Services
                         CleanerFailureReason.ElevationRequired,
                         "清理系统目录下的目标必须声明为提权规则。");
                 }
+
+                string? driveRoot = Path.GetPathRoot(normalizedTarget);
+                if (!string.IsNullOrWhiteSpace(driveRoot) &&
+                    ContainsReparsePointBetween(normalizedTarget, driveRoot))
+                {
+                    return CleanerBoundaryValidationResult.Fail(
+                        CleanerFailureReason.ReparsePointSkipped,
+                        "目标路径或其父目录包含符号链接/Junction，已阻止跨目录清理。");
+                }
             }
 
             return CleanerBoundaryValidationResult.Success();
@@ -85,6 +102,37 @@ namespace BlueSapphire.Services
                 : root + Path.DirectorySeparatorChar;
 
             return candidate.StartsWith(rootWithSeparator, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool ContainsReparsePointBetween(string target, string boundaryRoot)
+        {
+            string normalizedBoundary = NormalizePath(boundaryRoot);
+            string? current = File.Exists(target)
+                ? Path.GetDirectoryName(target)
+                : target;
+
+            while (!string.IsNullOrWhiteSpace(current) && IsPathInsideRoot(current, normalizedBoundary))
+            {
+                if (CleanerPathSafety.IsReparsePoint(current))
+                {
+                    return true;
+                }
+
+                if (string.Equals(NormalizePath(current), normalizedBoundary, StringComparison.OrdinalIgnoreCase))
+                {
+                    break;
+                }
+
+                DirectoryInfo? parent = Directory.GetParent(current);
+                if (parent == null || string.Equals(parent.FullName, current, StringComparison.OrdinalIgnoreCase))
+                {
+                    break;
+                }
+
+                current = parent.FullName;
+            }
+
+            return CleanerPathSafety.IsReparsePoint(target);
         }
 
         private static readonly Lazy<string[]> _cachedBroadRoots = new Lazy<string[]>(() =>

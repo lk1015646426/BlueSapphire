@@ -13,6 +13,11 @@ namespace BlueSapphire.Models
         public ToggleParticleMessage(bool isEnabled) : base(isEnabled) { }
     }
 
+    public class ToggleReducedMotionMessage : ValueChangedMessage<bool>
+    {
+        public ToggleReducedMotionMessage(bool reduceMotion) : base(reduceMotion) { }
+    }
+
     public class ShowTipMessage
     {
         public string Title { get; }

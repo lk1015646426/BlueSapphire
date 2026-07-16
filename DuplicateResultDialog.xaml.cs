@@ -15,25 +15,31 @@ namespace BlueSapphire
         // ✅ 改用原生的分组集合
         private ObservableCollection<DuplicateGroup> _groupedList;
 
-        public DuplicateResultDialog(List<List<StorageFile>> dupes, Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
+        public DuplicateResultDialog(
+            List<List<StorageFile>> dupes,
+            bool isSimilarScan,
+            Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
         {
             this.InitializeComponent();
+            Title = isSimilarScan ? "相似图片候选结果" : "完全重复文件结果";
+            GuidanceText.Text = isSimilarScan
+                ? "相似结果来自视觉指纹，只表示外观接近，并不代表内容完全相同。第一项仅按文件大小提供弱保留建议，请双击预览并逐项确认。"
+                : "这些文件已通过文件大小、快速指纹和 SHA-256 完整内容指纹校验。内容相同，但仍请根据路径和用途决定保留哪一份。";
 
             _groupedList = new ObservableCollection<DuplicateGroup>();
             int groupIndex = 1;
 
             foreach (var g in dupes)
             {
-                var group = new DuplicateGroup($"重复文件组 {groupIndex++}");
+                var group = new DuplicateGroup(
+                    $"{(isSimilarScan ? "相似候选组" : "完全重复组")} {groupIndex++}");
 
-                // ✅ 极客优化：绝对信任后端 Service 传来的排序。
-                // 精确模式下无所谓，但在智能模式下，Service 已经把体积最大（画质最好）的放到了第 0 位！
                 var sorted = g;
 
                 for (int i = 0; i < sorted.Count; i++)
                 {
-                    // i == 0 的项会被标记为 IsKeepSuggestion = true (推荐保留)
-                    group.Add(new DuplicateItem(sorted[i], i == 0));
+                    // 后端只提供保留建议，不代替用户作出删除决定。
+                    group.Add(new DuplicateItem(sorted[i], isSimilarScan && i == 0));
                 }
                 _groupedList.Add(group);
             }
@@ -49,6 +55,15 @@ namespace BlueSapphire
                                .Where(x => x.IsChecked)
                                .Select(x => x.File)
                                .ToList();
+        }
+
+        private void DuplicateItem_SelectionChanged(object sender, RoutedEventArgs e)
+        {
+            int selectedCount = _groupedList.SelectMany(group => group).Count(item => item.IsChecked);
+            IsPrimaryButtonEnabled = selectedCount > 0;
+            PrimaryButtonText = selectedCount > 0
+                ? $"移至回收站（{selectedCount}）"
+                : "移至回收站";
         }
 
         private void DuplicateList_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)

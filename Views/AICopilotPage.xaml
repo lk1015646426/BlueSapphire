@@ -7,6 +7,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:viewmodels="using:BlueSapphire.ViewModels"
     xmlns:helpers="using:BlueSapphire.Helpers"
+    Background="{StaticResource BgColor}"
     mc:Ignorable="d">
 
     <Grid Padding="40,20,40,40">
@@ -16,17 +17,43 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Margin="0,0,0,20">
-            <TextBlock Text="智能助理" FontSize="28" FontWeight="Bold" Foreground="White"/>
-            <TextBlock Text="由 DeepSeek 强力驱动，支持自然语言控制与系统管家功能。" Foreground="#80FFFFFF" Margin="0,5,0,0"/>
-            <StackPanel Orientation="Horizontal" Margin="0,8,0,0" VerticalAlignment="Center">
-                <Ellipse x:Name="ConnectionStatusIndicator" Width="8" Height="8" Fill="#60FFFFFF" Margin="0,0,8,0"/>
-                <TextBlock x:Name="ConnectionStatusText" Text="连接状态检测中..." FontSize="12" Foreground="#80FFFFFF"/>
+        <!-- 标题区 + 工具栏 -->
+        <Grid Grid.Row="0" Margin="0,0,0,20">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Style="{StaticResource SectionCardStyle}" HorizontalAlignment="Left">
+                <StackPanel>
+                    <TextBlock Text="智能助理" FontSize="24" FontWeight="Bold" Foreground="{StaticResource TextMain}"/>
+                    <TextBlock Text="支持已配置的 AI 服务，通过明确确认安全调用本地工具与扩展。" Foreground="{StaticResource TextMuted}" Margin="0,5,0,0"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0" VerticalAlignment="Center">
+                        <Ellipse x:Name="ConnectionStatusIndicator" Width="8" Height="8" Fill="{StaticResource TextMuted}" Margin="0,0,8,0"/>
+                        <TextBlock x:Name="ConnectionStatusText" Text="连接状态检测中..." FontSize="12" Foreground="{StaticResource TextMuted}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- 工具栏按钮 -->
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
+                <Button x:Name="ClearChatBtn" Style="{StaticResource ActionButtonStyle}" Click="ClearChatBtn_Click" ToolTipService.ToolTip="清空对话" AutomationProperties.Name="清空对话">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE74D;" FontSize="14"/>
+                        <TextBlock Text="清空对话" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+                <Button x:Name="ExportChatBtn" Style="{StaticResource ActionButtonStyle}" Click="ExportChatBtn_Click" ToolTipService.ToolTip="导出记录" AutomationProperties.Name="导出对话记录">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE781;" FontSize="14"/>
+                        <TextBlock Text="导出记录" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
             </StackPanel>
-        </StackPanel>
+        </Grid>
 
         <!-- 聊天记录显示区 -->
-        <Border Grid.Row="1" Background="#05FFFFFF" BorderBrush="#11FFFFFF" BorderThickness="1" CornerRadius="12" Padding="15">
+        <Border Grid.Row="1" Background="{StaticResource PanelSurface}" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="12" Padding="15">
             <ScrollViewer x:Name="ChatScrollViewer" VerticalScrollBarVisibility="Auto">
                 <ItemsControl x:Name="ChatList">
                     <ItemsControl.ItemContainerTransitions>
@@ -44,11 +71,11 @@
                                 </Grid.ColumnDefinitions>
 
                                 <!-- AI Avatar -->
-                                <Border Grid.Column="0" Width="36" Height="36" CornerRadius="18" 
-                                        Background="#1AFFFFFF" BorderBrush="#33FFFFFF" BorderThickness="1"
+                                <Border Grid.Column="0" Width="36" Height="36" CornerRadius="18"
+                                        Background="{StaticResource BorderColor}" BorderBrush="{StaticResource BorderColor}" BorderThickness="1"
                                         VerticalAlignment="Top" Margin="0,0,12,0"
                                         Visibility="{Binding AIVisibility}">
-                                    <FontIcon Glyph="{Binding AvatarGlyph}" FontSize="16" Foreground="#4DB8FF"/>
+                                    <FontIcon Glyph="{Binding AvatarGlyph}" FontSize="16" Foreground="{StaticResource AccentInspect}"/>
                                 </Border>
 
                                 <!-- Message Bubble -->
@@ -57,36 +84,37 @@
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="*"/>
                                     </Grid.RowDefinitions>
-                                    <TextBlock Text="{Binding HeaderText}" FontSize="12" Foreground="#80FFFFFF" Margin="4,0,0,4"
+                                    <TextBlock Text="{Binding HeaderText}" FontSize="12" Foreground="{StaticResource TextMuted}" Margin="4,0,0,4"
                                                HorizontalAlignment="{Binding Alignment}"/>
-                                    <Border Grid.Row="1" Background="{Binding BubbleBackground}" 
-                                            CornerRadius="12" 
+                                    <Border Grid.Row="1" Background="{Binding BubbleBackground}"
+                                            CornerRadius="12"
                                             Padding="16,12"
                                             BorderThickness="1"
                                             BorderBrush="{Binding BubbleBorder}">
                                         <Grid>
                                         <!-- User Message (Plain Text) -->
-                                        <TextBlock Text="{Binding Content}" 
-                                                   TextWrapping="Wrap" 
-                                                   Foreground="#F5FFFFFF" 
-                                                   LineHeight="24" 
-                                                   FontSize="14" 
+                                        <TextBlock Text="{Binding Content}"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{StaticResource TextMain}"
+                                                   LineHeight="24"
+                                                   FontSize="14"
                                                    IsTextSelectionEnabled="True"
                                                    Visibility="{Binding UserVisibility}"/>
-                                        
+
                                         <!-- AI Message (Markdown) -->
                                         <RichTextBlock helpers:MarkdownHelper.Markdown="{Binding Content}"
-                                                                    Foreground="#E5E5E5" 
+                                                                    Foreground="{StaticResource TextMain}"
                                                                     FontSize="14"
                                                                     Visibility="{Binding AIVisibility}"/>
-                                        
+
                                         <!-- Tool / System Message -->
                                         <StackPanel Orientation="Horizontal" Spacing="8" Visibility="{Binding ToolVisibility}" VerticalAlignment="Center">
-                                            <ProgressRing IsActive="True" Width="14" Height="14" Foreground="#4DB8FF" Margin="0,2,0,0"/>
-                                            <TextBlock Text="{Binding Content}" 
-                                                       TextWrapping="Wrap" 
-                                                       Foreground="#A0FFFFFF" 
-                                                       FontSize="13" 
+                                            <ProgressRing IsActive="{Binding IsInProgress}" Visibility="{Binding ToolProgressVisibility}" Width="14" Height="14" Foreground="{StaticResource AccentInspect}" Margin="0,2,0,0"/>
+                                            <FontIcon Glyph="&#xE73E;" Visibility="{Binding ToolCompletedVisibility}" FontSize="13" Foreground="{StaticResource AccentSafe}"/>
+                                            <TextBlock Text="{Binding Content}"
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{StaticResource TextMuted}"
+                                                       FontSize="13"
                                                        FontStyle="Italic"/>
                                         </StackPanel>
                                         </Grid>
@@ -94,11 +122,11 @@
                                 </Grid>
 
                                 <!-- User Avatar -->
-                                <Border Grid.Column="2" Width="36" Height="36" CornerRadius="18" 
-                                        Background="#1AFFFFFF" BorderBrush="#33FFFFFF" BorderThickness="1"
+                                <Border Grid.Column="2" Width="36" Height="36" CornerRadius="18"
+                                        Background="{StaticResource BorderColor}" BorderBrush="{StaticResource BorderColor}" BorderThickness="1"
                                         VerticalAlignment="Top" Margin="12,0,0,0"
                                         Visibility="{Binding UserVisibility}">
-                                    <FontIcon Glyph="{Binding AvatarGlyph}" FontSize="16" Foreground="#FFB900"/>
+                                    <FontIcon Glyph="{Binding AvatarGlyph}" FontSize="16" Foreground="{StaticResource AccentReview}"/>
                                 </Border>
                             </Grid>
                         </DataTemplate>
@@ -114,30 +142,48 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <TextBox x:Name="InputBox" 
-                     PlaceholderText="输入你的需求，例如：帮我清理一下系统垃圾..." 
-                     MinHeight="48" 
+            <TextBox x:Name="InputBox"
+                     PlaceholderText="输入你的需求，例如：帮我清理一下系统垃圾..."
+                     MinHeight="48"
                      MaxHeight="120"
                      TextWrapping="Wrap"
                      AcceptsReturn="False"
                      CornerRadius="12"
-                     Background="#0AFFFFFF"
-                     BorderBrush="#22FFFFFF"
-                     VerticalContentAlignment="Center" 
+                     Background="{StaticResource PanelSurface}"
+                     BorderBrush="{StaticResource BorderColor}"
+                     Foreground="{StaticResource TextMain}"
+                     VerticalContentAlignment="Center"
                      Padding="16,0,16,0"
                      FontSize="14"
-                     KeyDown="InputBox_KeyDown"/>
-            
-            <Button x:Name="SendBtn" 
-                    Grid.Column="1" 
-                    Height="48" 
-                    Width="48" 
+                     GotFocus="InputBox_GotFocus"
+                     LostFocus="InputBox_LostFocus"
+                     KeyDown="InputBox_KeyDown"
+                     AutomationProperties.Name="AI 对话输入框"/>
+
+            <Button x:Name="SendBtn"
+                    Grid.Column="1"
+                    Height="48"
+                    Width="48"
                     CornerRadius="12"
-                    Style="{ThemeResource AccentButtonStyle}" 
+                    Style="{StaticResource PrimaryActionButtonStyle}"
                     Click="SendBtn_Click"
+                    AutomationProperties.Name="发送消息"
                     ToolTipService.ToolTip="发送消息">
                 <!-- 纸飞机发送图标 -->
                 <FontIcon Glyph="&#xE122;" FontSize="18"/>
+            </Button>
+
+            <Button x:Name="StopBtn"
+                    Grid.Column="1"
+                    Height="48"
+                    Width="48"
+                    CornerRadius="12"
+                    Style="{StaticResource ActionButtonStyle}"
+                    Click="StopBtn_Click"
+                    Visibility="Collapsed"
+                    AutomationProperties.Name="停止生成"
+                    ToolTipService.ToolTip="停止生成">
+                <FontIcon Glyph="&#xE71A;" FontSize="16"/>
             </Button>
         </Grid>
     </Grid>

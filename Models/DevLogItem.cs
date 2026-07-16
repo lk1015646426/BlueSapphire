@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Text.Json.Serialization;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 using Windows.UI;
 
@@ -103,17 +104,27 @@ namespace BlueSapphire.Models
 
         [JsonIgnore]
         public SolidColorBrush VersionGlowBrush => IsMajorRelease
-            ? new SolidColorBrush(Color.FromArgb(255, 255, 215, 0))
-            : new SolidColorBrush(Color.FromArgb(255, 0, 255, 255));
+            ? GetThemeBrush("AccentReview", Color.FromArgb(255, 251, 191, 36))
+            : GetThemeBrush("AccentCyan", Color.FromArgb(255, 34, 211, 238));
 
         [JsonIgnore]
         public SolidColorBrush CardBackgroundBrush => IsMajorRelease
-            ? new SolidColorBrush(Color.FromArgb(20, 255, 215, 0))
-            : new SolidColorBrush(Color.FromArgb(12, 0, 255, 255));
+            ? GetThemeBrush("AccentReviewBg", Color.FromArgb(20, 251, 191, 36))
+            : GetThemeBrush("AccentCyanBg", Color.FromArgb(20, 34, 211, 238));
 
         [JsonIgnore]
         public SolidColorBrush CardBorderBrush => IsMajorRelease
-            ? new SolidColorBrush(Color.FromArgb(120, 255, 215, 0))
-            : new SolidColorBrush(Color.FromArgb(40, 0, 255, 255));
+            ? GetThemeBrush("AccentReview", Color.FromArgb(255, 251, 191, 36))
+            : GetThemeBrush("AccentCyan", Color.FromArgb(255, 34, 211, 238));
+
+        private static SolidColorBrush GetThemeBrush(string key, Color fallback)
+        {
+            if (Application.Current?.Resources.TryGetValue(key, out object? value) == true &&
+                value is SolidColorBrush brush)
+            {
+                return brush;
+            }
+            return new SolidColorBrush(fallback);
+        }
     }
 }

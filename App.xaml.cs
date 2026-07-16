@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Globalization;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Text;
 using Microsoft.UI.Xaml;
@@ -23,6 +24,7 @@ using Microsoft.Extensions.Logging;
 using BlueSapphire.Tools;
 using BlueSapphire.ViewModels;
 using BlueSapphire.Services.Logging;
+using BlueSapphire.Helpers;
 
 namespace BlueSapphire
 {
@@ -66,7 +68,161 @@ namespace BlueSapphire
             Services = ConfigureServices();
             UnhandledException += App_UnhandledException;
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
+            RequestedTheme = ResolveRequestedApplicationTheme(
+                AppSettings.Get("AppTheme", "System") ?? "System");
             this.InitializeComponent();
+        }
+
+        private static ApplicationTheme ResolveRequestedApplicationTheme(string preference)
+        {
+            return preference switch
+            {
+                "Light" => ApplicationTheme.Light,
+                "Dark" => ApplicationTheme.Dark,
+                _ => ResolveSystemTheme() == ElementTheme.Light
+                    ? ApplicationTheme.Light
+                    : ApplicationTheme.Dark
+            };
+        }
+
+        public static void ApplyThemePreference(string preference)
+        {
+            ElementTheme theme = preference switch
+            {
+                "Light" => ElementTheme.Light,
+                "Dark" => ElementTheme.Dark,
+                _ => ResolveSystemTheme()
+            };
+            bool highContrast = false;
+            try
+            {
+                highContrast = new Windows.UI.ViewManagement.AccessibilitySettings().HighContrast;
+            }
+            catch
+            {
+                // 某些精简版系统不提供辅助功能状态，继续使用所选主题。
+            }
+
+            if (CurrentWindow?.Content is FrameworkElement root)
+            {
+                root.RequestedTheme = theme;
+            }
+            else if (Application.Current is App app)
+            {
+                app.RequestedTheme = theme == ElementTheme.Light
+                    ? ApplicationTheme.Light
+                    : ApplicationTheme.Dark;
+            }
+
+            ApplyColorPalette(highContrast ? "HighContrast" : theme == ElementTheme.Light ? "Light" : "Dark");
+        }
+
+        private static void ApplyColorPalette(string palette)
+        {
+            IReadOnlyDictionary<string, string> colors = palette switch
+            {
+                "Light" => new Dictionary<string, string>
+                {
+                    ["BgColor"] = "#F5FAFA", ["PanelSurface"] = "#FFFFFF",
+                    ["PanelSurfaceStrong"] = "#EDF6F6", ["SurfaceElevated"] = "#E2F0F1",
+                    ["PanelHighlight"] = "#D6EAEC", ["BorderColor"] = "#2A0B2630",
+                    ["BorderSubtle"] = "#160B2630", ["BorderActive"] = "#500B2630",
+                    ["TextMain"] = "#102529", ["TextSecondary"] = "#36545A",
+                    ["TextMuted"] = "#526D72", ["TextFaint"] = "#61777B",
+                    ["AccentCyan"] = "#087C93", ["AccentCyanBg"] = "#1A087C93",
+                    ["AccentSafe"] = "#087A55", ["AccentSafeBg"] = "#18087A55",
+                    ["AccentReview"] = "#805300", ["AccentReviewBg"] = "#1A805300",
+                    ["AccentInspect"] = "#096D9A", ["AccentInspectBg"] = "#18096D9A",
+                    ["AccentDanger"] = "#B4233C", ["AccentDangerBg"] = "#18B4233C",
+                    ["OverlayScrim"] = "#E6FFFFFF", ["MediaSurface"] = "#E7EFF1",
+                    ["BadgeSurface"] = "#E6FFFFFF"
+                },
+                "HighContrast" => new Dictionary<string, string>
+                {
+                    ["BgColor"] = "#FF000000", ["PanelSurface"] = "#FF000000",
+                    ["PanelSurfaceStrong"] = "#FF000000", ["SurfaceElevated"] = "#FF000000",
+                    ["PanelHighlight"] = "#FF202020", ["BorderColor"] = "#FFFFFFFF",
+                    ["BorderSubtle"] = "#FFFFFFFF", ["BorderActive"] = "#FFFFFF00",
+                    ["TextMain"] = "#FFFFFFFF", ["TextSecondary"] = "#FFFFFFFF",
+                    ["TextMuted"] = "#FFE0E0E0", ["TextFaint"] = "#FFC0C0C0",
+                    ["AccentCyan"] = "#FFFFFF00", ["AccentCyanBg"] = "#FF000000",
+                    ["AccentSafe"] = "#FF00FF00", ["AccentSafeBg"] = "#FF000000",
+                    ["AccentReview"] = "#FFFFFF00", ["AccentReviewBg"] = "#FF000000",
+                    ["AccentInspect"] = "#FF00FFFF", ["AccentInspectBg"] = "#FF000000",
+                    ["AccentDanger"] = "#FFFF0000", ["AccentDangerBg"] = "#FF000000",
+                    ["OverlayScrim"] = "#FF000000", ["MediaSurface"] = "#FF000000",
+                    ["BadgeSurface"] = "#FF000000"
+                },
+                _ => new Dictionary<string, string>
+                {
+                    ["BgColor"] = "#080D0F", ["PanelSurface"] = "#0C1518",
+                    ["PanelSurfaceStrong"] = "#0F1C20", ["SurfaceElevated"] = "#13252B",
+                    ["PanelHighlight"] = "#163039", ["BorderColor"] = "#1AFFFFFF",
+                    ["BorderSubtle"] = "#0DFFFFFF", ["BorderActive"] = "#2AFFFFFF",
+                    ["TextMain"] = "#E8F4F1", ["TextSecondary"] = "#A8C0BD",
+                    ["TextMuted"] = "#8FA8A6", ["TextFaint"] = "#6B8786",
+                    ["AccentCyan"] = "#22D3EE", ["AccentCyanBg"] = "#1422D3EE",
+                    ["AccentSafe"] = "#34D399", ["AccentSafeBg"] = "#1434D399",
+                    ["AccentReview"] = "#FBBF24", ["AccentReviewBg"] = "#14FBBF24",
+                    ["AccentInspect"] = "#38BDF8", ["AccentInspectBg"] = "#1438BDF8",
+                    ["AccentDanger"] = "#FB7185", ["AccentDangerBg"] = "#22FB7185",
+                    ["OverlayScrim"] = "#E6080D0F", ["MediaSurface"] = "#0C1116",
+                    ["BadgeSurface"] = "#E6101418"
+                }
+            };
+
+            if (Application.Current is not App app) return;
+            foreach ((string key, string value) in colors)
+            {
+                ResourceDictionary? owner = FindResourceOwner(app.Resources, key);
+                if (owner?[key] is SolidColorBrush brush)
+                {
+                    brush.Color = ParseColor(value);
+                }
+            }
+
+            if (CurrentWindow is MainWindow mainWindow)
+            {
+                mainWindow.ApplyThemeChrome(
+                    palette == "Light" ? ElementTheme.Light : ElementTheme.Dark);
+            }
+        }
+
+        private static ResourceDictionary? FindResourceOwner(ResourceDictionary dictionary, string key)
+        {
+            if (dictionary.ContainsKey(key)) return dictionary;
+            foreach (ResourceDictionary merged in dictionary.MergedDictionaries)
+            {
+                ResourceDictionary? owner = FindResourceOwner(merged, key);
+                if (owner != null) return owner;
+            }
+            return null;
+        }
+
+        private static Windows.UI.Color ParseColor(string hex)
+        {
+            string value = hex.TrimStart('#');
+            uint packed = uint.Parse(value, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+            byte alpha = value.Length == 8 ? (byte)(packed >> 24) : (byte)255;
+            byte red = (byte)(packed >> 16);
+            byte green = (byte)(packed >> 8);
+            byte blue = (byte)packed;
+            return Windows.UI.Color.FromArgb(alpha, red, green, blue);
+        }
+
+        private static ElementTheme ResolveSystemTheme()
+        {
+            try
+            {
+                Windows.UI.Color background = new Windows.UI.ViewManagement.UISettings()
+                    .GetColorValue(Windows.UI.ViewManagement.UIColorType.Background);
+                double luminance = (0.2126 * background.R + 0.7152 * background.G + 0.0722 * background.B) / 255d;
+                return luminance > 0.5 ? ElementTheme.Light : ElementTheme.Dark;
+            }
+            catch
+            {
+                return ElementTheme.Dark;
+            }
         }
 
         // ✅ 新增 4：注册所有的 Tool 和 ViewModel
@@ -79,6 +235,8 @@ namespace BlueSapphire
             services.AddTransient<MediaManagerTool>();
             services.AddTransient<CleanerAssistantTool>();
             services.AddTransient<BlueSapphire.Tools.AICopilotTool>();
+            services.AddTransient<BlueSapphire.Tools.DevLogTool>();
+            services.AddTransient<BlueSapphire.Tools.AboutTool>();
             // ✅ 新增：注册我们的重命名业务服务 (使用 Singleton 单例即可，因为它是无状态的工具类)
             services.AddSingleton<BlueSapphire.Services.MediaRenameService>();
 
@@ -89,6 +247,7 @@ namespace BlueSapphire
             services.AddSingleton<BlueSapphire.Services.DeepSeekAIService>();
             services.AddSingleton<BlueSapphire.Services.AIToolsRegistry>();
             services.AddSingleton<BlueSapphire.Services.AIClassifierService>();
+            services.AddSingleton<BlueSapphire.Services.AIChatHistoryService>();
 
             // 注册我们的本地文件系统服务 (回收站功能)
             services.AddSingleton<BlueSapphire.Services.NativeFileService>();
@@ -127,14 +286,26 @@ namespace BlueSapphire
             services.AddTransient<CleanerSettingsViewModel>();
 
             services.AddHttpClient();
-            services.AddHttpClient("DeepSeek").ConfigurePrimaryHttpMessageHandler(() => new System.Net.Http.HttpClientHandler
-            {
-                UseProxy = false
-            });
+            services.AddHttpClient("ExternalSafe")
+                .ConfigurePrimaryHttpMessageHandler(() => new System.Net.Http.HttpClientHandler
+                {
+                    AllowAutoRedirect = false
+                });
+            services.AddHttpClient("DeepSeek")
+                .ConfigureHttpClient(client =>
+                {
+                    client.DefaultRequestHeaders.Add("User-Agent", "BlueSapphire/1.0");
+                    client.Timeout = TimeSpan.FromSeconds(120);
+                })
+                .ConfigurePrimaryHttpMessageHandler(() => new System.Net.Http.HttpClientHandler
+                {
+                    UseProxy = false,
+                    AllowAutoRedirect = false
+                });
 
             services.AddHttpClient("ProxyTools").ConfigurePrimaryHttpMessageHandler(() => {
                 var handler = new System.Net.Http.HttpClientHandler();
-                handler.ServerCertificateCustomValidationCallback = System.Net.Http.HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+                handler.AllowAutoRedirect = false;
                 int[] commonPorts = { 7897, 7890, 10809, 10808, 10810, 10811 };
                 try
                 {
@@ -170,6 +341,7 @@ namespace BlueSapphire
 
             // 实例化 MainWindow 并赋值给静态属性
             CurrentWindow = new MainWindow();
+            ApplyThemePreference(AppSettings.Get("AppTheme", "System") ?? "System");
             CurrentWindow.Activate();
         }
 

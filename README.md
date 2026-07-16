@@ -1,26 +1,34 @@
-# BlueSapphire
+<div align="center">
+  <img src="Assets/AppIcon.png" width="144" alt="BlueSapphire 蓝宝石工具箱图标">
+  <h1>BlueSapphire 蓝宝石工具箱</h1>
+  <p>面向 Windows 10/11 的现代化智能桌面工具箱</p>
+  <p><strong>WinUI 3 · .NET 8 · x64 · 当前版本 1.0.3</strong></p>
+</div>
 
-BlueSapphire 是一个面向 Windows 11 的 WinUI 3 工具箱，当前已经完成了四大核心产品线的闭环：
+BlueSapphire 是一个面向 Windows 10/11 的 WinUI 3 工具箱，当前包含四条核心产品线：
 
-- `AI Copilot`：基于大语言模型的全局智能中枢，支持智能调度、指令执行与自动化日志记录
-- `媒体管家`：基于 pHash 的视觉指纹去重、动态刷新、重度图像整理与批处理
+- `AI Copilot`：基于大语言模型的智能助理，支持对话、工具导航，以及需要用户确认的操作调用
+- `媒体管家`：基于 dHash 的相似图片候选扫描、SHA-256 精确去重、标签与图片批处理
 - `清理助手`：空间分析、风险分层、隔离恢复、自动低风险保洁、安全隔离区与规则治理
-- `开发日志`：自动化同步与展示，内部调试与版本记录页
+- `更新日志`：面向用户的版本记录展示，以及开发环境中的受控编辑
 
 项目目标不是做“堆功能的工具集合”，而是做一套风格统一、交互清晰、可长期演进的现代化智能桌面平台。
 
 ## 版本信息
 
-- 当前文档版本：`1.0.0` 正式版
-- 当前发布形态：`Windows 11 x64` 安装包
+- 当前文档版本：`1.0.3`
+- 当前发布形态：`Windows 10 1809+ / Windows 11 x64` 安装包
 - 当前发布链路：`dotnet publish -> Inno Setup -> GitHub Releases`
 
-### 1.0.0 里程碑升级摘要
+### 1.0.3 核心更新
 
-- 🚀 **智能中枢进化**：深度集成 AI Copilot 智能引擎，全面接管软件系统底层的路由调度与后台任务（例如自动扫描与记录日志）。
-- 🗑️ **空间治理闭环**：提供清理助手“扫描-分层-隔离-保洁”的安全体系，并新增隔离区与提权清理。
-- 🖼️ **媒体管理重构**：引入 pHash 视觉指纹引擎，并实现操作界面的局部动态无感刷新。
-- 🛠️ **全盘架构焕新**：全面转入 WinUI 3 现代化框架并重构侧边导航；统一 `DevLogDataService` 并实现日志回写机制；发布体系正式切换到 Publish-Only 自动链路。
+- **统一品牌视觉**：应用、安装程序、快捷方式、首页和关于页统一使用新版 `BS.ico`。
+- **清理安全闭环**：完善快速/深度扫描、风险分层、隔离恢复、失败重试、取消和自动低风险保洁。
+- **媒体能力升级**：精确去重采用 SHA-256，相似图片检测采用 dHash，并补齐标签、批处理和结果反馈。
+- **AI 数据保护**：API Key、对话历史与长期记忆使用当前 Windows 账户加密保存，危险工具调用必须确认。
+- **扩展默认不信任**：MCP、Web Skill 与 Agent Skill 增加审核、命令白名单、SSRF 防护和响应大小限制。
+- **现代化主题体验**：支持系统、亮色、暗色、高对比度和减少动态效果，补齐键盘与屏幕阅读器体验。
+- **工程发布加固**：新增 CI、154 项自动化测试、发布资源门禁、可选代码签名和 SHA-256 校验文件。
 
 ## 当前模块
 
@@ -29,7 +37,8 @@ BlueSapphire 是一个面向 Windows 11 的 WinUI 3 工具箱，当前已经完�
 - `媒体管家`：图片智能扫描、精准相似度去重、文件无感动态刷新
 - `清理助手`：快速/深度扫描、磁盘空间分析、隔离恢复与系统级权限保洁
 - `设置`：应用行为与视觉项配置、大模型 API Key 加密存储管理
-- `开发日志`：版本自动合并、双环境（开发/生产）记录存储流转
+- `更新日志`：版本记录自动合并，发布环境只读、开发环境可编辑
+- `关于`：展示版本、运行环境与项目架构信息
 
 ## 技术栈
 
@@ -39,7 +48,7 @@ BlueSapphire 是一个面向 Windows 11 的 WinUI 3 工具箱，当前已经完�
 
 运行目标：
 
-- `Windows 11 x64`
+- `Windows 10 1809+ / Windows 11 x64`
 - 发布方式为 `win-x64 self-contained`
 
 ## 开发环境
@@ -86,7 +95,7 @@ dotnet publish BlueSapphire.csproj `
 
 ### 重要约束
 
-- [installer.iss](C:/Users/10156/Desktop/蓝宝石工具开发/new/BlueSapphire/installer.iss) 是 `publish-only`
+- [`installer.iss`](installer.iss) 是 `publish-only`
 - 必须通过 `/dSourcePath=<publish目录>` 显式传入发布目录
 - 不允许直接把仓库根目录传给 `installer.iss`
 - 如果 `SourcePath` 包含 `BlueSapphire.Tests`、`TestData`、`.git`、`obj`、`bin\Debug` 等内容，编译会直接失败
@@ -97,7 +106,7 @@ dotnet publish BlueSapphire.csproj `
 ISCC.exe `
   /dSourcePath="C:\path\to\publish" `
   /dMyAppName="BlueSapphire" `
-  /dMyAppVersion="1.0.0" `
+  /dMyAppVersion="1.0.3" `
   /dMyAppPublisher="BlueSapphire Team" `
   /dMyAppId="{{8D43FBFA-A424-4FED-BDE6-6C586D7D13EE}" `
   installer.iss
@@ -107,7 +116,7 @@ ISCC.exe `
 
 仓库已内置发布工作流：
 
-- [release.yml](C:/Users/10156/Desktop/蓝宝石工具开发/new/BlueSapphire/.github/workflows/release.yml)
+- [`.github/workflows/release.yml`](.github/workflows/release.yml)
 
 触发方式：
 
@@ -119,7 +128,9 @@ ISCC.exe `
 - 安装 `.NET 8 SDK`
 - 安装 `Inno Setup 6`
 - 执行 `dotnet publish`
+- 执行完整测试并校验发布输出
 - 用 `installer.iss` 生成安装包
+- 生成 SHA-256 校验文件；配置签名证书时自动签名安装包
 - 将安装包上传到 GitHub Release
 
 ## 项目结构
@@ -129,6 +140,7 @@ BlueSapphire/
 ├── .github/workflows/          # GitHub Actions
 ├── Assets/                     # 运行时资源、规则、图标、初始日志配置
 ├── BlueSapphire.Tests/         # 单元测试与回归测试
+├── Controls/                   # 可复用 WinUI 控件
 ├── Helpers/                    # 配置与通用辅助
 ├── Interfaces/                 # UI/服务交互接口
 ├── Models/                     # 业务模型
@@ -137,13 +149,14 @@ BlueSapphire/
 ├── ViewModels/                 # MVVM 视图模型
 ├── Views/                      # 页面与对话框
 ├── TestData/                   # 测试样本
+├── Themes/                     # 主题画刷与共用样式
 ├── installer.iss               # publish-only 安装脚本
 └── BlueSapphire.csproj         # 主项目
 ```
 
 ## 说明
 
-- `Assets\CleanerRules.json` 与 `Assets\DevMatrixLog.json` 属于正式运行时资源，会跟随发布
+- `Assets\CleanerRules.json`、`Assets\DevMatrixLog.json` 与根目录 `BS.ico` 属于正式运行时资源，会跟随发布
 - `BlueSapphire.Tests` 和 `TestData` 仅用于开发与验证，不进入正式发布目录
 - 如果你想一键构建安装包，配套工具仓库是 `BlueSapphire-Builder`
 
@@ -153,12 +166,11 @@ BlueSapphire/
 
 ## 截图展示
 
-当前仓库已经预留正式截图目录：
+当前仓库包含以下界面截图：
 
 - `docs/screenshots/home.png`
 - `docs/screenshots/media-manager.png`
 - `docs/screenshots/cleaner-assistant.png`
-- `docs/screenshots/ai-copilot.png`
 
 代表界面如下：
 
@@ -174,24 +186,21 @@ BlueSapphire/
 
 ![BlueSapphire Cleaner Assistant](docs/screenshots/cleaner-assistant.png)
 
-### AI 智能助理
-
-![BlueSapphire AI Copilot](docs/screenshots/ai-copilot.png)
-
 补充说明：
 
-- `Assets/StoreLogo.png` 继续作为仓库 Logo 资源保留
+- 应用程序、快捷方式、首页与关于页统一使用根目录 `BS.ico`
+- GitHub README 使用 `Assets/AppIcon.png` 展示同款 PNG 预览图
 
 ## 安装包下载说明
 
 正式安装包统一通过 GitHub Releases 分发：
 
 - 下载地址：[BlueSapphire Releases](https://github.com/lk1015646426/BlueSapphire/releases)
-- 建议发布标签：`v1.0.0`
+- 当前发布标签：`v1.0.3`
 
 下载建议：
 
-- 普通用户直接下载 `BlueSapphire_Setup_v1.0.0.exe` 或更新版本
+- 普通用户直接下载 `BlueSapphire_Setup_v1.0.3.exe` 或更新版本
 - 安装目标机器不需要提前安装 `.NET SDK`
 - 安装目标机器不需要提前安装 `Windows App SDK`
 
@@ -223,9 +232,9 @@ dotnet build BlueSapphire.slnx
 
 ## 已知限制
 
-- README 截图目录已经预留，但最终版界面截图仍需后续替换进 `docs/screenshots/`
 - 系统级清理涉及权限边界，部分路径必须在管理员模式下才可执行
-- AI Copilot 目前采用基于对话流的 Tool Calls 方案，指令连续触发时可能需要注意 API 返回结构。
+- AI Copilot 需要用户自行配置受支持供应商的 API Key；密钥使用当前 Windows 账户加密保存
+- MCP、远程 OpenAPI 与 Agent 技能属于第三方扩展，默认停用或待审核，启用和实际调用均保留确认边界
 
 ## 后续路线
 

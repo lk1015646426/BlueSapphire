@@ -13,6 +13,8 @@ namespace BlueSapphire.Services
 {
     public class McpClient : IDisposable
     {
+        private const int MaxProtocolLineCharacters = 1024 * 1024;
+        private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(30);
         private Process? _process;
         private int _nextId = 1;
         private readonly ConcurrentDictionary<string, TaskCompletionSource<JsonNode?>> _pendingRequests = new();
@@ -30,7 +32,11 @@ namespace BlueSapphire.Services
             ServerName = serverName;
         }
 
-        public async Task StartAsync(string command, string arguments, IDictionary<string, string>? envVars = null)
+        public async Task StartAsync(
+            string command,
+            string arguments,
+            IDictionary<string, string>? envVars = null,
+            CancellationToken cancellationToken = default)
         {
             if (IsConnected) return;
 
@@ -74,7 +80,7 @@ namespace BlueSapphire.Services
             _ = Task.Run(async () => await ReadStdErrAsync(_cts.Token));
 
             // 发送 Initialize 请求
-            await InitializeAsync();
+            await InitializeAsync(cancellationToken);
         }
 
         private async Task ReadStdOutAsync(CancellationToken token)
@@ -87,10 +93,19 @@ namespace BlueSapphire.Services
                     var line = await _process.StandardOutput.ReadLineAsync(token);
                     if (line == null) break;
                     if (string.IsNullOrWhiteSpace(line)) continue;
+                    if (line.Length > MaxProtocolLineCharacters)
+                    {
+                        OnLog?.Invoke($"[{ServerName}] 协议消息超过 1 MB，已终止连接。");
+                        _cts?.Cancel();
+                        FailAllPendingRequests();
+                        break;
+                    }
 
                     try
                     {
-                        var node = JsonNode.Parse(line);
+                        var node = JsonNode.Parse(
+                            line,
+                            documentOptions: new JsonDocumentOptions { MaxDepth = 32 });
                         if (node == null) continue;
 
                         if (node["id"] != null && (node["result"] != null || node["error"] != null))
@@ -120,7 +135,8 @@ namespace BlueSapphire.Services
                     }
                     catch (Exception ex)
                     {
-                        OnLog?.Invoke($"[{ServerName}] 解析 JSON 失败: {ex.Message} \n内容: {line}");
+                        string preview = line[..Math.Min(line.Length, 1000)];
+                        OnLog?.Invoke($"[{ServerName}] 解析 JSON 失败: {ex.Message}\n内容预览: {preview}");
                     }
                 }
             }
@@ -141,19 +157,23 @@ namespace BlueSapphire.Services
                     if (line == null) break;
                     if (!string.IsNullOrWhiteSpace(line))
                     {
-                        OnLog?.Invoke($"[{ServerName} stderr] {line}");
+                        OnLog?.Invoke($"[{ServerName} stderr] {line[..Math.Min(line.Length, 4000)]}");
                     }
                 }
             }
             catch { }
         }
 
-        private async Task<JsonNode?> SendRequestAsync(string method, JsonNode? parameters)
+        private async Task<JsonNode?> SendRequestAsync(
+            string method,
+            JsonNode? parameters,
+            CancellationToken cancellationToken)
         {
             if (!IsConnected || _process == null) throw new InvalidOperationException("MCP Server is not connected.");
 
             var id = Interlocked.Increment(ref _nextId).ToString();
-            var tcs = new TaskCompletionSource<JsonNode?>();
+            var tcs = new TaskCompletionSource<JsonNode?>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
             _pendingRequests[id] = tcs;
 
             var request = new JsonRpcRequest
@@ -164,7 +184,7 @@ namespace BlueSapphire.Services
             };
 
             var json = JsonSerializer.Serialize(request);
-            await _stdinLock.WaitAsync();
+            await _stdinLock.WaitAsync(cancellationToken);
             try
             {
                 if (_process != null && !_process.HasExited)
@@ -172,33 +192,54 @@ namespace BlueSapphire.Services
                     await _process.StandardInput.WriteLineAsync(json);
                     await _process.StandardInput.FlushAsync();
                 }
+                else
+                {
+                    throw new InvalidOperationException("MCP Server is not connected.");
+                }
+            }
+            catch
+            {
+                _pendingRequests.TryRemove(id, out _);
+                throw;
             }
             finally
             {
                 _stdinLock.Release();
             }
 
-            // 超时控制 (这里先写死 30 秒超时)
-            var timeoutTask = Task.Delay(TimeSpan.FromSeconds(30));
-            var completedTask = await Task.WhenAny(tcs.Task, timeoutTask);
-
-            if (completedTask == timeoutTask)
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken,
+                _cts?.Token ?? CancellationToken.None);
+            timeoutCts.CancelAfter(RequestTimeout);
+            using CancellationTokenRegistration registration = timeoutCts.Token.Register(
+                () => tcs.TrySetCanceled(timeoutCts.Token));
+            try
             {
-                _pendingRequests.TryRemove(id, out _);
+                return await tcs.Task;
+            }
+            catch (OperationCanceledException) when (
+                !cancellationToken.IsCancellationRequested &&
+                !(_cts?.IsCancellationRequested ?? false))
+            {
                 throw new TimeoutException($"MCP request '{method}' timed out.");
             }
-
-            return await tcs.Task;
+            finally
+            {
+                _pendingRequests.TryRemove(id, out _);
+            }
         }
 
-        private async Task InitializeAsync()
+        private async Task InitializeAsync(CancellationToken cancellationToken)
         {
             var p = new McpInitializeParams();
-            await SendRequestAsync("initialize", JsonSerializer.SerializeToNode(p));
+            await SendRequestAsync(
+                "initialize",
+                JsonSerializer.SerializeToNode(p),
+                cancellationToken);
             // 收到 initialize response 后，按标准我们需要发一个 notifications/initialized
             var initNotification = new JsonRpcNotification { Method = "notifications/initialized" };
             var json = JsonSerializer.Serialize(initNotification);
-            await _stdinLock.WaitAsync();
+            await _stdinLock.WaitAsync(cancellationToken);
             try
             {
                 if (_process != null && !_process.HasExited)
@@ -213,19 +254,25 @@ namespace BlueSapphire.Services
             }
         }
 
-        public async Task<List<McpTool>> GetToolsAsync()
+        public async Task<List<McpTool>> GetToolsAsync(CancellationToken cancellationToken = default)
         {
-            var resultNode = await SendRequestAsync("tools/list", null);
+            var resultNode = await SendRequestAsync("tools/list", null, cancellationToken);
             if (resultNode == null) return new List<McpTool>();
 
             var listResult = resultNode.Deserialize<McpToolListResult>();
             return listResult?.Tools ?? new List<McpTool>();
         }
 
-        public async Task<McpCallToolResult> CallToolAsync(string name, JsonNode? arguments)
+        public async Task<McpCallToolResult> CallToolAsync(
+            string name,
+            JsonNode? arguments,
+            CancellationToken cancellationToken = default)
         {
             var args = new McpCallToolParams { Name = name, Arguments = arguments };
-            var resultNode = await SendRequestAsync("tools/call", JsonSerializer.SerializeToNode(args));
+            var resultNode = await SendRequestAsync(
+                "tools/call",
+                JsonSerializer.SerializeToNode(args),
+                cancellationToken);
             
             if (resultNode == null) return new McpCallToolResult { IsError = true, Content = new List<McpContent> { new McpContent { Text = "Empty response" } } };
 

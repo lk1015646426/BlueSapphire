@@ -15,6 +15,8 @@ namespace BlueSapphire.Services
     {
         private readonly ILogger<DevLogDataService> _logger;
         private const string FileName = "DevMatrixLog.json";
+        private const long MaxLogFileBytes = 5 * 1024 * 1024;
+        private const int MaxLogEntries = 500;
         private static readonly SemaphoreSlim FileLock = new(1, 1);
         private readonly string? _rootPathOverride;
         private readonly string? _seedFilePathOverride;
@@ -78,6 +80,11 @@ namespace BlueSapphire.Services
 
         public async Task SaveLogsAsync(List<DevLogItem> logs)
         {
+            if (!CanWrite)
+            {
+                throw new InvalidOperationException("当前发布环境中的开发日志为只读内容。");
+            }
+
             await FileLock.WaitAsync();
             try
             {
@@ -86,6 +93,7 @@ namespace BlueSapphire.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "DevLog_Save");
+                throw;
             }
             finally
             {
@@ -151,6 +159,10 @@ namespace BlueSapphire.Services
             {
                 return new List<DevLogItem>();
             }
+            if (new FileInfo(path).Length is <= 0 or > MaxLogFileBytes)
+            {
+                return new List<DevLogItem>();
+            }
 
             string json = await File.ReadAllTextAsync(path);
             if (string.IsNullOrWhiteSpace(json))
@@ -158,17 +170,50 @@ namespace BlueSapphire.Services
                 return new List<DevLogItem>();
             }
 
-            return JsonSerializer.Deserialize<List<DevLogItem>>(json) ?? new List<DevLogItem>();
+            return JsonSerializer.Deserialize<List<DevLogItem>>(
+                       json,
+                       new JsonSerializerOptions { MaxDepth = 32 })?
+                       .Take(MaxLogEntries)
+                       .ToList()
+                   ?? new List<DevLogItem>();
         }
 
         private async Task PersistLogsAsync(List<DevLogItem> logs)
         {
             logs ??= new List<DevLogItem>();
 
-            string json = JsonSerializer.Serialize(logs, new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
+            List<DevLogItem> boundedLogs = logs
+                .Take(MaxLogEntries)
+                .Select(BoundLog)
+                .ToList();
+            string json = JsonSerializer.Serialize(boundedLogs, new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
             string tempFilePath = DataFilePath + ".tmp";
-            await File.WriteAllTextAsync(tempFilePath, json);
-            File.Move(tempFilePath, DataFilePath, true);
+            try
+            {
+                await File.WriteAllTextAsync(tempFilePath, json);
+                File.Move(tempFilePath, DataFilePath, true);
+            }
+            catch
+            {
+                try
+                {
+                    if (File.Exists(tempFilePath)) File.Delete(tempFilePath);
+                }
+                catch { }
+                throw;
+            }
+
+            try
+            {
+                string backupDir = Path.Combine(Path.GetDirectoryName(DataFilePath) ?? string.Empty, "LogBackups");
+                Directory.CreateDirectory(backupDir);
+                string backupPath = Path.Combine(backupDir, "DevMatrixLog_backup.json");
+                File.Copy(DataFilePath, backupPath, true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to create local snapshot backup of dev logs.");
+            }
 
 #if DEBUG
             try
@@ -185,6 +230,29 @@ namespace BlueSapphire.Services
                 _logger.LogWarning(ex, "Failed to auto-sync dev logs to source directory.");
             }
 #endif
+        }
+
+        private static DevLogItem BoundLog(DevLogItem source)
+        {
+            static string Limit(string? value, int maxLength)
+            {
+                string text = value ?? string.Empty;
+                return text[..Math.Min(text.Length, maxLength)];
+            }
+
+            return new DevLogItem
+            {
+                Id = string.IsNullOrWhiteSpace(source.Id)
+                    ? Guid.NewGuid().ToString("N")
+                    : Limit(source.Id, 100),
+                Title = Limit(source.Title, 200),
+                Description = Limit(source.Description, 2000),
+                FullContent = Limit(source.FullContent, 100_000),
+                Version = Limit(source.Version, 50),
+                UpdateLevel = Limit(source.UpdateLevel, 50),
+                Status = source.Status,
+                Timestamp = source.Timestamp
+            };
         }
 
         private string? TryGetProjectAssetPath()

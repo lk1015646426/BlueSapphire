@@ -1,4 +1,4 @@
-﻿<ContentDialog
+<ContentDialog
     x:Class="BlueSapphire.RenamePreviewDialog"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -7,7 +7,7 @@
     Title="批量重命名预览"
     PrimaryButtonText="确认修改"
     CloseButtonText="取消"
-    DefaultButton="Primary">
+    DefaultButton="Close">
 
     <ContentDialog.Resources>
         <DataTemplate x:Key="RenameItemTemplate" x:DataType="models:RenamePreviewItem">
@@ -17,7 +17,7 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{x:Bind OriginalName}" VerticalAlignment="Center" Foreground="Gray"/>
+                <TextBlock Text="{x:Bind OriginalName}" VerticalAlignment="Center" Foreground="{StaticResource TextMuted}"/>
                 <FontIcon Glyph="&#xE72A;" FontFamily="Segoe MDL2 Assets" Grid.Column="1" Margin="10,0" Opacity="0.5"/>
                 <TextBlock Text="{x:Bind NewName}" Grid.Column="2" VerticalAlignment="Center" FontWeight="SemiBold"/>
             </Grid>
@@ -38,7 +38,7 @@
                    TextWrapping="Wrap" 
                    Visibility="Collapsed"/>
 
-        <TextBlock Text="命名格式：yyyyMMdd_HHmmss (如遇冲突自动添加序号)" 
+        <TextBlock Text="命名格式：yyyy-MM-dd_HH-mm-ss（仅有日期时为 yyyy-MM-dd；冲突时自动添加序号）"
                    Opacity="0.6" 
                    FontSize="12"/>
     </StackPanel>

@@ -8,7 +8,7 @@
     xmlns:canvas="using:Microsoft.Graphics.Canvas.UI.Xaml"
     mc:Ignorable="d">
 
-    <Grid>
+    <Grid x:Name="RootLayout" Background="{StaticResource BgColor}">
         <Grid.RowDefinitions>
             <RowDefinition Height="32"/>
             <RowDefinition Height="*"/>
@@ -20,15 +20,16 @@
                               CreateResources="OnCreateResources"
                               PointerMoved="BackgroundCanvas_PointerMoved"
                               IsHitTestVisible="True"
-                              ClearColor="Black"/>
+                              ClearColor="Transparent"/>
 
-        <Grid x:Name="AppTitleBar" Grid.Row="0" Background="Transparent" IsHitTestVisible="False">
+        <Grid x:Name="AppTitleBar" Grid.Row="0" Background="Transparent" IsHitTestVisible="True">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
-                <TextBlock Text="BLUE SAPPHIRE" 
-                           FontSize="12" 
-                           FontWeight="SemiBold" 
-                           Foreground="#80FFFFFF" 
-                           CharacterSpacing="100"/>
+                <TextBlock Text="BLUE SAPPHIRE"
+                           FontSize="12"
+                           FontWeight="SemiBold"
+                           Foreground="{StaticResource TextMuted}"
+                           CharacterSpacing="100"
+                           IsHitTestVisible="False"/>
             </StackPanel>
         </Grid>
 

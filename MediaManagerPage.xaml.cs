@@ -27,6 +27,13 @@ namespace BlueSapphire
             ViewModel = App.Current.Services.GetRequiredService<MediaManagerViewModel>();
             InitializeComponent();
             ViewModel.Initialize(this, DispatcherQueue);
+            Unloaded += MediaManagerPage_Unloaded;
+        }
+
+        private void MediaManagerPage_Unloaded(object sender, RoutedEventArgs e)
+        {
+            ViewModel.CancelPendingOperations();
+            Unloaded -= MediaManagerPage_Unloaded;
         }
 
         public async Task<StorageFolder?> PickFolderAsync()
@@ -110,9 +117,11 @@ namespace BlueSapphire
             return result == ContentDialogResult.Primary;
         }
 
-        public async Task<List<StorageFile>> ShowDuplicateResultsAsync(List<List<StorageFile>> duplicates)
+        public async Task<List<StorageFile>> ShowDuplicateResultsAsync(
+            List<List<StorageFile>> duplicates,
+            bool isSimilarScan)
         {
-            var dialog = new DuplicateResultDialog(duplicates, DispatcherQueue)
+            var dialog = new DuplicateResultDialog(duplicates, isSimilarScan, DispatcherQueue)
             {
                 XamlRoot = XamlRoot
             };
@@ -227,6 +236,63 @@ namespace BlueSapphire
             ViewModel.DeleteSelectedCommand.Execute(ImageGrid.SelectedItems);
         }
 
+        private void ImageGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            bool hasSelection = ImageGrid.SelectedItems.Count > 0;
+            RenameButton.IsEnabled = hasSelection;
+            EditDropDown.IsEnabled = hasSelection;
+            EnhanceButton.IsEnabled = hasSelection;
+            TagButton.IsEnabled = hasSelection;
+            OpenLocationButton.IsEnabled = hasSelection;
+            DeleteButton.IsEnabled = hasSelection;
+            SelectionDetailsPanel.Visibility = ImageGrid.SelectedItems.Count == 1
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+
+        private void MediaSearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+        {
+            if (args.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
+            {
+                ViewModel.SearchText = sender.Text;
+            }
+        }
+
+        private void TagFilterCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (TagFilterCombo.SelectedItem is ComboBoxItem item && item.Tag is string mode)
+            {
+                ViewModel.TagFilterMode = mode;
+            }
+        }
+
+        private static List<object> SingleSelectionFromMenu(object sender)
+        {
+            return sender is MenuFlyoutItem { Tag: ImageItem item }
+                ? new List<object> { item }
+                : new List<object>();
+        }
+
+        private void ContextOpenLocation_Click(object sender, RoutedEventArgs e)
+        {
+            ViewModel.OpenSelectedLocationCommand.Execute(SingleSelectionFromMenu(sender));
+        }
+
+        private void ContextEditTags_Click(object sender, RoutedEventArgs e)
+        {
+            ViewModel.EditSelectedMediaTagsCommand.Execute(SingleSelectionFromMenu(sender));
+        }
+
+        private void ContextEnhance_Click(object sender, RoutedEventArgs e)
+        {
+            ViewModel.OpenEnhanceDialogCommand.Execute(SingleSelectionFromMenu(sender));
+        }
+
+        private void ContextDelete_Click(object sender, RoutedEventArgs e)
+        {
+            ViewModel.DeleteSelectedCommand.Execute(SingleSelectionFromMenu(sender));
+        }
+
         private void OnSortFlyoutItemClicked(object sender, RoutedEventArgs e)
         {
             if (sender is MenuFlyoutItem menuItem && menuItem.Tag is string option)
@@ -279,10 +345,6 @@ namespace BlueSapphire
             var dialog = new EnhanceImageDialog(previewImagePath) { XamlRoot = this.XamlRoot };
             var result = await dialog.ShowAsync();
             return result == ContentDialogResult.Primary ? dialog.Options : null;
-        }
-
-        private void MediaManagerPage_Loaded(object sender, RoutedEventArgs e)
-        {
         }
 
         private async Task ShowActionDialogAsync(string title, params ActionOption[] options)

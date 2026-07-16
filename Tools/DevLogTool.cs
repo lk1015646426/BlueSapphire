@@ -9,7 +9,7 @@ namespace BlueSapphire.Tools
     {
         public string Id => "EvolutionLog";
 
-        public string Title => "跃迁记录";
+        public string Title => "更新日志";
 
         // [已修复] 修正为文档相关的图标
         public Symbol Icon => Symbol.Document;

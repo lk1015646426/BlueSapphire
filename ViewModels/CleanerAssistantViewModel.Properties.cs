@@ -2,6 +2,8 @@ using BlueSapphire.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.Generic;
+using System;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -56,20 +58,107 @@ namespace BlueSapphire.ViewModels
         // ----------------------------------------------------
         // Scan Trend Properties
         // ----------------------------------------------------
-        private IReadOnlyList<CleanerScanSnapshot> GetRecentScans() => Scan.AuditSnapshot?.RecentScans ?? new List<CleanerScanSnapshot>();
+        private IReadOnlyList<CleanerScanSnapshot> GetRecentScans() =>
+            (Scan.AuditSnapshot?.RecentScans ?? new List<CleanerScanSnapshot>())
+            .OrderByDescending(scan => scan.CreatedAt)
+            .ToList();
         
         public bool HasScanTrendHistory => GetRecentScans().Count > 1;
         public bool HasScanTrend => GetRecentScans().Count > 0;
 
         public string ScanTrendHeadlineText => HasScanTrendHistory ? "最近扫描趋势分析" : "扫描记录不足";
         public string ScanTrendDetailText => HasScanTrendHistory ? $"基于最近 {GetRecentScans().Count} 次扫描生成的分析" : "需要至少2次以上的扫描才能生成趋势分析。";
-        public string ScanTrendDeltaText => "暂无增量分析"; // Mocked to simplify
-        public string ScanTrendScopeText => "暂无范围分析"; // Mocked
-        public string ScanTrendReuseText => "暂无复用分析"; // Mocked
-        public string ScanTrendCompositionText => "暂无构成分析"; // Mocked
-        public string ScanTrendWindowText => "最近 7 天";
+        public string ScanTrendDeltaText
+        {
+            get
+            {
+                IReadOnlyList<CleanerScanSnapshot> scans = GetRecentScans();
+                if (scans.Count < 2) return "暂无可比较的上一次扫描";
+                long delta = scans[0].TotalBytes - scans[1].TotalBytes;
+                return delta == 0
+                    ? "与上一次扫描相比，候选空间没有变化"
+                    : $"与上一次相比，候选空间{(delta > 0 ? "增加" : "减少")} {CleanerSizeFormatter.Format(Math.Abs(delta))}";
+            }
+        }
+
+        public string ScanTrendScopeText
+        {
+            get
+            {
+                IReadOnlyList<CleanerScanSnapshot> scans = GetRecentScans();
+                return $"扫描类型：快速 {scans.Count(scan => scan.Scope == CleanerScanScope.Quick)} 次 · 深度 {scans.Count(scan => scan.Scope == CleanerScanScope.Deep)} 次";
+            }
+        }
+
+        public string ScanTrendReuseText
+        {
+            get
+            {
+                IReadOnlyList<CleanerScanSnapshot> reused = GetRecentScans()
+                    .Where(scan => scan.UsedIncrementalReuse)
+                    .ToList();
+                return reused.Count == 0
+                    ? "缓存复用：最近扫描均为实时计算"
+                    : $"缓存复用：{reused.Count} 次，共复用 {reused.Sum(scan => scan.ReusedItemCount)} 项";
+            }
+        }
+
+        public string ScanTrendCompositionText
+        {
+            get
+            {
+                CleanerScanSnapshot? latest = GetRecentScans().FirstOrDefault();
+                return latest == null
+                    ? "暂无空间构成"
+                    : $"最近构成：安全 {CleanerSizeFormatter.Format(latest.SafeBytes)} · 建议确认 {CleanerSizeFormatter.Format(latest.ReviewBytes)} · 仅查看 {CleanerSizeFormatter.Format(latest.ViewOnlyBytes)}";
+            }
+        }
+
+        public string ScanTrendWindowText
+        {
+            get
+            {
+                IReadOnlyList<CleanerScanSnapshot> scans = GetRecentScans();
+                if (scans.Count == 0) return "暂无时间范围";
+                return scans.Count == 1
+                    ? $"记录时间：{scans[0].CreatedAt.LocalDateTime:g}"
+                    : $"统计范围：{scans[^1].CreatedAt.LocalDateTime:g} 至 {scans[0].CreatedAt.LocalDateTime:g}";
+            }
+        }
         
-        public IReadOnlyList<CleanerScanSnapshot> ScanTrendEntries => GetRecentScans();
+        public IReadOnlyList<CleanerScanTrendEntry> ScanTrendEntries
+        {
+            get
+            {
+                IReadOnlyList<CleanerScanSnapshot> scans = GetRecentScans();
+                List<CleanerScanTrendEntry> entries = new();
+                for (int index = 0; index < scans.Count; index++)
+                {
+                    CleanerScanSnapshot scan = scans[index];
+                    CleanerScanSnapshot? previous = index + 1 < scans.Count ? scans[index + 1] : null;
+                    long delta = previous == null ? 0 : scan.TotalBytes - previous.TotalBytes;
+                    entries.Add(new CleanerScanTrendEntry
+                    {
+                        CreatedAt = scan.CreatedAt,
+                        TimestampText = scan.CreatedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm"),
+                        ScopeText = $"{scan.ScopeText} · {scan.TotalItemCount} 项 · {scan.DurationMs / 1000d:F1} 秒",
+                        TotalText = CleanerSizeFormatter.Format(scan.TotalBytes),
+                        DeltaText = previous == null
+                            ? "最早记录"
+                            : delta == 0
+                                ? "较前一次无变化"
+                                : $"较前一次{(delta > 0 ? "增加" : "减少")} {CleanerSizeFormatter.Format(Math.Abs(delta))}",
+                        CompositionText = $"安全 {CleanerSizeFormatter.Format(scan.SafeBytes)} · 确认 {CleanerSizeFormatter.Format(scan.ReviewBytes)} · 查看 {CleanerSizeFormatter.Format(scan.ViewOnlyBytes)}",
+                        DriveSummaryText = $"范围：{scan.DriveSummaryText}",
+                        ReuseText = scan.UsedIncrementalReuse
+                            ? $"已验证并复用 {scan.ReusedItemCount} 项"
+                            : "实时扫描"
+                    });
+                }
+
+                return entries;
+            }
+        }
 
         // ----------------------------------------------------
         // Recommendations
@@ -112,6 +201,25 @@ namespace BlueSapphire.ViewModels
         public bool HasHiddenViewOnlyItems => false;
 
         // ----------------------------------------------------
+        // Selected Item (detail panel)
+        // ----------------------------------------------------
+        [ObservableProperty]
+        public partial CleanerScanItem? SelectedScanItem { get; set; }
+
+        public bool HasSelectedScanItem => SelectedScanItem != null;
+
+        partial void OnSelectedScanItemChanged(CleanerScanItem? value)
+        {
+            OnPropertyChanged(nameof(HasSelectedScanItem));
+        }
+
+        [RelayCommand]
+        private void SelectScanItem(CleanerScanItem? item)
+        {
+            SelectedScanItem = item;
+        }
+
+        // ----------------------------------------------------
         // Commands
         // ----------------------------------------------------
         [RelayCommand]
@@ -121,10 +229,21 @@ namespace BlueSapphire.ViewModels
         }
 
         [RelayCommand]
-        private Task OpenItemLocation(CleanerScanItem? item)
+        private async Task OpenItemLocation(CleanerScanItem? item)
         {
-            // Mocked for compilation
-            return Task.CompletedTask;
+            if (item == null || string.IsNullOrWhiteSpace(item.Path))
+            {
+                return;
+            }
+
+            bool opened = File.Exists(item.Path)
+                ? await _nativeFileService.RevealInExplorerAsync(item.Path)
+                : Directory.Exists(item.Path) && await _nativeFileService.OpenFolderAsync(item.Path);
+
+            if (!opened && _view != null)
+            {
+                await _view.ShowTipAsync("无法打开位置", "目标已不存在或资源管理器无法访问该路径。");
+            }
         }
 
         // We also need to hook into the UI refresh

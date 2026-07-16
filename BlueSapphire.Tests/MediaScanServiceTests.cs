@@ -22,18 +22,18 @@ public class MediaScanServiceTests
         string hash = await MediaScanService.ComputeQuickHeaderFooterHashAsync(file);
 
         Assert.False(string.IsNullOrWhiteSpace(hash));
-        Assert.Equal(32, hash.Length);
+        Assert.Equal(64, hash.Length);
     }
 
     [Fact]
-    public async Task ComputeMD5Async_ReturnsHashForRealImageSample()
+    public async Task ComputeSHA256Async_ReturnsHashForRealImageSample()
     {
         StorageFile file = await StorageFile.GetFileFromPathAsync(GetTestDataPath("sample-image.png"));
 
-        string hash = await MediaScanService.ComputeMD5Async(file);
+        string hash = await MediaScanService.ComputeSHA256Async(file);
 
         Assert.False(string.IsNullOrWhiteSpace(hash));
-        Assert.Equal(32, hash.Length);
+        Assert.Equal(64, hash.Length);
     }
 
     [Fact]

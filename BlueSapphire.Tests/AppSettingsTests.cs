@@ -4,8 +4,24 @@ using System.Text.Json;
 
 namespace BlueSapphire.Tests;
 
-public class AppSettingsTests
+public class AppSettingsTests : IDisposable
 {
+    private static readonly string TestRoot = Path.Combine(
+        Path.GetTempPath(),
+        "BlueSapphire.Tests",
+        "AppSettings",
+        Guid.NewGuid().ToString("N"));
+
+    static AppSettingsTests()
+    {
+        Environment.SetEnvironmentVariable("BLUESAPPHIRE_SETTINGS_ROOT", TestRoot);
+    }
+
+    public AppSettingsTests()
+    {
+        Directory.CreateDirectory(TestRoot);
+    }
+
     [Fact]
     public void SaveAndReload_BoolValue_RoundTripsSuccessfully()
     {
@@ -45,5 +61,13 @@ public class AppSettingsTests
 
         cacheField.SetValue(null, new Dictionary<string, JsonElement>());
         loadMethod.Invoke(null, null);
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(TestRoot))
+        {
+            Directory.Delete(TestRoot, recursive: true);
+        }
     }
 }

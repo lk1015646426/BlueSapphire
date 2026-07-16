@@ -39,6 +39,7 @@ namespace BlueSapphire.Services
 
     public class ImageProcessingService
     {
+        private const ulong MaxDecodedPixels = 40_000_000;
         public bool CanProcess(string? fileName) => MediaFileCatalog.IsImage(fileName);
 
         public string GetTargetExtension(ImageConversionTarget target)
@@ -103,6 +104,7 @@ namespace BlueSapphire.Services
                 var sourceFile = await StorageFile.GetFileFromPathAsync(sourcePath);
                 using var sourceStream = await sourceFile.OpenReadAsync();
                 var decoder = await BitmapDecoder.CreateAsync(sourceStream);
+                EnsureSafeDimensions(decoder.PixelWidth, decoder.PixelHeight);
                 var encoderId = GetEncoderId(options.TargetFormat);
                 
                 using var memoryStream = new InMemoryRandomAccessStream();
@@ -142,6 +144,10 @@ namespace BlueSapphire.Services
                 await encoder.FlushAsync().AsTask(cancellationToken);
                 return (long)memoryStream.Size;
             }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch
             {
                 return -1;
@@ -159,6 +165,7 @@ namespace BlueSapphire.Services
             {
                 using var sourceStream = await OpenReadStreamAsync(sourcePath);
                 var decoder = await BitmapDecoder.CreateAsync(sourceStream);
+                EnsureSafeDimensions(decoder.PixelWidth, decoder.PixelHeight);
                 var transform = new BitmapTransform();
 
                 // 1. Crop
@@ -219,6 +226,7 @@ namespace BlueSapphire.Services
 
                     if (targetWidth == 0) targetWidth = currentWidth;
                     if (targetHeight == 0) targetHeight = currentHeight;
+                    EnsureSafeDimensions(targetWidth, targetHeight);
 
                     transform.ScaledWidth = targetWidth;
                     transform.ScaledHeight = targetHeight;
@@ -256,6 +264,10 @@ namespace BlueSapphire.Services
                         cancellationToken);
                 }
             }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 return ImageProcessResult.Failed(sourcePath, ex.Message);
@@ -274,6 +286,10 @@ namespace BlueSapphire.Services
         {
             try
             {
+                if (targetMinBytes <= 0 || targetMaxBytes < targetMinBytes)
+                {
+                    return ImageProcessResult.Failed(sourcePath, "目标文件大小范围无效。");
+                }
                 var pixelProvider = await decoder.GetPixelDataAsync(
                     decoder.BitmapPixelFormat,
                     BitmapAlphaMode.Ignore, // JPEG ignores alpha
@@ -289,7 +305,9 @@ namespace BlueSapphire.Services
                 double maxQuality = 1.0;
                 double bestQuality = 0.8;
                 byte[]? bestBytes = null;
-                long targetMidBytes = (targetMinBytes + targetMaxBytes) / 2;
+                long bestDistance = long.MaxValue;
+                bool reachedTargetRange = false;
+                long targetMidBytes = targetMinBytes + (targetMaxBytes - targetMinBytes) / 2;
 
                 int maxIterations = 8;
                 for (int i = 0; i < maxIterations; i++)
@@ -309,21 +327,30 @@ namespace BlueSapphire.Services
                         decoder.DpiX, decoder.DpiY,
                         pixels);
 
-                    await encoder.FlushAsync();
+                    await encoder.FlushAsync().AsTask(cancellationToken);
                     
                     long currentSize = (long)memoryStream.Size;
-                    
-                    using (var reader = new DataReader(memoryStream.GetInputStreamAt(0)))
+                    if (currentSize > int.MaxValue)
                     {
-                        await reader.LoadAsync((uint)currentSize);
-                        bestBytes = new byte[currentSize];
-                        reader.ReadBytes(bestBytes);
+                        return ImageProcessResult.Failed(sourcePath, "编码结果过大，无法安全载入内存。");
                     }
-                    bestQuality = currentQuality;
+
+                    long distance = Math.Abs(currentSize - targetMidBytes);
+                    if (distance < bestDistance)
+                    {
+                        using var reader = new DataReader(memoryStream.GetInputStreamAt(0));
+                        await reader.LoadAsync((uint)currentSize).AsTask(cancellationToken);
+                        byte[] candidateBytes = new byte[(int)currentSize];
+                        reader.ReadBytes(candidateBytes);
+                        bestBytes = candidateBytes;
+                        bestDistance = distance;
+                        bestQuality = currentQuality;
+                    }
 
                     // If we fall inside the requested range, stop searching immediately
                     if (currentSize >= targetMinBytes && currentSize <= targetMaxBytes)
                     {
+                        reachedTargetRange = true;
                         break;
                     }
 
@@ -339,17 +366,36 @@ namespace BlueSapphire.Services
 
                 if (bestBytes != null)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     var outputFolder = await StorageFolder.GetFolderFromPathAsync(Path.GetDirectoryName(outputPath)!);
                     var outputFile = await outputFolder.CreateFileAsync(Path.GetFileName(outputPath), CreationCollisionOption.FailIfExists);
-                    using var destinationStream = await outputFile.OpenAsync(FileAccessMode.ReadWrite);
-                    using var dataWriter = new DataWriter(destinationStream);
-                    dataWriter.WriteBytes(bestBytes);
-                    await dataWriter.StoreAsync();
-                    
-                    return ImageProcessResult.Succeeded(sourcePath, outputPath, $"已编辑并压缩至 ~{bestBytes.Length / 1024}KB (质量 {bestQuality:P0})。");
+                    try
+                    {
+                        using var destinationStream = await outputFile.OpenAsync(FileAccessMode.ReadWrite);
+                        using var dataWriter = new DataWriter(destinationStream);
+                        dataWriter.WriteBytes(bestBytes);
+                        await dataWriter.StoreAsync().AsTask(cancellationToken);
+
+                        string rangeNote = reachedTargetRange
+                            ? "已落入目标范围"
+                            : "未能完全落入目标范围，已选择最接近的结果";
+                        return ImageProcessResult.Succeeded(
+                            sourcePath,
+                            outputPath,
+                            $"已编辑并压缩至约 {bestBytes.Length / 1024} KB（质量 {bestQuality:P0}，{rangeNote}）。");
+                    }
+                    catch
+                    {
+                        await TryDeleteAsync(outputFile);
+                        throw;
+                    }
                 }
                 
                 return ImageProcessResult.Failed(sourcePath, "无法编码图片以满足目标大小。");
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -368,6 +414,7 @@ namespace BlueSapphire.Services
             {
                 using var sourceStream = await OpenReadStreamAsync(sourcePath);
                 var decoder = await BitmapDecoder.CreateAsync(sourceStream);
+                EnsureSafeDimensions(decoder.PixelWidth, decoder.PixelHeight);
                 var settings = new ImageEnhancementSettings(1d, options.Brightness, options.Contrast, options.Saturation, options.Sharpness);
 
                 var transform = new BitmapTransform
@@ -385,7 +432,12 @@ namespace BlueSapphire.Services
                 cancellationToken.ThrowIfCancellationRequested();
                 byte[] pixels = pixelProvider.DetachPixelData();
                 cancellationToken.ThrowIfCancellationRequested();
-                byte[] enhancedPixels = EnhancePixels(pixels, decoder.PixelWidth, decoder.PixelHeight, settings);
+                byte[] enhancedPixels = EnhancePixels(
+                    pixels,
+                    decoder.PixelWidth,
+                    decoder.PixelHeight,
+                    settings,
+                    cancellationToken);
 
                 var (encoderId, extension, displayName) = ResolvePreferredEditableFormat(sourcePath);
                 string outputPath = BuildOutputPath(sourcePath, "_enhanced", extension);
@@ -401,6 +453,10 @@ namespace BlueSapphire.Services
                     encoderId,
                     $"已完成图片增强（{displayName}）。",
                     cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -501,22 +557,31 @@ namespace BlueSapphire.Services
             return await sourceFile.OpenReadAsync();
         }
 
-        private static byte[] EnhancePixels(byte[] sourcePixels, uint width, uint height, ImageEnhancementSettings settings)
+        private static byte[] EnhancePixels(
+            byte[] sourcePixels,
+            uint width,
+            uint height,
+            ImageEnhancementSettings settings,
+            CancellationToken cancellationToken)
         {
             byte[] adjustedPixels = (byte[])sourcePixels.Clone();
-            ApplyToneAdjustments(adjustedPixels, settings);
+            ApplyToneAdjustments(adjustedPixels, settings, cancellationToken);
             return settings.SharpenAmount <= 0d
                 ? adjustedPixels
-                : ApplySharpen(adjustedPixels, width, height, settings.SharpenAmount);
+                : ApplySharpen(adjustedPixels, width, height, settings.SharpenAmount, cancellationToken);
         }
 
-        private static void ApplyToneAdjustments(byte[] pixels, ImageEnhancementSettings settings)
+        private static void ApplyToneAdjustments(
+            byte[] pixels,
+            ImageEnhancementSettings settings,
+            CancellationToken cancellationToken)
         {
-            var (low, high) = CalculateLuminanceWindow(pixels);
+            var (low, high) = CalculateLuminanceWindow(pixels, cancellationToken);
             double range = Math.Max(1d, high - low);
 
             for (int i = 0; i < pixels.Length; i += 4)
             {
+                if ((i & 0x3FFFF) == 0) cancellationToken.ThrowIfCancellationRequested();
                 double blue = StretchChannel(pixels[i], low, range);
                 double green = StretchChannel(pixels[i + 1], low, range);
                 double red = StretchChannel(pixels[i + 2], low, range);
@@ -529,13 +594,16 @@ namespace BlueSapphire.Services
             }
         }
 
-        private static (double Low, double High) CalculateLuminanceWindow(byte[] pixels)
+        private static (double Low, double High) CalculateLuminanceWindow(
+            byte[] pixels,
+            CancellationToken cancellationToken)
         {
             int[] histogram = new int[256];
             int totalPixels = pixels.Length / 4;
 
             for (int i = 0; i < pixels.Length; i += 4)
             {
+                if ((i & 0x3FFFF) == 0) cancellationToken.ThrowIfCancellationRequested();
                 int luminance = (int)Math.Round(
                     pixels[i + 2] * 0.2126d +
                     pixels[i + 1] * 0.7152d +
@@ -602,7 +670,12 @@ namespace BlueSapphire.Services
             return Math.Clamp(adjusted * 255d, 0d, 255d);
         }
 
-        private static byte[] ApplySharpen(byte[] pixels, uint width, uint height, double amount)
+        private static byte[] ApplySharpen(
+            byte[] pixels,
+            uint width,
+            uint height,
+            double amount,
+            CancellationToken cancellationToken)
         {
             if (width < 3 || height < 3)
             {
@@ -614,6 +687,7 @@ namespace BlueSapphire.Services
 
             for (int y = 1; y < height - 1; y++)
             {
+                if ((y & 31) == 0) cancellationToken.ThrowIfCancellationRequested();
                 int rowOffset = checked((int)y * stride);
                 for (int x = 1; x < width - 1; x++)
                 {
@@ -691,7 +765,7 @@ namespace BlueSapphire.Services
             catch (OperationCanceledException)
             {
                 if (outputFile != null) await TryDeleteAsync(outputFile);
-                return ImageProcessResult.Failed(sourcePath, "图片处理已取消。");
+                throw;
             }
             catch (Exception ex)
             {
@@ -720,6 +794,7 @@ namespace BlueSapphire.Services
                 using var sourceStream = await sourceFile.OpenReadAsync();
                 using var destinationStream = await outputFile.OpenAsync(FileAccessMode.ReadWrite);
                 var decoder = await BitmapDecoder.CreateAsync(sourceStream);
+                EnsureSafeDimensions(decoder.PixelWidth, decoder.PixelHeight);
                 BitmapEncoder encoder;
                 if (quality.HasValue)
                 {
@@ -751,6 +826,7 @@ namespace BlueSapphire.Services
                 uint height = effectiveTransform.ScaledHeight > 0
                     ? effectiveTransform.ScaledHeight
                     : effectiveTransform.Bounds.Height > 0 ? effectiveTransform.Bounds.Height : decoder.PixelHeight;
+                EnsureSafeDimensions(width, height);
 
                 encoder.SetPixelData(
                     decoder.BitmapPixelFormat,
@@ -767,7 +843,7 @@ namespace BlueSapphire.Services
             catch (OperationCanceledException)
             {
                 if (outputFile != null) await TryDeleteAsync(outputFile);
-                return ImageProcessResult.Failed(sourcePath, "图片处理已取消。");
+                throw;
             }
             catch (Exception ex)
             {
@@ -779,6 +855,15 @@ namespace BlueSapphire.Services
         private static async Task TryDeleteAsync(StorageFile file)
         {
             try { await file.DeleteAsync(); } catch { }
+        }
+
+        private static void EnsureSafeDimensions(uint width, uint height)
+        {
+            if (width == 0 || height == 0 || (ulong)width * height > MaxDecodedPixels)
+            {
+                throw new InvalidOperationException(
+                    $"图片解码尺寸超过安全限制（最多 {MaxDecodedPixels / 1_000_000} 百万像素）。");
+            }
         }
 
         private readonly record struct ImageEnhancementSettings(

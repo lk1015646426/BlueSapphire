@@ -3,6 +3,7 @@ using System;
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace BlueSapphire.Services
@@ -157,12 +158,29 @@ namespace BlueSapphire.Services
             };
 
             using Process process = new() { StartInfo = startInfo };
-            process.Start();
-            string stdout = await process.StandardOutput.ReadToEndAsync();
-            string stderr = await process.StandardError.ReadToEndAsync();
-            await process.WaitForExitAsync();
-
-            return new CleanerTaskCommandResult(process.ExitCode, stdout, stderr);
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            try
+            {
+                process.Start();
+                Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync(timeoutCts.Token);
+                Task<string> stderrTask = process.StandardError.ReadToEndAsync(timeoutCts.Token);
+                await process.WaitForExitAsync(timeoutCts.Token);
+                string stdout = await stdoutTask;
+                string stderr = await stderrTask;
+                return new CleanerTaskCommandResult(
+                    process.ExitCode,
+                    stdout[..Math.Min(stdout.Length, 32_000)],
+                    stderr[..Math.Min(stderr.Length, 32_000)]);
+            }
+            catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
+            {
+                try
+                {
+                    if (!process.HasExited) process.Kill(entireProcessTree: true);
+                }
+                catch { }
+                return new CleanerTaskCommandResult(-1, string.Empty, "schtasks.exe 执行超时。");
+            }
         }
     }
 

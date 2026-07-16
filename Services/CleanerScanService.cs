@@ -67,7 +67,9 @@ namespace BlueSapphire.Services
             int progressMax = Math.Max(1, scope == CleanerScanScope.Quick ? quickRules.Count : quickRules.Count + deepOnlyRules.Count);
             int progressValue = 0;
 
-            string quickFingerprint = BuildQuickFingerprint(quickRules, exclusionLookup, _privilegeService.IsElevated);
+            string quickFingerprint = scope == CleanerScanScope.Deep
+                ? BuildQuickFingerprint(quickRules, exclusionLookup, _privilegeService.IsElevated, cancellationToken)
+                : string.Empty;
             List<CleanerScanItem> scannedQuickItems = new();
 
             if (scope == CleanerScanScope.Deep && TryGetReusableQuickItems(quickFingerprint, out List<CleanerScanItem> cachedQuickItems))
@@ -122,7 +124,12 @@ namespace BlueSapphire.Services
                 
                 progressValue = localProgressValue;
 
-                StoreQuickCache(quickFingerprint, scannedQuickItems);
+                string completedQuickFingerprint = BuildQuickFingerprint(
+                    quickRules,
+                    exclusionLookup,
+                    _privilegeService.IsElevated,
+                    cancellationToken);
+                StoreQuickCache(completedQuickFingerprint, scannedQuickItems);
             }
 
             if (scope == CleanerScanScope.Deep)
@@ -636,10 +643,13 @@ namespace BlueSapphire.Services
         private static string BuildQuickFingerprint(
             IReadOnlyList<CleanerRuleDefinition> rules,
             HashSet<string> exclusions,
-            bool isElevated)
+            bool isElevated,
+            CancellationToken cancellationToken)
         {
             HashCode hash = new();
             hash.Add(isElevated);
+            int fingerprintedEntries = 0;
+            const int maxFingerprintEntries = 100_000;
 
             foreach (string exclusion in exclusions.OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
             {
@@ -662,6 +672,12 @@ namespace BlueSapphire.Services
                 foreach (string path in rule.Paths.OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
                 {
                     hash.Add(path, StringComparer.OrdinalIgnoreCase);
+                    AppendFilesystemFingerprint(
+                        ref hash,
+                        Environment.ExpandEnvironmentVariables(path),
+                        ref fingerprintedEntries,
+                        maxFingerprintEntries,
+                        cancellationToken);
                 }
 
                 foreach (string pattern in rule.IncludePatterns.OrderBy(pattern => pattern, StringComparer.OrdinalIgnoreCase))
@@ -676,6 +692,100 @@ namespace BlueSapphire.Services
             }
 
             return hash.ToHashCode().ToString("X8");
+        }
+
+        private static void AppendFilesystemFingerprint(
+            ref HashCode hash,
+            string rawPath,
+            ref int entryCount,
+            int maxEntries,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                string path = Path.GetFullPath(rawPath);
+                if (File.Exists(path))
+                {
+                    FileInfo file = new(path);
+                    hash.Add(CleanerPathSafety.NormalizePath(path), StringComparer.OrdinalIgnoreCase);
+                    hash.Add(file.Length);
+                    hash.Add(file.LastWriteTimeUtc.Ticks);
+                    entryCount++;
+                    return;
+                }
+
+                if (!Directory.Exists(path))
+                {
+                    hash.Add("missing", StringComparer.Ordinal);
+                    return;
+                }
+
+                Stack<string> pending = new();
+                pending.Push(path);
+                while (pending.Count > 0)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    string directory = pending.Pop();
+                    DirectoryInfo directoryInfo = new(directory);
+                    hash.Add(CleanerPathSafety.NormalizePath(directory), StringComparer.OrdinalIgnoreCase);
+                    hash.Add(directoryInfo.LastWriteTimeUtc.Ticks);
+
+                    foreach (string filePath in CleanerPathSafety.SafeEnumerateFiles(directory)
+                                 .OrderBy(candidate => candidate, StringComparer.OrdinalIgnoreCase))
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        if (++entryCount > maxEntries)
+                        {
+                            // 无法完整验证的大目录不进行复用，避免把过期大小呈现为当前结果。
+                            hash.Add(DateTime.UtcNow.Ticks);
+                            return;
+                        }
+
+                        try
+                        {
+                            FileInfo file = new(filePath);
+                            hash.Add(CleanerPathSafety.NormalizePath(filePath), StringComparer.OrdinalIgnoreCase);
+                            hash.Add(file.Length);
+                            hash.Add(file.LastWriteTimeUtc.Ticks);
+                        }
+                        catch
+                        {
+                            hash.Add(DateTime.UtcNow.Ticks);
+                            return;
+                        }
+                    }
+
+                    foreach (string child in CleanerPathSafety.SafeEnumerateDirectories(directory)
+                                 .OrderBy(candidate => candidate, StringComparer.OrdinalIgnoreCase))
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        if (++entryCount > maxEntries)
+                        {
+                            hash.Add(DateTime.UtcNow.Ticks);
+                            return;
+                        }
+
+                        if (CleanerPathSafety.IsReparsePoint(child))
+                        {
+                            DirectoryInfo linkInfo = new(child);
+                            hash.Add(CleanerPathSafety.NormalizePath(child), StringComparer.OrdinalIgnoreCase);
+                            hash.Add(linkInfo.LastWriteTimeUtc.Ticks);
+                            continue;
+                        }
+
+                        pending.Push(child);
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                // 读取不完整时使用一次性指纹，本轮仍可扫描，但下一轮不会错误复用。
+                hash.Add(DateTime.UtcNow.Ticks);
+            }
         }
 
         private sealed class ScanStats

@@ -25,6 +25,9 @@ namespace BlueSapphire.Services
     public sealed class MediaTagService
     {
         private const string FileName = "MediaTags.json";
+        private const int MaxTagLength = 50;
+        private const int MaxEntries = 50_000;
+        private const long MaxStoreBytes = 10 * 1024 * 1024;
         private static readonly SemaphoreSlim FileLock = new(1, 1);
         private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
         private static readonly char[] TagSeparators = [',', '，', ';', '；', '|', '\r', '\n'];
@@ -61,6 +64,7 @@ namespace BlueSapphire.Services
             return rawText
                 .Split(TagSeparators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .Where(tag => !string.IsNullOrWhiteSpace(tag))
+                .Select(tag => tag[..Math.Min(tag.Length, MaxTagLength)])
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .Take(12)
                 .ToList();
@@ -204,7 +208,11 @@ namespace BlueSapphire.Services
         {
             return tags?
                 .Where(tag => !string.IsNullOrWhiteSpace(tag))
-                .Select(tag => tag.Trim())
+                .Select(tag =>
+                {
+                    string trimmed = tag.Trim();
+                    return trimmed[..Math.Min(trimmed.Length, MaxTagLength)];
+                })
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .Take(12)
                 .ToList()
@@ -223,6 +231,11 @@ namespace BlueSapphire.Services
                 _cachedStore = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
                 return _cachedStore;
             }
+            if (new FileInfo(DataFilePath).Length is <= 0 or > MaxStoreBytes)
+            {
+                _cachedStore = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+                return _cachedStore;
+            }
 
             string json = await File.ReadAllTextAsync(DataFilePath);
             if (string.IsNullOrWhiteSpace(json))
@@ -233,9 +246,13 @@ namespace BlueSapphire.Services
 
             var raw = JsonSerializer.Deserialize<Dictionary<string, List<string>>>(json);
 
-            _cachedStore = (raw ?? new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase)).ToDictionary(
-                pair => pair.Key,
-                pair => NormalizeTags(pair.Value),
+            _cachedStore = (raw ?? new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase))
+                .Where(pair => !string.IsNullOrWhiteSpace(pair.Key) && pair.Key.Length <= 32767)
+                .Take(MaxEntries)
+                .GroupBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                group => group.Key,
+                group => NormalizeTags(group.First().Value),
                 StringComparer.OrdinalIgnoreCase);
             return _cachedStore;
         }
@@ -244,8 +261,20 @@ namespace BlueSapphire.Services
         {
             string json = JsonSerializer.Serialize(_cachedStore ?? new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase), JsonOptions);
             string tempFilePath = DataFilePath + ".tmp";
-            await File.WriteAllTextAsync(tempFilePath, json);
-            File.Move(tempFilePath, DataFilePath, true);
+            try
+            {
+                await File.WriteAllTextAsync(tempFilePath, json);
+                File.Move(tempFilePath, DataFilePath, true);
+            }
+            catch
+            {
+                try
+                {
+                    if (File.Exists(tempFilePath)) File.Delete(tempFilePath);
+                }
+                catch { }
+                throw;
+            }
         }
     }
 }

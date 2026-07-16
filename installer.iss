@@ -6,7 +6,7 @@
   #define MyAppName "BlueSapphire"
 #endif
 #ifndef MyAppVersion
-  #define MyAppVersion "1.0.7"
+  #define MyAppVersion "1.0.3"
 #endif
 #ifndef MyAppPublisher
   #define MyAppPublisher "BlueSapphire Team"
@@ -15,7 +15,7 @@
   #define MyAppId "{{8D43FBFA-A424-4FED-BDE6-6C586D7D13EE}"
 #endif
 #ifndef MySetupIconFile
-  #define MySetupIconFile ""
+  #define MySetupIconFile "BS.ico"
 #endif
 #ifndef SourcePath
   #error "SourcePath must be provided and must point to a dotnet publish output directory."
@@ -72,10 +72,15 @@ SolidCompression=yes
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 WizardStyle=modern
+AppMutex=BlueSapphire-8D43FBFA-A424-4FED-BDE6-6C586D7D13EE
+CloseApplications=yes
+RestartApplications=no
+PrivilegesRequired=admin
+SetupLogging=yes
 #if MySetupIconFile != ""
 SetupIconFile={#MySetupIconFile}
-UninstallDisplayIcon={app}\{#MyAppName}.exe
 #endif
+UninstallDisplayIcon={app}\{#MyAppName}.exe
 
 [Languages]
 Name: "chinesesimplified"; MessagesFile: "Chinese.isl"

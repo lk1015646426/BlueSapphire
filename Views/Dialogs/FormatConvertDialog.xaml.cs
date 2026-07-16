@@ -15,6 +15,7 @@ namespace BlueSapphire.Views.Dialogs
         public FormatConvertOptions Options { get; } = new FormatConvertOptions();
         private readonly IReadOnlyList<string> _sourceFiles;
         private readonly ImageProcessingService _imageProcessingService = new ImageProcessingService();
+        private readonly object _estimationSync = new();
         private CancellationTokenSource? _estimationCts;
         private bool _isUpdatingValue;
 
@@ -38,6 +39,14 @@ namespace BlueSapphire.Views.Dialogs
             };
             
             this.Loaded += (s, e) => ScheduleEstimation();
+            this.Closed += (s, e) =>
+            {
+                lock (_estimationSync)
+                {
+                    _estimationCts?.Cancel();
+                    _estimationCts = null;
+                }
+            };
         }
 
         private void FormatComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -92,11 +101,13 @@ namespace BlueSapphire.Views.Dialogs
         {
             if (_sourceFiles == null || _sourceFiles.Count == 0 || EstimatedSizeText == null) return;
 
-            _estimationCts?.Cancel();
-            _estimationCts?.Dispose();
-            _estimationCts = new CancellationTokenSource();
-            
-            var token = _estimationCts.Token;
+            CancellationTokenSource cts = new();
+            lock (_estimationSync)
+            {
+                _estimationCts?.Cancel();
+                _estimationCts = cts;
+            }
+
             EstimatedSizeText.Text = "正在预估大小...";
             
             var selectedTag = (FormatComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "Jpeg";
@@ -110,11 +121,11 @@ namespace BlueSapphire.Views.Dialogs
             };
             double quality = (QualitySlider?.Value ?? 92.0) / 100.0;
             
-            Task.Run(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
-                    await Task.Delay(300, token); // Debounce
+                    await Task.Delay(300, cts.Token); // Debounce
                     
                     var options = new FormatConvertOptions
                     {
@@ -122,12 +133,13 @@ namespace BlueSapphire.Views.Dialogs
                         Quality = quality
                     };
 
-                    long estimatedSize = await _imageProcessingService.EstimateSizeAsync(_sourceFiles[0], options, token);
+                    long estimatedSize = await _imageProcessingService.EstimateSizeAsync(_sourceFiles[0], options, cts.Token);
                     
-                    if (!token.IsCancellationRequested)
+                    if (!cts.IsCancellationRequested)
                     {
                         DispatcherQueue.TryEnqueue(() =>
                         {
+                            if (cts.IsCancellationRequested) return;
                             if (estimatedSize > 0)
                             {
                                 string sizeStr = FormatBytes((ulong)estimatedSize);
@@ -144,9 +156,33 @@ namespace BlueSapphire.Views.Dialogs
                 }
                 catch (OperationCanceledException)
                 {
-                    // Ignore
+                    // 新选项或关闭对话框会取消旧预估。
                 }
-            }, token);
+                catch (Exception)
+                {
+                    if (!cts.IsCancellationRequested)
+                    {
+                        DispatcherQueue.TryEnqueue(() =>
+                        {
+                            if (!cts.IsCancellationRequested)
+                            {
+                                EstimatedSizeText.Text = "无法预估大小";
+                            }
+                        });
+                    }
+                }
+                finally
+                {
+                    lock (_estimationSync)
+                    {
+                        if (ReferenceEquals(_estimationCts, cts))
+                        {
+                            _estimationCts = null;
+                        }
+                    }
+                    cts.Dispose();
+                }
+            });
         }
 
         private static string FormatBytes(ulong bytes)

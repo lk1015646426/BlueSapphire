@@ -12,7 +12,9 @@ namespace BlueSapphire.Interfaces
         Task<StorageFolder?> PickFolderAsync();
         Task<IReadOnlyList<StorageFile>> PickFilesAsync();
         Task SelectItemsByPathsAsync(IReadOnlyCollection<string> paths);
-        Task<List<StorageFile>> ShowDuplicateResultsAsync(List<List<StorageFile>> duplicates);
+        Task<List<StorageFile>> ShowDuplicateResultsAsync(
+            List<List<StorageFile>> duplicates,
+            bool isSimilarScan);
         Task<bool> ShowRenamePreviewAsync(List<RenamePreviewItem> items, int skippedCount);
         Task<string?> ShowInputPromptAsync(string title, string message, string defaultText);
         Task<FormatConvertOptions?> ShowFormatConvertDialogAsync(IReadOnlyList<string> sourceFiles);

@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-publish:
+    runs-on: windows-2022
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        shell: pwsh
+        run: dotnet restore BlueSapphire.Tests\BlueSapphire.Tests.csproj -r win-x64
+
+      - name: Build application
+        shell: pwsh
+        run: >
+          dotnet build BlueSapphire.csproj
+          -c Release
+          -r win-x64
+          --no-restore
+          -p:TreatWarningsAsErrors=true
+
+      - name: Run tests
+        shell: pwsh
+        run: >
+          dotnet test BlueSapphire.Tests\BlueSapphire.Tests.csproj
+          -c Release
+          -r win-x64
+          --no-restore
+          --logger "console;verbosity=normal"
+
+      - name: Publish smoke test
+        shell: pwsh
+        run: |
+          $publishDir = Join-Path $env:RUNNER_TEMP "BlueSapphire\publish"
+          dotnet publish BlueSapphire.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            --no-restore `
+            -p:WindowsPackageType=None `
+            -o $publishDir
+
+          $required = @(
+            "BlueSapphire.exe",
+            "BlueSapphire.dll",
+            "Assets\CleanerRules.json",
+            "Assets\DevMatrixLog.json",
+            "BS.ico"
+          )
+          foreach ($relativePath in $required) {
+            $path = Join-Path $publishDir $relativePath
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+              throw "Published output is missing: $relativePath"
+            }
+            if ((Get-Item -LiteralPath $path).Length -eq 0) {
+              throw "Published output is empty: $relativePath"
+            }
+          }

@@ -31,9 +31,13 @@ namespace BlueSapphire.ViewModels
         private IMediaViewInteraction _view = null!;
         private DispatcherQueue? _dispatcherQueue;
         private StorageFolder? _currentFolder;
+        private readonly object _cancellationSync = new();
         private CancellationTokenSource? _globalCts;
+        private readonly CancellationTokenSource _metadataCts = new();
         private List<ImageItem> _lastVisibleItems = new();
         private string? _lastImageOperationSummary;
+        private CancellationTokenSource? _filterDebounceCts;
+        private long _viewRefreshVersion;
 
         private IncrementalLoadingCollection<ImageItem>? _images;
         public IncrementalLoadingCollection<ImageItem>? Images
@@ -157,6 +161,52 @@ namespace BlueSapphire.ViewModels
 
         public bool HasImageOperationResults => !string.IsNullOrWhiteSpace(_lastImageOperationSummary);
         public string LastImageOperationSummaryText => _lastImageOperationSummary ?? "暂无最近一次图片处理结果。";
+        private bool _hasVisibleImages;
+        public bool HasVisibleImages
+        {
+            get => _hasVisibleImages;
+            private set
+            {
+                if (SetProperty(ref _hasVisibleImages, value))
+                {
+                    OnPropertyChanged(nameof(HasNoFilterResults));
+                }
+            }
+        }
+        public bool HasNoFilterResults => HasImages && !HasVisibleImages;
+
+        private string _searchText = string.Empty;
+        public string SearchText
+        {
+            get => _searchText;
+            set
+            {
+                if (SetProperty(ref _searchText, value ?? string.Empty))
+                {
+                    ScheduleFilterRefresh();
+                }
+            }
+        }
+
+        private string _tagFilterMode = "All";
+        public string TagFilterMode
+        {
+            get => _tagFilterMode;
+            set
+            {
+                if (SetProperty(ref _tagFilterMode, value ?? "All"))
+                {
+                    ScheduleFilterRefresh();
+                }
+            }
+        }
+
+        private bool _canCancelOperation;
+        public bool CanCancelOperation
+        {
+            get => _canCancelOperation;
+            private set => SetProperty(ref _canCancelOperation, value);
+        }
         public string SortButtonText
         {
             get
@@ -317,12 +367,13 @@ namespace BlueSapphire.ViewModels
 
             try
             {
-                using var semaphore = new SemaphoreSlim(8);
                 int processed = 0;
 
-                var tasks = items.Select(async item =>
-                {
-                    await semaphore.WaitAsync();
+                await Parallel.ForEachAsync(
+                    items,
+                    new ParallelOptions { MaxDegreeOfParallelism = 8 },
+                    async (item, _) =>
+                    {
                     try
                     {
                         var file = await TryGetStorageFileAsync(item.ImagePath);
@@ -344,7 +395,13 @@ namespace BlueSapphire.ViewModels
                         }
 
                         candidates.Add(new RenameCandidate(file, file.Path, file.Name, BuildTimestampBaseName(timestamp)));
-
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Rename_Analyze ({FileName})", item.FileName ?? item.ImagePath);
+                    }
+                    finally
+                    {
                         int current = Interlocked.Increment(ref processed);
                         if (current % 10 == 0 || current == items.Count)
                         {
@@ -356,17 +413,7 @@ namespace BlueSapphire.ViewModels
                             });
                         }
                     }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Rename_Analyze ({FileName})", item.FileName ?? item.ImagePath);
-                    }
-                    finally
-                    {
-                        semaphore.Release();
-                    }
                 });
-
-                await Task.WhenAll(tasks);
                 await RemoveGhostFilesAsync(ghostPaths);
                 SetBusy(false);
 
@@ -431,14 +478,7 @@ namespace BlueSapphire.ViewModels
             if (cts != null && !cts.IsCancellationRequested)
             {
                 StatusDetailText = "正在取消操作...";
-                Task.Run(() =>
-                {
-                    try
-                    {
-                        cts.Cancel();
-                    }
-                    catch { }
-                });
+                try { cts.Cancel(); } catch (ObjectDisposedException) { }
             }
         }
 
@@ -456,9 +496,9 @@ namespace BlueSapphire.ViewModels
                 return;
             }
 
-            _globalCts?.Cancel();
-            _globalCts = new CancellationTokenSource();
-            var token = _globalCts.Token;
+            CancellationTokenSource operationCts = BeginCancelableOperation();
+            var token = operationCts.Token;
+            CanCancelOperation = true;
 
             try
             {
@@ -497,17 +537,31 @@ namespace BlueSapphire.ViewModels
                     return;
                 }
 
-                var filesToDelete = await _view.ShowDuplicateResultsAsync(finalDuplicates);
+                bool isSimilarScan = string.Equals(mode, "Similar", StringComparison.OrdinalIgnoreCase);
+                var filesToDelete = await _view.ShowDuplicateResultsAsync(
+                    finalDuplicates,
+                    isSimilarScan);
                 if (filesToDelete.Count > 0)
                 {
                     await PerformDeleteFilesAsync(filesToDelete);
                 }
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                SetBusy(false);
+                StatusMainText = "扫描已取消";
+                StatusDetailText = string.Empty;
             }
             catch (Exception ex)
             {
                 SetBusy(false);
                 _logger.LogError(ex, "Scan_Duplicates_Critical");
                 await _view.ShowTipAsync($"扫描中断: {ex.Message}");
+            }
+            finally
+            {
+                CanCancelOperation = false;
+                EndCancelableOperation(operationCts);
             }
         }
 
@@ -782,7 +836,7 @@ namespace BlueSapphire.ViewModels
             await RunImageOperationAndPresentAsync(
                 items,
                 $"正在增强图片...",
-                $"AI 增强",
+                $"自动增强",
                 $"已加入 {items.Count} 张图片，图片增强",
                 (_, _, item) => $"正在增强：{item.FileName}",
                 (path, token) => _imageProcessingService.EnhanceAsync(path, options, token));
@@ -822,9 +876,9 @@ namespace BlueSapphire.ViewModels
             Func<int, int, ImageItem, string> buildQueueDetailText,
             Func<string, CancellationToken, Task<ImageProcessResult>> processAsync)
         {
-            _globalCts?.Cancel();
-            _globalCts = new CancellationTokenSource();
-            var token = _globalCts.Token;
+            CancellationTokenSource operationCts = BeginCancelableOperation();
+            var token = operationCts.Token;
+            CanCancelOperation = true;
 
             SetImageQueueState("图片队列：准备中", queueReadyText);
             SetBusy(true, busyText, 0, items.Count);
@@ -836,32 +890,18 @@ namespace BlueSapphire.ViewModels
             var messages = new List<string>();
             var ghostPaths = new List<string>();
 
-            using var semaphore = new SemaphoreSlim(Environment.ProcessorCount);
-
             try
             {
-                var tasks = items.Select(item => Task.Run(async () =>
-                {
-                    if (token.IsCancellationRequested)
+                await Parallel.ForEachAsync(
+                    items,
+                    new ParallelOptions
                     {
-                        return;
-                    }
-
-                    try
+                        MaxDegreeOfParallelism = Math.Min(2, Math.Max(1, Environment.ProcessorCount)),
+                        CancellationToken = token
+                    },
+                    async (item, ct) =>
                     {
-                        await semaphore.WaitAsync(token);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        return;
-                    }
-
-                    try
-                    {
-                        if (token.IsCancellationRequested)
-                        {
-                            return;
-                        }
+                        ct.ThrowIfCancellationRequested();
 
                         int current = Interlocked.Increment(ref processedCount);
                         RunOnUi(() =>
@@ -888,15 +928,12 @@ namespace BlueSapphire.ViewModels
                             return;
                         }
 
-                        if (token.IsCancellationRequested)
-                        {
-                            return;
-                        }
+                        ct.ThrowIfCancellationRequested();
 
                         ImageProcessResult result;
                         try
                         {
-                            result = await processAsync(file.Path, token);
+                            result = await processAsync(file.Path, ct);
                         }
                         catch (OperationCanceledException)
                         {
@@ -932,14 +969,7 @@ namespace BlueSapphire.ViewModels
                                 messages.Add($"{file.Name}: {result.Message}");
                             }
                         }
-                    }
-                    finally
-                    {
-                        semaphore.Release();
-                    }
-                }, token));
-
-                await Task.WhenAll(tasks);
+                    });
             }
             catch (Exception ex) when (ex is OperationCanceledException || token.IsCancellationRequested)
             {
@@ -947,7 +977,9 @@ namespace BlueSapphire.ViewModels
             }
             finally
             {
+                CanCancelOperation = false;
                 SetBusy(false);
+                EndCancelableOperation(operationCts);
             }
 
             if (token.IsCancellationRequested)
@@ -1008,8 +1040,6 @@ namespace BlueSapphire.ViewModels
             }
 
             var concurrentItems = new ConcurrentBag<ImageItem>();
-            using var semaphore = new SemaphoreSlim(Environment.ProcessorCount * 2);
-
             int processedCount = 0;
             int totalFiles = files.Count;
 
@@ -1022,9 +1052,13 @@ namespace BlueSapphire.ViewModels
             bool isLargeDataset = totalFiles > 500;
             int uiStep = totalFiles > 5000 ? 200 : (totalFiles > 1000 ? 50 : 10);
 
-            var tasks = files.Select(async file =>
+            try
             {
-                await semaphore.WaitAsync();
+                await Parallel.ForEachAsync(
+                    files,
+                    new ParallelOptions { MaxDegreeOfParallelism = Math.Max(2, Environment.ProcessorCount * 2) },
+                    async (file, _) =>
+                {
                 try
                 {
                     var item = await CreateImageItemAsync(file, !isLargeDataset);
@@ -1036,7 +1070,6 @@ namespace BlueSapphire.ViewModels
                 }
                 finally
                 {
-                    semaphore.Release();
                     int current = Interlocked.Increment(ref processedCount);
                     if (current % uiStep == 0 || current == totalFiles)
                     {
@@ -1047,11 +1080,7 @@ namespace BlueSapphire.ViewModels
                         });
                     }
                 }
-            });
-
-            try
-            {
-                await Task.WhenAll(tasks);
+                });
 
                 lock (_cachedAllItems)
                 {
@@ -1078,9 +1107,13 @@ namespace BlueSapphire.ViewModels
             }
         }
 
-        private async Task RefreshViewFromCacheAsync()
+        private async Task RefreshViewFromCacheAsync(bool showBusy = true)
         {
-            SetBusy(true, "正在重新排序...", 0, 100);
+            long refreshVersion = Interlocked.Increment(ref _viewRefreshVersion);
+            if (showBusy)
+            {
+                SetBusy(true, "正在重新排序...", 0, 100);
+            }
 
             List<ImageItem> snapshot;
             lock (_cachedAllItems)
@@ -1088,26 +1121,62 @@ namespace BlueSapphire.ViewModels
                 snapshot = _cachedAllItems.ToList();
             }
 
+            string searchText = SearchText.Trim();
+            string tagFilterMode = TagFilterMode;
             var sortedList = await Task.Run(() =>
             {
+                IEnumerable<ImageItem> filtered = snapshot;
+                if (!string.IsNullOrWhiteSpace(searchText))
+                {
+                    filtered = filtered.Where(item =>
+                        (item.FileName?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                        (item.ImagePath?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                        item.CustomTags.Any(tag => tag.Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+                        (item.ImageFormat?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false));
+                }
+
+                filtered = tagFilterMode switch
+                {
+                    "Tagged" => filtered.Where(item => item.HasCustomTags),
+                    "Untagged" => filtered.Where(item => !item.HasCustomTags),
+                    _ => filtered
+                };
+                List<ImageItem> filteredItems = filtered.ToList();
+
                 return CurrentSortField switch
                 {
                     "Date" => IsSortDescending
-                        ? snapshot.OrderByDescending(item => item.DateCreated).ToList()
-                        : snapshot.OrderBy(item => item.DateCreated).ToList(),
+                        ? filteredItems.OrderByDescending(item => item.DateCreated).ToList()
+                        : filteredItems.OrderBy(item => item.DateCreated).ToList(),
                     "Size" => IsSortDescending
-                        ? snapshot.OrderByDescending(item => item.FileSize).ToList()
-                        : snapshot.OrderBy(item => item.FileSize).ToList(),
+                        ? filteredItems.OrderByDescending(item => item.FileSize).ToList()
+                        : filteredItems.OrderBy(item => item.FileSize).ToList(),
                     _ => IsSortDescending
-                        ? snapshot.OrderByDescending(item => item.FileName, StringComparer.OrdinalIgnoreCase).ToList()
-                        : snapshot.OrderBy(item => item.FileName, StringComparer.OrdinalIgnoreCase).ToList()
+                        ? filteredItems.OrderByDescending(item => item.FileName, StringComparer.OrdinalIgnoreCase).ToList()
+                        : filteredItems.OrderBy(item => item.FileName, StringComparer.OrdinalIgnoreCase).ToList()
                 };
             });
 
+            if (refreshVersion != Interlocked.Read(ref _viewRefreshVersion))
+            {
+                if (showBusy)
+                {
+                    RunOnUi(() => SetBusy(false));
+                }
+                return;
+            }
+
             RunOnUi(() =>
             {
-                CountText = snapshot.Count.ToString();
+                if (refreshVersion != Interlocked.Read(ref _viewRefreshVersion))
+                {
+                    return;
+                }
+                CountText = sortedList.Count == snapshot.Count
+                    ? snapshot.Count.ToString()
+                    : $"{sortedList.Count} / {snapshot.Count}";
                 HasImages = snapshot.Count > 0;
+                HasVisibleImages = sortedList.Count > 0;
                 IsEmptyStateVisible = snapshot.Count == 0;
 
                 _lastVisibleItems = sortedList;
@@ -1127,19 +1196,24 @@ namespace BlueSapphire.ViewModels
                     // 后台异步填充当前分页可视窗口内图片的 EXIF 元数据（高阶分辨率与色彩位深）
                     _ = Task.Run(async () =>
                     {
+                        using CancellationTokenSource linkedCts =
+                            CancellationTokenSource.CreateLinkedTokenSource(ct, _metadataCts.Token);
+                        CancellationToken metadataToken = linkedCts.Token;
                         foreach (var item in batch)
                         {
-                            if (ct.IsCancellationRequested) break;
+                            if (metadataToken.IsCancellationRequested) break;
                             if (item.ImageWidth == 0 && item.ImageHeight == 0)
                             {
                                 try
                                 {
                                     var file = await StorageFile.GetFileFromPathAsync(item.ImagePath);
+                                    metadataToken.ThrowIfCancellationRequested();
                                     var meta = await _imageMetadataService.TryReadAsync(file);
                                     if (meta != null)
                                     {
                                         RunOnUi(() =>
                                         {
+                                            if (metadataToken.IsCancellationRequested) return;
                                             item.ImageWidth = meta.Width;
                                             item.ImageHeight = meta.Height;
                                             item.ImageFormat = meta.FormatName;
@@ -1148,7 +1222,14 @@ namespace BlueSapphire.ViewModels
                                         });
                                     }
                                 }
-                                catch { }
+                                catch (OperationCanceledException)
+                                {
+                                    break;
+                                }
+                                catch
+                                {
+                                    // 单个损坏或不可访问文件不应中止整批元数据读取。
+                                }
                             }
                         }
                     });
@@ -1156,8 +1237,92 @@ namespace BlueSapphire.ViewModels
                     return Task.FromResult<IEnumerable<ImageItem>>(batch);
                 });
                 
-                SetBusy(false);
+                if (showBusy)
+                {
+                    SetBusy(false);
+                }
             });
+        }
+
+        private void ScheduleFilterRefresh()
+        {
+            CancellationTokenSource next = new();
+            lock (_cancellationSync)
+            {
+                _filterDebounceCts?.Cancel();
+                _filterDebounceCts = next;
+            }
+            _ = RefreshFilterAfterDelayAsync(next);
+        }
+
+        public void CancelPendingOperations()
+        {
+            Interlocked.Increment(ref _viewRefreshVersion);
+            lock (_cancellationSync)
+            {
+                _globalCts?.Cancel();
+                _globalCts = null;
+                _filterDebounceCts?.Cancel();
+                _filterDebounceCts = null;
+            }
+            _metadataCts.Cancel();
+
+            lock (_cachedAllItems)
+            {
+                foreach (ImageItem item in _cachedAllItems)
+                {
+                    item.CancelLoad();
+                }
+            }
+        }
+
+        private CancellationTokenSource BeginCancelableOperation()
+        {
+            var next = new CancellationTokenSource();
+            lock (_cancellationSync)
+            {
+                _globalCts?.Cancel();
+                _globalCts = next;
+            }
+            return next;
+        }
+
+        private void EndCancelableOperation(CancellationTokenSource operation)
+        {
+            lock (_cancellationSync)
+            {
+                if (ReferenceEquals(_globalCts, operation))
+                {
+                    _globalCts = null;
+                }
+            }
+            operation.Dispose();
+        }
+
+        private async Task RefreshFilterAfterDelayAsync(CancellationTokenSource cts)
+        {
+            try
+            {
+                await Task.Delay(180, cts.Token);
+                if (!cts.IsCancellationRequested)
+                {
+                    await RefreshViewFromCacheAsync(showBusy: false);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            finally
+            {
+                lock (_cancellationSync)
+                {
+                    if (ReferenceEquals(_filterDebounceCts, cts))
+                    {
+                        _filterDebounceCts = null;
+                    }
+                }
+                cts.Dispose();
+            }
         }
 
         private async Task<ImageItem> CreateImageItemAsync(StorageFile file, bool loadMetadata = true)

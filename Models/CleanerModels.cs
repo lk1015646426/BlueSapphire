@@ -35,6 +35,13 @@ namespace BlueSapphire.Models
         Deep
     }
 
+    public enum CleanerScanState
+    {
+        Idle,
+        Scanning,
+        Completed
+    }
+
     public enum CleanerFailureReason
     {
         None,
@@ -297,20 +304,15 @@ namespace BlueSapphire.Models
             set => SetProperty(ref _isSelected, value);
         }
 
-        public string TitleText => string.IsNullOrWhiteSpace(VolumeLabel) ? Name : $"{Name} · {VolumeLabel}";
+        public string TitleText => string.IsNullOrWhiteSpace(VolumeLabel) ? $"{Name} {DriveKindText}" : $"{Name} {VolumeLabel}";
         public long UsedBytes => Math.Max(0, TotalBytes - FreeBytes);
         public double UsedPercentage => TotalBytes <= 0 ? 0 : Math.Round((double)UsedBytes / TotalBytes * 100, 1);
-        public string SubtitleText
-        {
-            get
-            {
-                string systemTag = IsSystemDrive ? "系统盘" : DriveKindText;
-                string fileSystem = string.IsNullOrWhiteSpace(FileSystem) ? string.Empty : $" · {FileSystem}";
-                return $"{systemTag}{fileSystem}";
-            }
-        }
-        public string CapacityText => $"可用 {CleanerSizeFormatter.Format(FreeBytes)} / 总计 {CleanerSizeFormatter.Format(TotalBytes)}";
-        public string UsageText => $"已用 {UsedPercentage:0.#}% · {CleanerSizeFormatter.Format(UsedBytes)}";
+        public string SubtitleText => string.IsNullOrWhiteSpace(FileSystem) ? string.Empty : FileSystem;
+        public string UsedText => $"{CleanerSizeFormatter.Format(UsedBytes)}";
+        public string TotalText => $"{CleanerSizeFormatter.Format(TotalBytes)}";
+        public string FreeText => $"{CleanerSizeFormatter.Format(FreeBytes)}";
+        public string UsageText => $"{UsedPercentage:0.#}%";
+        public string CapacitySummaryText => $"已用 {CleanerSizeFormatter.Format(UsedBytes)} / 共 {CleanerSizeFormatter.Format(TotalBytes)}";
     }
 
     public sealed class CleanerCleanupBatch

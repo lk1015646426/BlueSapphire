@@ -5,13 +5,13 @@
     Title="高级图片编辑"
     PrimaryButtonText="应用并导出"
     CloseButtonText="取消"
-    DefaultButton="Primary"
+    DefaultButton="Close"
     Loaded="ContentDialog_Loaded"
     PrimaryButtonClick="ContentDialog_PrimaryButtonClick"
-    MaxWidth="1600">
+    MaxWidth="1200">
 
     <ContentDialog.Resources>
-        <x:Double x:Key="ContentDialogMaxWidth">1600</x:Double>
+        <x:Double x:Key="ContentDialogMaxWidth">1200</x:Double>
         <Style x:Key="ChipToggleButton" TargetType="ToggleButton">
             <Setter Property="Background" Value="{ThemeResource ControlFillColorDefaultBrush}"/>
             <Setter Property="BorderBrush" Value="{ThemeResource ControlStrokeColorDefaultBrush}"/>
@@ -22,7 +22,7 @@
         </Style>
     </ContentDialog.Resources>
 
-    <Grid Width="1100" MinHeight="600" MaxHeight="800" ColumnSpacing="24" Margin="0,12,0,0">
+    <Grid MinWidth="760" MaxWidth="1100" MinHeight="520" MaxHeight="720" ColumnSpacing="20" Margin="0,12,0,0">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="420" />

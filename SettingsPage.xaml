@@ -7,7 +7,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <Grid Padding="40,40,40,20">
+    <Grid Padding="{StaticResource PagePaddingLarge}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -16,12 +16,12 @@
 
         <!-- 顶部标题 -->
         <StackPanel Grid.Row="0" MaxWidth="800" HorizontalAlignment="Stretch" Margin="0,0,0,30">
-            <TextBlock Text="系统设置" FontSize="32" FontWeight="Bold" Foreground="White" CharacterSpacing="80" Margin="0,0,0,15"/>
+            <TextBlock Text="系统设置" Style="{StaticResource TextStyle_PageTitle}" CharacterSpacing="80" Margin="0,0,0,15"/>
             <Rectangle Height="1" HorizontalAlignment="Stretch">
                 <Rectangle.Fill>
                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                        <GradientStop Color="#CC00FFFF" Offset="0"/>
-                        <GradientStop Color="#0000FFFF" Offset="1"/>
+                        <GradientStop Color="{Binding Color, Source={StaticResource AccentCyan}}" Offset="0"/>
+                        <GradientStop Color="{Binding Color, Source={StaticResource AccentCyanBg}}" Offset="1"/>
                     </LinearGradientBrush>
                 </Rectangle.Fill>
             </Rectangle>
@@ -31,9 +31,9 @@
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled">
             <StackPanel MaxWidth="800" HorizontalAlignment="Stretch" Spacing="15">
                 
-                <TextBlock Text="通用配置" FontSize="15" FontWeight="SemiBold" Foreground="#A0FFFFFF" Margin="5,0,0,0" CharacterSpacing="20"/>
+                <TextBlock Text="通用配置" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextSecondary}" Margin="5,0,0,0" CharacterSpacing="20"/>
                 
-                <Border Background="#0AFFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1" CornerRadius="8">
+                <Border Background="{StaticResource PanelSurface}" BorderBrush="{StaticResource BorderSubtle}" BorderThickness="1" CornerRadius="8">
                     <StackPanel>
                         <!-- 粒子引擎设置 -->
                         <Grid Padding="25,20">
@@ -43,14 +43,38 @@
                             </Grid.ColumnDefinitions>
                             
                             <StackPanel VerticalAlignment="Center" Margin="0,0,20,0">
-                                <TextBlock Text="神经网络粒子引擎" FontSize="18" FontWeight="SemiBold" Foreground="#F0FFFFFF" CharacterSpacing="25"/>
-                                <TextBlock Text="开启或关闭背景的动态神经节点连线特效" Foreground="#80FFFFFF" FontSize="13" Margin="0,6,0,0"/>
+                                <TextBlock Text="神经网络粒子引擎" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextMain}" CharacterSpacing="25"/>
+                                <TextBlock Text="开启或关闭背景的动态神经节点连线特效" Foreground="{StaticResource TextMuted}" FontSize="13" Margin="0,6,0,0"/>
                             </StackPanel>
                             
                             <ToggleSwitch x:Name="ParticleSwitch" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" IsOn="True" Margin="0"/>
                         </Grid>
 
-                        <Rectangle Height="1" Fill="#1AFFFFFF" Margin="25,0"/>
+                        <Rectangle Height="1" Fill="{StaticResource BorderColor}" Margin="25,0"/>
+
+                        <Grid Padding="25,20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,20,0">
+                                <TextBlock Text="外观与动态效果" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextMain}"/>
+                                <TextBlock Text="主题可跟随系统；减少动态效果会停用粒子和持续动画。" Foreground="{StaticResource TextMuted}" FontSize="13" Margin="0,6,0,0"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Width="220" Spacing="10">
+                                <ComboBox x:Name="ThemeComboBox" SelectionChanged="ThemeComboBox_SelectionChanged" AutomationProperties.Name="应用主题">
+                                    <ComboBoxItem Content="跟随系统" Tag="System"/>
+                                    <ComboBoxItem Content="浅色" Tag="Light"/>
+                                    <ComboBoxItem Content="深色" Tag="Dark"/>
+                                </ComboBox>
+                                <ToggleSwitch x:Name="ReduceMotionSwitch"
+                                              Header="减少动态效果"
+                                              Toggled="ReduceMotionSwitch_Toggled"
+                                              AutomationProperties.Name="减少动态效果"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <Rectangle Height="1" Fill="{StaticResource BorderColor}" Margin="25,0"/>
 
                         <!-- AI 引擎设置 -->
                         <Grid Padding="25,20">
@@ -60,8 +84,8 @@
                             </Grid.ColumnDefinitions>
                             
                             <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,40,0">
-                                <TextBlock Text="AI 智能引擎" FontSize="18" FontWeight="SemiBold" Foreground="#F0FFFFFF" CharacterSpacing="25"/>
-                                <TextBlock Text="配置智能引擎 API 密钥，解锁“蓝宝石”智能对话控制与自动日志分析功能。支持官方 DeepSeek 与硅基流动接口。" Foreground="#80FFFFFF" FontSize="13" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                <TextBlock Text="AI 智能引擎" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextMain}" CharacterSpacing="25"/>
+                                <TextBlock Text="配置智能引擎 API 密钥，解锁“蓝宝石”智能对话控制与自动日志分析功能。支持官方 DeepSeek 与硅基流动接口。" Foreground="{StaticResource TextMuted}" FontSize="13" TextWrapping="Wrap" Margin="0,6,0,0"/>
                             </StackPanel>
                             
                             <StackPanel Grid.Column="1" Spacing="12" VerticalAlignment="Center" Width="280">
@@ -77,7 +101,7 @@
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <ComboBox x:Name="ApiModelComboBox" HorizontalAlignment="Stretch" PlaceholderText="请先测试连接并获取模型" SelectionChanged="ApiModelComboBox_SelectionChanged" DropDownOpened="ApiModelComboBox_DropDownOpened"/>
-                                    <Button x:Name="RefreshModelsBtn" Grid.Column="1" Width="40" Height="32" ToolTipService.ToolTip="测试连接并获取模型列表" Click="RefreshModelsBtn_Click">
+                                    <Button x:Name="RefreshModelsBtn" Grid.Column="1" Width="40" Height="32" ToolTipService.ToolTip="测试连接并获取模型列表" Click="RefreshModelsBtn_Click" AutomationProperties.Name="测试连接并获取模型列表">
                                         <FontIcon Glyph="&#xE72C;" FontSize="14"/>
                                     </Button>
                                 </Grid>
@@ -86,9 +110,9 @@
                     </StackPanel>
                 </Border>
 
-                <TextBlock Text="MCP 扩展插件" FontSize="15" FontWeight="SemiBold" Foreground="#A0FFFFFF" Margin="5,15,0,0" CharacterSpacing="20"/>
+                <TextBlock Text="MCP 扩展插件" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextSecondary}" Margin="5,15,0,0" CharacterSpacing="20"/>
                 
-                <Border Background="#0AFFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1" CornerRadius="8">
+                <Border Background="{StaticResource PanelSurface}" BorderBrush="{StaticResource BorderSubtle}" BorderThickness="1" CornerRadius="8">
                     <StackPanel Padding="25,20">
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -97,8 +121,8 @@
                             </Grid.ColumnDefinitions>
                             
                             <StackPanel VerticalAlignment="Center" Margin="0,0,20,0">
-                                <TextBlock Text="外部 Model Context Protocol 服务器" FontSize="18" FontWeight="SemiBold" Foreground="#F0FFFFFF" CharacterSpacing="20"/>
-                                <TextBlock Text="在此添加外部的 MCP 命令行程序。蓝宝石的 AI 大脑将自动挂载它们提供的工具（如网页搜索、操作 GitHub 等）。" Foreground="#80FFFFFF" FontSize="13" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                <TextBlock Text="外部 Model Context Protocol 服务器" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextMain}" CharacterSpacing="20"/>
+                                <TextBlock Text="第三方 MCP 会在本机启动进程。添加后默认保持停止，需由你手动启动；环境变量会使用当前 Windows 账户加密保存。" Foreground="{StaticResource TextMuted}" FontSize="13" TextWrapping="Wrap" Margin="0,6,0,0"/>
                             </StackPanel>
                             
                             <Button x:Name="AddMcpBtn" Grid.Column="1" VerticalAlignment="Center" Content="添加新服务器" Click="AddMcpBtn_Click"/>
@@ -113,11 +137,12 @@
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel>
-                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="White"/>
-                                            <TextBlock Text="{Binding Command}" Foreground="#A0FFFFFF" FontSize="12"/>
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="{StaticResource TextMain}"/>
+                                            <TextBlock Text="{Binding Command}" Foreground="{StaticResource TextSecondary}" FontSize="12"/>
                                         </StackPanel>
                                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
                                             <TextBlock Text="{Binding StatusText}" Foreground="{Binding StatusColor}" VerticalAlignment="Center" FontSize="12" Margin="0,0,10,0"/>
+                                            <Button Content="{Binding ActionText}" Tag="{Binding Id}" Click="ToggleMcpBtn_Click"/>
                                             <Button Content="删除" Tag="{Binding Id}" Click="DeleteMcpBtn_Click"/>
                                         </StackPanel>
                                     </Grid>
@@ -127,9 +152,9 @@
                     </StackPanel>
                 </Border>
 
-                <TextBlock Text="Web API 技能 (在线挂载)" FontSize="15" FontWeight="SemiBold" Foreground="#A0FFFFFF" Margin="5,15,0,0" CharacterSpacing="20"/>
+                <TextBlock Text="Web API 技能 (在线挂载)" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextSecondary}" Margin="5,15,0,0" CharacterSpacing="20"/>
                 
-                <Border Background="#0AFFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1" CornerRadius="8">
+                <Border Background="{StaticResource PanelSurface}" BorderBrush="{StaticResource BorderSubtle}" BorderThickness="1" CornerRadius="8">
                     <StackPanel Padding="25,20">
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -138,8 +163,8 @@
                             </Grid.ColumnDefinitions>
                             
                             <StackPanel VerticalAlignment="Center" Margin="0,0,20,0">
-                                <TextBlock Text="远程 OpenAPI 接口聚合" FontSize="18" FontWeight="SemiBold" Foreground="#F0FFFFFF" CharacterSpacing="20"/>
-                                <TextBlock Text="只需填入含有标准 OpenAPI / Swagger 规范格式的 API 网址（例如 aihot 的在线技能），蓝宝石就能瞬间读取并掌握这些在线 Web 接口作为自己的技能。" Foreground="#80FFFFFF" FontSize="13" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                <TextBlock Text="远程 OpenAPI 接口聚合" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextMain}" CharacterSpacing="20"/>
+                                <TextBlock Text="远程规范会先验证并保持“待审核”。只有你确认目标服务后，接口才会加入 AI 工具列表；每次实际调用仍会再次询问。" Foreground="{StaticResource TextMuted}" FontSize="13" TextWrapping="Wrap" Margin="0,6,0,0"/>
                             </StackPanel>
                             
                             <Button x:Name="AddSkillBtn" Grid.Column="1" VerticalAlignment="Center" Content="添加技能网址" Click="AddSkillBtn_Click"/>
@@ -156,19 +181,64 @@
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel>
-                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="White"/>
-                                                    <TextBlock Text="{Binding Url}" Foreground="#A0FFFFFF" FontSize="12" TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="{StaticResource TextMain}"/>
+                                                    <TextBlock Text="{Binding Url}" Foreground="{StaticResource TextSecondary}" FontSize="12" TextTrimming="CharacterEllipsis"/>
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
                                                     <TextBlock Text="{Binding StatusText}" Foreground="{Binding StatusColor}" VerticalAlignment="Center" FontSize="12" Margin="0,0,10,0"/>
+                                                    <Button Content="{Binding ActionText}" Tag="{Binding Id}" Click="ToggleWebSkillBtn_Click"/>
                                                     <Button Content="删除" Tag="{Binding Id}" Click="DeleteSkillBtn_Click"/>
                                                 </StackPanel>
                                             </Grid>
                                         </Expander.Header>
                                         <StackPanel Padding="10">
-                                            <TextBlock Text="{Binding NetworkStatusText}" Foreground="#D0FFFFFF" FontSize="13"/>
+                                            <TextBlock Text="{Binding NetworkStatusText}" Foreground="{StaticResource TextSecondary}" FontSize="13"/>
+                                            <TextBlock Text="{Binding TrustStatusText}" Foreground="{StaticResource AccentReview}" FontSize="13"/>
+                                            <TextBlock Text="{Binding ToolCountText}" Foreground="{StaticResource TextMuted}" FontSize="12"/>
+                                            <TextBlock Text="{Binding TargetOrigin}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap"/>
                                         </StackPanel>
                                     </Expander>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Text="Agent 提示词技能（需审核）" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextSecondary}" Margin="5,15,0,0" CharacterSpacing="20"/>
+
+                <Border Background="{StaticResource PanelSurface}" BorderBrush="{StaticResource BorderSubtle}" BorderThickness="1" CornerRadius="8">
+                    <StackPanel Padding="25,20" Spacing="12">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,20,0">
+                                <TextBlock Text="第三方 SKILL.md" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextMain}"/>
+                                <TextBlock Text="下载后默认不信任、不启用。启用前请阅读来源、描述和指令预览；技能不能绕过操作确认和安全限制。" Foreground="{StaticResource TextMuted}" FontSize="13" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                            </StackPanel>
+                            <Button Grid.Column="1" Content="添加 Agent 技能" Click="AddAgentSkillBtn_Click" VerticalAlignment="Center"/>
+                        </Grid>
+
+                        <ItemsControl x:Name="AgentSkillsList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,8" ColumnSpacing="10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="{StaticResource TextMain}"/>
+                                            <TextBlock Text="{Binding Description}" Foreground="{StaticResource TextMuted}" FontSize="12" TextWrapping="Wrap" MaxLines="2"/>
+                                            <TextBlock Text="{Binding Url}" Foreground="{StaticResource TextSecondary}" FontSize="11" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource AccentReview}" FontSize="12"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                            <Button Content="{Binding ActionText}" Tag="{Binding Id}" Click="ReviewAgentSkillBtn_Click"/>
+                                            <Button Content="删除" Tag="{Binding Id}" Click="DeleteAgentSkillBtn_Click"/>
+                                        </StackPanel>
+                                    </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
@@ -179,46 +249,19 @@
         </ScrollViewer>
 
         <!-- 底部版本信息 -->
-        <StackPanel Grid.Row="2" HorizontalAlignment="Center" Margin="0,20,0,0"
-                    PointerPressed="SecretVersion_PointerPressed"
-                    PointerEntered="SecretVersion_PointerEntered"
-                    PointerExited="SecretVersion_PointerExited" 
-                    Background="Transparent">
-            
-            <StackPanel.Resources>
-                <Storyboard x:Name="VersionClickStoryboard">
-                    <DoubleAnimation Storyboard.TargetName="VersionScale"
-                                     Storyboard.TargetProperty="ScaleX"
-                                     From="1.0" To="0.8" Duration="0:0:0.1" AutoReverse="True"/>
-                    <DoubleAnimation Storyboard.TargetName="VersionScale"
-                                     Storyboard.TargetProperty="ScaleY"
-                                     From="1.0" To="0.8" Duration="0:0:0.1" AutoReverse="True"/>
-                    <ColorAnimation Storyboard.TargetName="VersionBrush"
-                                    Storyboard.TargetProperty="Color"
-                                    From="#00FFFF" To="White" Duration="0:0:0.1" AutoReverse="True"/>
-                </Storyboard>
-            </StackPanel.Resources>
-
-            <TextBlock Text="蓝宝石工具箱" FontSize="16" FontWeight="Bold" Foreground="#60FFFFFF" CharacterSpacing="40" HorizontalAlignment="Center" Margin="0,0,0,8"/>
+        <StackPanel Grid.Row="2" HorizontalAlignment="Center" Margin="0,20,0,0">
+            <TextBlock Text="蓝宝石工具箱" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextFaint}" CharacterSpacing="40" HorizontalAlignment="Center" Margin="0,0,0,8"/>
 
             <StackPanel Orientation="Horizontal" Spacing="15" HorizontalAlignment="Center">
-                <TextBlock x:Name="VersionTextBlock" 
-                           Text="{x:Bind AppDisplayVersion, Mode=OneWay}" 
-                           FontSize="13" 
-                           FontWeight="SemiBold" 
-                           CharacterSpacing="15" 
-                           RenderTransformOrigin="0.5,0.5">
-                    <TextBlock.Foreground>
-                        <SolidColorBrush x:Name="VersionBrush" Color="#00FFFF"/>
-                    </TextBlock.Foreground>
-                    <TextBlock.RenderTransform>
-                        <ScaleTransform x:Name="VersionScale" ScaleX="1" ScaleY="1"/>
-                    </TextBlock.RenderTransform>
-                </TextBlock>
+                <TextBlock Text="{x:Bind AppDisplayVersion, Mode=OneWay}"
+                           FontSize="13"
+                           FontWeight="SemiBold"
+                           CharacterSpacing="15"
+                           Foreground="{StaticResource AccentCyan}"/>
 
-                <TextBlock Text="|" Foreground="#30FFFFFF" FontSize="13" VerticalAlignment="Center" Margin="0,-2,0,0"/>
+                <TextBlock Text="|" Foreground="{StaticResource TextFaint}" FontSize="13" VerticalAlignment="Center" Margin="0,-2,0,0"/>
 
-                <TextBlock Text="{x:Bind AppBuildDate, Mode=OneWay}" Foreground="#50FFFFFF" FontSize="13" VerticalAlignment="Center" CharacterSpacing="10"/>
+                <TextBlock Text="{x:Bind AppBuildDate, Mode=OneWay}" Foreground="{StaticResource TextFaint}" FontSize="13" VerticalAlignment="Center" CharacterSpacing="10"/>
             </StackPanel>
         </StackPanel>
     </Grid>

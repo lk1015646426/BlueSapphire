@@ -42,7 +42,10 @@
 		</Content>
 		<None Remove="DevLogInputDialog.xaml" />
 		<None Remove="Views\DevLogPage.xaml" />
-		<Content Include="BS.ico" />
+		<Content Include="BS.ico">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+		</Content>
 		<Manifest Include="$(ApplicationManifest)" />
 	</ItemGroup>
 

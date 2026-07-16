@@ -1,7 +1,8 @@
-﻿using BlueSapphire.Models;
+using BlueSapphire.Models;
 using BlueSapphire.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -130,10 +131,23 @@ namespace BlueSapphire.ViewModels.Cleaner
                 _isUpdatingDriveSelection = false;
             }
 
-            _ = PersistDriveSelectionAsync();
+            _ = PersistDriveSelectionSafeAsync();
         }
 
-        private async void DriveOption_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        private async Task PersistDriveSelectionSafeAsync()
+        {
+            try
+            {
+                await PersistDriveSelectionAsync();
+            }
+            catch (Exception ex)
+            {
+                WeakReferenceMessenger.Default.Send(
+                    new ShowTipMessage("磁盘选择持久化失败", ex.Message));
+            }
+        }
+
+        private void DriveOption_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName != nameof(CleanerDriveOption.IsSelected) || _isUpdatingDriveSelection)
             {
@@ -154,7 +168,8 @@ namespace BlueSapphire.ViewModels.Cleaner
                 return;
             }
 
-            await PersistDriveSelectionAsync();
+            // async void 内异常会直接终止进程，走带捕获的封装方法。
+            _ = PersistDriveSelectionSafeAsync();
         }
 
         public List<CleanerDriveOption> GetSelectedDriveOptions()
@@ -172,9 +187,9 @@ namespace BlueSapphire.ViewModels.Cleaner
 
         private async Task PersistDriveSelectionAsync()
         {
-            CleanerPreferenceState preferences = await _stateStore.LoadPreferencesAsync();
-            preferences.SelectedDriveRoots = GetSelectedDriveRoots();
-            await _stateStore.SavePreferencesAsync(preferences);
+            List<string> selectedRoots = GetSelectedDriveRoots();
+            await _stateStore.UpdatePreferencesAsync(
+                preferences => preferences.SelectedDriveRoots = selectedRoots);
 
             OnPropertyChanged(nameof(SelectedDriveSummaryText));
         }

@@ -2,10 +2,10 @@
     x:Class="BlueSapphire.Views.Dialogs.EnhanceImageDialog"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Title="AI 增强参数"
+    Title="自动增强参数"
     PrimaryButtonText="应用"
     CloseButtonText="取消"
-    DefaultButton="Primary"
+    DefaultButton="Close"
     Loaded="ContentDialog_Loaded">
 
     <StackPanel Spacing="16" Width="400" Margin="0,12,0,0">
@@ -13,7 +13,7 @@
             <Image x:Name="PreviewImage" Stretch="Uniform" />
         </Border>
 
-        <TextBlock Text="调整以下参数来增强您的图片。如果选择了多张图片，参数将批量应用。" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+        <TextBlock Text="使用本地亮度、对比度、饱和度与锐化滤镜增强图片，不会上传到 AI 服务。多选时将批量应用。" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
 
         <StackPanel Spacing="8">
             <TextBlock x:Name="BrightnessText" Text="亮度: 0.0" />

@@ -5,16 +5,34 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text;
+using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Threading;
 using BlueSapphire.Models;
 
 namespace BlueSapphire.Services
 {
     public class McpServerManager : IDisposable
     {
+        private const int MaxServers = 16;
+        private const int MaxToolsPerServer = 64;
+        private const int MaxToolArgumentsCharacters = 128 * 1024;
+        private const int MaxToolResultCharacters = 128 * 1024;
+        private const long MaxConfigBytes = 2 * 1024 * 1024;
         private readonly string _configFilePath;
         private readonly ConcurrentDictionary<string, McpClient> _clients = new();
         private readonly List<McpServerConfig> _configs = new();
+        private static readonly HashSet<string> AllowedCommands = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "npx", "npx.cmd", "uvx", "uvx.exe", "node", "node.exe",
+            "python", "python.exe", "python3", "python3.exe", "py", "py.exe",
+            "dotnet", "dotnet.exe"
+        };
+        private static readonly Regex EnvironmentNamePattern = new(
+            "^[A-Za-z_][A-Za-z0-9_]{0,127}$",
+            RegexOptions.Compiled | RegexOptions.CultureInvariant);
         public event Action? OnServersChanged;
 
         public McpServerManager()
@@ -32,12 +50,36 @@ namespace BlueSapphire.Services
             {
                 try
                 {
+                    if (new FileInfo(_configFilePath).Length is <= 0 or > MaxConfigBytes)
+                    {
+                        return;
+                    }
                     var json = File.ReadAllText(_configFilePath);
                     var list = JsonSerializer.Deserialize<List<McpServerConfig>>(json);
                     if (list != null)
                     {
+                        bool migratedPlaintextSecrets = RestoreEnvironmentVariables(json, list);
                         _configs.Clear();
-                        _configs.AddRange(list);
+                        foreach (McpServerConfig config in list.Take(MaxServers))
+                        {
+                            try
+                            {
+                                ValidateConfig(config);
+                                if (_configs.All(existing =>
+                                        !string.Equals(existing.Id, config.Id, StringComparison.OrdinalIgnoreCase)))
+                                {
+                                    _configs.Add(config);
+                                }
+                            }
+                            catch
+                            {
+                                // 损坏或越界的持久化配置不进入运行时。
+                            }
+                        }
+                        if (migratedPlaintextSecrets)
+                        {
+                            SaveConfigs();
+                        }
                     }
                 }
                 catch { }
@@ -48,8 +90,15 @@ namespace BlueSapphire.Services
         {
             try
             {
+                foreach (McpServerConfig config in _configs)
+                {
+                    config.ProtectedEnvironmentVariables = ProtectEnvironmentVariables(config.EnvironmentVariables);
+                }
+
                 var json = JsonSerializer.Serialize(_configs, new JsonSerializerOptions { WriteIndented = true });
-                File.WriteAllText(_configFilePath, json);
+                string tempPath = _configFilePath + ".tmp";
+                File.WriteAllText(tempPath, json);
+                File.Move(tempPath, _configFilePath, true);
                 OnServersChanged?.Invoke();
             }
             catch { }
@@ -59,6 +108,7 @@ namespace BlueSapphire.Services
 
         public void AddOrUpdateServer(McpServerConfig config)
         {
+            ValidateConfig(config);
             var existing = _configs.FirstOrDefault(c => c.Id == config.Id);
             if (existing != null)
             {
@@ -66,10 +116,15 @@ namespace BlueSapphire.Services
                 existing.Command = config.Command;
                 existing.Arguments = config.Arguments;
                 existing.IsEnabled = config.IsEnabled;
+                existing.IsApproved = config.IsApproved;
                 existing.EnvironmentVariables = config.EnvironmentVariables;
             }
             else
             {
+                if (_configs.Count >= MaxServers)
+                {
+                    throw new InvalidOperationException($"最多只能保存 {MaxServers} 个 MCP 服务器。");
+                }
                 _configs.Add(config);
             }
             SaveConfigs();
@@ -88,16 +143,19 @@ namespace BlueSapphire.Services
 
         public async Task StartAllEnabledServersAsync()
         {
-            foreach (var config in _configs.Where(c => c.IsEnabled))
+            foreach (var config in _configs.Where(c => c.IsEnabled && c.IsApproved))
             {
                 await StartServerAsync(config.Id);
             }
         }
 
-        public async Task StartServerAsync(string id)
+        public async Task StartServerAsync(
+            string id,
+            CancellationToken cancellationToken = default)
         {
             var config = _configs.FirstOrDefault(c => c.Id == id);
-            if (config == null || string.IsNullOrWhiteSpace(config.Command)) return;
+            if (config == null || !config.IsApproved || string.IsNullOrWhiteSpace(config.Command)) return;
+            ValidateConfig(config);
 
             if (_clients.TryGetValue(id, out var existingClient) && existingClient.IsConnected)
             {
@@ -117,13 +175,26 @@ namespace BlueSapphire.Services
             
             try
             {
-                await client.StartAsync(config.Command, config.Arguments, config.EnvironmentVariables);
+                await client.StartAsync(
+                    config.Command,
+                    config.Arguments,
+                    config.EnvironmentVariables,
+                    cancellationToken);
                 OnServersChanged?.Invoke();
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                _clients.TryRemove(id, out _);
+                client.Dispose();
+                OnServersChanged?.Invoke();
+                throw;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Failed to start MCP Server {config.Name}: {ex.Message}");
                 _clients.TryRemove(id, out _);
+                client.Dispose();
+                OnServersChanged?.Invoke();
             }
         }
 
@@ -142,8 +213,142 @@ namespace BlueSapphire.Services
             return _clients.TryGetValue(id, out var client) && client.IsConnected;
         }
 
+        public static bool IsSafeCommand(string command, string arguments, out string reason)
+        {
+            string normalizedCommand = (command ?? string.Empty).Trim();
+            arguments ??= string.Empty;
+            if (normalizedCommand.Length == 0 ||
+                normalizedCommand.IndexOfAny(new[] { '\\', '/', ':', '"', '\'' }) >= 0 ||
+                normalizedCommand.Any(char.IsWhiteSpace) ||
+                !AllowedCommands.Contains(normalizedCommand))
+            {
+                reason = "仅允许使用 npx、uvx、node、python、py 或 dotnet 的标准命令名，不能填写路径。";
+                return false;
+            }
+
+            if (arguments.Length > 4096)
+            {
+                reason = "启动参数过长。";
+                return false;
+            }
+
+            string[] blockedTokens = { "\r", "\n", "\0", ";", "|", "&", "`", "$(", "${", ">" , "<" };
+            string? blocked = blockedTokens.FirstOrDefault(token => arguments.Contains(token, StringComparison.Ordinal));
+            if (blocked != null)
+            {
+                reason = $"启动参数包含不允许的符号：{blocked}";
+                return false;
+            }
+
+            reason = string.Empty;
+            return true;
+        }
+
+        private static void ValidateConfig(McpServerConfig config)
+        {
+            config.Id ??= string.Empty;
+            config.Name ??= string.Empty;
+            config.Command ??= string.Empty;
+            config.Arguments ??= string.Empty;
+            config.EnvironmentVariables ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (!IsSafeCommand(config.Command, config.Arguments, out string reason))
+            {
+                throw new InvalidOperationException(reason);
+            }
+
+            if (string.IsNullOrWhiteSpace(config.Id) || config.Id.Length > 100)
+            {
+                throw new InvalidOperationException("MCP 服务器标识无效。");
+            }
+
+            if (string.IsNullOrWhiteSpace(config.Name) ||
+                config.Name.Length > 100 ||
+                config.Name.Any(char.IsControl))
+            {
+                throw new InvalidOperationException("MCP 服务器名称不能为空且不能超过 100 个字符。");
+            }
+
+            if (config.EnvironmentVariables.Count > 64 ||
+                config.EnvironmentVariables.Any(pair =>
+                    !EnvironmentNamePattern.IsMatch(pair.Key) ||
+                    pair.Value.Length > 8192))
+            {
+                throw new InvalidOperationException("环境变量名称、数量或内容长度不符合安全限制。");
+            }
+        }
+
+        private static string ProtectEnvironmentVariables(IReadOnlyDictionary<string, string> values)
+        {
+            if (values.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            byte[] plaintext = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(values));
+            byte[] protectedBytes = ProtectedData.Protect(plaintext, null, DataProtectionScope.CurrentUser);
+            return Convert.ToBase64String(protectedBytes);
+        }
+
+        private static Dictionary<string, string> UnprotectEnvironmentVariables(string protectedValue)
+        {
+            if (string.IsNullOrWhiteSpace(protectedValue))
+            {
+                return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            byte[] protectedBytes = Convert.FromBase64String(protectedValue);
+            byte[] plaintext = ProtectedData.Unprotect(protectedBytes, null, DataProtectionScope.CurrentUser);
+            return JsonSerializer.Deserialize<Dictionary<string, string>>(Encoding.UTF8.GetString(plaintext))
+                   ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        private static bool RestoreEnvironmentVariables(string originalJson, IReadOnlyList<McpServerConfig> configs)
+        {
+            bool migrated = false;
+            using JsonDocument document = JsonDocument.Parse(originalJson);
+            JsonElement[] entries = document.RootElement.ValueKind == JsonValueKind.Array
+                ? document.RootElement.EnumerateArray().ToArray()
+                : Array.Empty<JsonElement>();
+
+            for (int index = 0; index < configs.Count; index++)
+            {
+                McpServerConfig config = configs[index];
+                try
+                {
+                    config.EnvironmentVariables = UnprotectEnvironmentVariables(config.ProtectedEnvironmentVariables);
+                    if (config.EnvironmentVariables.Count == 0 &&
+                        index < entries.Length &&
+                        entries[index].TryGetProperty("EnvironmentVariables", out JsonElement legacy) &&
+                        legacy.ValueKind == JsonValueKind.Object)
+                    {
+                        config.EnvironmentVariables = legacy.EnumerateObject()
+                            .Where(property => property.Value.ValueKind == JsonValueKind.String)
+                            .ToDictionary(
+                                property => property.Name,
+                                property => property.Value.GetString() ?? string.Empty,
+                                StringComparer.OrdinalIgnoreCase);
+                        migrated = config.EnvironmentVariables.Count > 0;
+                    }
+                }
+                catch
+                {
+                    config.EnvironmentVariables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                }
+
+                // 升级前的配置没有明确授权记录，不能自动启动。
+                if (!config.IsApproved)
+                {
+                    migrated |= config.IsEnabled;
+                    config.IsEnabled = false;
+                }
+            }
+
+            return migrated;
+        }
+
         // 获取所有的工具 (带有 server_id_前缀)
-        public async Task<List<(string ServerId, McpTool Tool)>> GetAllToolsAsync()
+        public async Task<List<(string ServerId, McpTool Tool)>> GetAllToolsAsync(
+            CancellationToken cancellationToken = default)
         {
             var allTools = new List<(string, McpTool)>();
             foreach (var kvp in _clients)
@@ -152,9 +357,13 @@ namespace BlueSapphire.Services
                 {
                     try
                     {
-                        var tools = await kvp.Value.GetToolsAsync();
-                        foreach (var tool in tools)
+                        var tools = await kvp.Value.GetToolsAsync(cancellationToken);
+                        foreach (var tool in tools.Take(MaxToolsPerServer))
                         {
+                            if (string.IsNullOrWhiteSpace(tool.Name) || tool.Name.Length > 200)
+                            {
+                                continue;
+                            }
                             allTools.Add((kvp.Key, tool));
                         }
                     }
@@ -167,21 +376,52 @@ namespace BlueSapphire.Services
             return allTools;
         }
 
-        public async Task<string> CallToolAsync(string serverId, string toolName, string argumentsJson)
+        public async Task<string> CallToolAsync(
+            string serverId,
+            string toolName,
+            string argumentsJson,
+            CancellationToken cancellationToken = default)
         {
             if (_clients.TryGetValue(serverId, out var client) && client.IsConnected)
             {
+                if (string.IsNullOrWhiteSpace(toolName) ||
+                    toolName.Length > 200 ||
+                    argumentsJson.Length > MaxToolArgumentsCharacters)
+                {
+                    return "错误：MCP 工具名称或参数超过安全限制。";
+                }
+
                 JsonNode? argsNode = null;
                 if (!string.IsNullOrWhiteSpace(argumentsJson))
                 {
-                    try { argsNode = JsonNode.Parse(argumentsJson); } catch { }
+                    try
+                    {
+                        argsNode = JsonNode.Parse(
+                            argumentsJson,
+                            documentOptions: new JsonDocumentOptions { MaxDepth = 32 });
+                        if (argsNode is not JsonObject)
+                        {
+                            return "错误：MCP 工具参数必须是 JSON 对象。";
+                        }
+                    }
+                    catch
+                    {
+                        return "错误：MCP 工具参数不是有效的 JSON。";
+                    }
                 }
 
-                var result = await client.CallToolAsync(toolName, argsNode);
+                var result = await client.CallToolAsync(toolName, argsNode, cancellationToken);
                 
                 if (result.Content != null && result.Content.Count > 0)
                 {
-                    var textContent = string.Join("\n", result.Content.Select(c => c.Text));
+                    var textContent = string.Join(
+                        "\n",
+                        result.Content.Take(64).Select(c => c.Text ?? string.Empty));
+                    if (textContent.Length > MaxToolResultCharacters)
+                    {
+                        textContent = textContent[..MaxToolResultCharacters] +
+                                      "\n...[MCP 返回内容过长，已截断]";
+                    }
                     if (result.IsError) return $"[MCP ERROR] {textContent}";
                     return textContent;
                 }

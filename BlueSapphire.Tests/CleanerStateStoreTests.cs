@@ -64,6 +64,34 @@ public class CleanerStateStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task UpdatePreferencesAsync_PreservesConcurrentFeatureChanges()
+    {
+        CleanerStateStore store = new(_rootPath);
+
+        await Task.WhenAll(
+            store.UpdatePreferencesAsync(state =>
+            {
+                state.TelemetryEnabled = true;
+                state.TelemetryEndpoint = "https://example.com/telemetry";
+            }),
+            store.UpdatePreferencesAsync(state =>
+            {
+                state.ReminderEnabled = true;
+                state.ReminderIntervalDays = 7;
+            }),
+            store.UpdatePreferencesAsync(state =>
+            {
+                state.SelectedDriveRoots = [@"C:\", @"D:\"];
+            }));
+
+        CleanerPreferenceState loaded = await store.LoadPreferencesAsync();
+        Assert.True(loaded.TelemetryEnabled);
+        Assert.True(loaded.ReminderEnabled);
+        Assert.Equal(7, loaded.ReminderIntervalDays);
+        Assert.Equal(2, loaded.SelectedDriveRoots.Count);
+    }
+
+    [Fact]
     public async Task SaveAndLoadRuleUpdateState_RoundTripsRemoteMetadata()
     {
         CleanerStateStore store = new(_rootPath);

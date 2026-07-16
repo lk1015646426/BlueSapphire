@@ -4,29 +4,9 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:BlueSapphire"
     xmlns:models="using:BlueSapphire.Models"
-    Loaded="MediaManagerPage_Loaded">
+    Background="{StaticResource BgColor}">
 
     <Page.Resources>
-        <local:BoolToVisibleConverter x:Key="BoolToVisibleConverter"/>
-        <local:InverseBoolToVisibleConverter x:Key="InverseBoolToVisibleConverter"/>
-
-        <SolidColorBrush x:Key="PageBg" Color="#FF101418"/>
-        <SolidColorBrush x:Key="HeaderBg" Color="#FF151B22"/>
-        <SolidColorBrush x:Key="PanelBg" Color="#FF171E26"/>
-        <SolidColorBrush x:Key="CardBg" Color="#FF1E2630"/>
-        <SolidColorBrush x:Key="CardBgHover" Color="#FF25313D"/>
-        <SolidColorBrush x:Key="BorderColor" Color="#334B5563"/>
-        <SolidColorBrush x:Key="TextMain" Color="#FFF8FAFC"/>
-        <SolidColorBrush x:Key="TextMuted" Color="#FFA7B0BD"/>
-        <SolidColorBrush x:Key="AccentGreen" Color="#FF20C878"/>
-        <SolidColorBrush x:Key="AccentGreenBg" Color="#2220C878"/>
-        <SolidColorBrush x:Key="AccentSky" Color="#FF38BDF8"/>
-        <SolidColorBrush x:Key="AccentSkyBg" Color="#2238BDF8"/>
-        <SolidColorBrush x:Key="AccentAmber" Color="#FFF59E0B"/>
-        <SolidColorBrush x:Key="AccentAmberBg" Color="#22F59E0B"/>
-        <SolidColorBrush x:Key="AccentDanger" Color="#FFFB7185"/>
-        <SolidColorBrush x:Key="AccentDangerBg" Color="#22FB7185"/>
-
         <Style x:Key="TabButtonStyle" TargetType="RadioButton">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="{StaticResource TextMuted}"/>
@@ -63,10 +43,10 @@
                                     <VisualState x:Name="Checked">
                                         <Storyboard>
                                             <ObjectAnimationUsingKeyFrames Storyboard.TargetName="ContentPresenter" Storyboard.TargetProperty="Foreground">
-                                                <DiscreteObjectKeyFrame KeyTime="0" Value="{StaticResource AccentSky}"/>
+                                                <DiscreteObjectKeyFrame KeyTime="0" Value="{StaticResource AccentInspect}"/>
                                             </ObjectAnimationUsingKeyFrames>
                                             <ObjectAnimationUsingKeyFrames Storyboard.TargetName="Indicator" Storyboard.TargetProperty="Background">
-                                                <DiscreteObjectKeyFrame KeyTime="0" Value="{StaticResource AccentSky}"/>
+                                                <DiscreteObjectKeyFrame KeyTime="0" Value="{StaticResource AccentInspect}"/>
                                             </ObjectAnimationUsingKeyFrames>
                                         </Storyboard>
                                     </VisualState>
@@ -109,10 +89,10 @@
                                     <VisualState x:Name="Checked">
                                         <Storyboard>
                                             <ObjectAnimationUsingKeyFrames Storyboard.TargetName="ContentPresenter" Storyboard.TargetProperty="Foreground">
-                                                <DiscreteObjectKeyFrame KeyTime="0" Value="{StaticResource AccentGreen}"/>
+                                                <DiscreteObjectKeyFrame KeyTime="0" Value="{StaticResource AccentSafe}"/>
                                             </ObjectAnimationUsingKeyFrames>
                                             <ObjectAnimationUsingKeyFrames Storyboard.TargetName="Indicator" Storyboard.TargetProperty="Background">
-                                                <DiscreteObjectKeyFrame KeyTime="0" Value="{StaticResource AccentGreen}"/>
+                                                <DiscreteObjectKeyFrame KeyTime="0" Value="{StaticResource AccentSafe}"/>
                                             </ObjectAnimationUsingKeyFrames>
                                         </Storyboard>
                                     </VisualState>
@@ -123,22 +103,6 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
-        </Style>
-
-        <Style x:Key="ActionButtonStyle" TargetType="Button">
-            <Setter Property="MinHeight" Value="34"/>
-            <Setter Property="Padding" Value="16,6"/>
-            <Setter Property="CornerRadius" Value="6"/>
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderBrush" Value="{StaticResource BorderColor}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
-        </Style>
-
-        <Style x:Key="PrimaryActionButtonStyle" TargetType="Button" BasedOn="{StaticResource ActionButtonStyle}">
-            <Setter Property="Foreground" Value="{StaticResource AccentGreen}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource AccentGreen}"/>
-            <Setter Property="Background" Value="{StaticResource AccentGreenBg}"/>
         </Style>
 
         <Style x:Key="ChipButtonStyle" TargetType="Button">
@@ -156,16 +120,16 @@
             <Setter Property="BorderBrush" Value="{StaticResource AccentDanger}"/>
         </Style>
         <Style x:Key="ChipButtonGreenStyle" TargetType="Button" BasedOn="{StaticResource ChipButtonStyle}">
-            <Setter Property="Foreground" Value="{StaticResource AccentGreen}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource AccentGreen}"/>
+            <Setter Property="Foreground" Value="{StaticResource AccentSafe}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource AccentSafe}"/>
         </Style>
         <Style x:Key="ChipButtonSkyStyle" TargetType="Button" BasedOn="{StaticResource ChipButtonStyle}">
-            <Setter Property="Foreground" Value="{StaticResource AccentSky}"/>
+            <Setter Property="Foreground" Value="{StaticResource AccentInspect}"/>
             <Setter Property="BorderBrush" Value="{StaticResource BorderColor}"/>
         </Style>
     </Page.Resources>
 
-    <Grid Background="{StaticResource PageBg}">
+    <Grid Background="{StaticResource BgColor}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -175,7 +139,7 @@
         </Grid.RowDefinitions>
 
         <!-- Header Area -->
-        <Grid Grid.Row="0" Padding="24,16,24,12" Background="{StaticResource HeaderBg}">
+        <Grid Grid.Row="0" Padding="24,16,24,12" Background="{StaticResource PanelSurfaceStrong}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
@@ -183,7 +147,7 @@
 
             <StackPanel VerticalAlignment="Center">
                 <TextBlock Text="MEDIA MANAGER" FontSize="10" Foreground="{StaticResource TextMuted}" CharacterSpacing="100"/>
-                <TextBlock Text="媒体管家" FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource TextMain}" Margin="0,2,0,0"/>
+                <TextBlock Text="媒体管家" FontSize="24" FontWeight="SemiBold" Foreground="{StaticResource TextMain}" Margin="0,2,0,0"/>
             </StackPanel>
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12">
@@ -212,20 +176,39 @@
             </StackPanel>
         </Grid>
 
-        <!-- Tabs Area -->
-        <Grid Grid.Row="1" Padding="24,0" Background="{StaticResource HeaderBg}" BorderBrush="{StaticResource BorderColor}" BorderThickness="0,0,0,1">
-            <StackPanel Orientation="Horizontal">
-                <RadioButton Style="{StaticResource TabButtonStyle}" GroupName="MainTabs" IsChecked="True">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <FontIcon Glyph="&#xE8B9;" FontSize="14"/>
-                        <TextBlock Text="图片"/>
-                    </StackPanel>
-                </RadioButton>
+        <!-- Search and filter area -->
+        <Grid Grid.Row="1" Padding="24,10" ColumnSpacing="12" Background="{StaticResource PanelSurfaceStrong}" BorderBrush="{StaticResource BorderColor}" BorderThickness="0,0,0,1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*" MinWidth="180"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <FontIcon Glyph="&#xE8B9;" FontSize="14" Foreground="{StaticResource AccentInspect}"/>
+                <TextBlock Text="图片库" Foreground="{StaticResource TextMain}" FontWeight="SemiBold" VerticalAlignment="Center"/>
             </StackPanel>
+            <AutoSuggestBox x:Name="MediaSearchBox"
+                            Grid.Column="1"
+                            MaxWidth="520"
+                            HorizontalAlignment="Stretch"
+                            PlaceholderText="搜索文件名、路径、格式或自定义标签"
+                            TextChanged="MediaSearchBox_TextChanged"
+                            QueryIcon="Find"
+                            AutomationProperties.Name="搜索图片"/>
+            <ComboBox x:Name="TagFilterCombo"
+                      Grid.Column="2"
+                      SelectedIndex="0"
+                      SelectionChanged="TagFilterCombo_SelectionChanged"
+                      AutomationProperties.Name="标签筛选">
+                <ComboBoxItem Content="全部图片" Tag="All"/>
+                <ComboBoxItem Content="有标签" Tag="Tagged"/>
+                <ComboBoxItem Content="无标签" Tag="Untagged"/>
+            </ComboBox>
         </Grid>
 
         <!-- Chip Toolbar -->
-        <Grid Grid.Row="2" Padding="24,16" BorderBrush="{StaticResource BorderColor}" BorderThickness="0,0,0,1">
+        <Grid Grid.Row="2" Padding="24,16" BorderBrush="{StaticResource BorderColor}" BorderThickness="0,0,0,1"
+              Visibility="{x:Bind ViewModel.HasImages, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
             <ScrollViewer HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Hidden" VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Hidden" IsDeferredScrollingEnabled="False">
                 <StackPanel Orientation="Horizontal" Spacing="10">
                     <DropDownButton Style="{StaticResource ChipButtonStyle}">
@@ -257,7 +240,7 @@
                         </StackPanel>
                     </DropDownButton>
                     
-                    <Button Style="{StaticResource ChipButtonStyle}" Command="{x:Bind ViewModel.RenameSelectedCommand}" CommandParameter="{x:Bind ImageGrid.SelectedItems}">
+                    <Button x:Name="RenameButton" IsEnabled="False" Style="{StaticResource ChipButtonStyle}" Command="{x:Bind ViewModel.RenameSelectedCommand}" CommandParameter="{x:Bind ImageGrid.SelectedItems}">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE8AC;" FontSize="12"/>
                             <TextBlock Text="重命名" FontSize="13"/>
@@ -281,7 +264,7 @@
                         </StackPanel>
                     </DropDownButton>
 
-                    <DropDownButton Style="{StaticResource ChipButtonSkyStyle}">
+                    <DropDownButton x:Name="EditDropDown" IsEnabled="False" Style="{StaticResource ChipButtonSkyStyle}">
                         <DropDownButton.Flyout>
                             <MenuFlyout Placement="Top">
                                 <MenuFlyoutItem Text="格式转换" Command="{x:Bind ViewModel.OpenFormatConvertDialogCommand}" CommandParameter="{x:Bind ImageGrid.SelectedItems}">
@@ -298,14 +281,37 @@
                         </StackPanel>
                     </DropDownButton>
 
-                    <Button Style="{StaticResource ChipButtonSkyStyle}" ToolTipService.ToolTip="AI 增强" Command="{x:Bind ViewModel.OpenEnhanceDialogCommand}" CommandParameter="{x:Bind ImageGrid.SelectedItems}">
+                    <Button x:Name="EnhanceButton" IsEnabled="False" Style="{StaticResource ChipButtonSkyStyle}" ToolTipService.ToolTip="自动增强" Command="{x:Bind ViewModel.OpenEnhanceDialogCommand}" CommandParameter="{x:Bind ImageGrid.SelectedItems}">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE945;" FontSize="12"/>
-                            <TextBlock Text="AI 增强" FontSize="13"/>
+                            <TextBlock Text="自动增强" FontSize="13"/>
                         </StackPanel>
                     </Button>
-                    
-                    <Button Style="{StaticResource ChipButtonDangerStyle}" Click="OnDeleteClicked" Margin="16,0,0,0">
+
+                    <Button x:Name="TagButton" IsEnabled="False" Style="{StaticResource ChipButtonStyle}" Command="{x:Bind ViewModel.EditSelectedMediaTagsCommand}" CommandParameter="{x:Bind ImageGrid.SelectedItems}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE8EC;" FontSize="12"/>
+                            <TextBlock Text="标签" FontSize="13"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Button x:Name="OpenLocationButton" IsEnabled="False" Style="{StaticResource ChipButtonStyle}" Command="{x:Bind ViewModel.OpenSelectedLocationCommand}" CommandParameter="{x:Bind ImageGrid.SelectedItems}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE838;" FontSize="12"/>
+                            <TextBlock Text="打开位置" FontSize="13"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Button Style="{StaticResource ChipButtonStyle}"
+                            Command="{x:Bind ViewModel.ShowLastImageOperationResultsCommand}"
+                            Visibility="{x:Bind ViewModel.HasImageOperationResults, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE9D9;" FontSize="12"/>
+                            <TextBlock Text="上次结果" FontSize="13"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Button x:Name="DeleteButton" IsEnabled="False" Style="{StaticResource ChipButtonDangerStyle}" Click="OnDeleteClicked" Margin="16,0,0,0">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE74D;" FontSize="12"/>
                             <TextBlock Text="删除" FontSize="13"/>
@@ -318,18 +324,30 @@
         <!-- Empty State -->
         <Grid Grid.Row="3" Visibility="{x:Bind ViewModel.HasImages, Mode=OneWay, Converter={StaticResource InverseBoolToVisibleConverter}}">
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="16">
-                <Border Width="72" Height="72" Background="Transparent" BorderBrush="{StaticResource AccentSky}" BorderThickness="2" CornerRadius="16" HorizontalAlignment="Center">
-                    <FontIcon Glyph="&#xE8B9;" FontSize="32" Foreground="{StaticResource AccentSky}"/>
+                <Border Width="72" Height="72" Background="Transparent" BorderBrush="{StaticResource AccentInspect}" BorderThickness="2" CornerRadius="16" HorizontalAlignment="Center">
+                    <FontIcon Glyph="&#xE8B9;" FontSize="32" Foreground="{StaticResource AccentInspect}"/>
                 </Border>
-                <TextBlock Text="等待接入图片媒体库..." FontSize="16" Foreground="{StaticResource AccentSky}" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                <TextBlock Text="等待接入图片媒体库..." FontSize="16" Foreground="{StaticResource AccentInspect}" FontWeight="SemiBold" HorizontalAlignment="Center"/>
                 <TextBlock Text="点击右上角「导入数据源」开始。" FontSize="12" Foreground="{StaticResource TextMuted}" HorizontalAlignment="Center"/>
+            </StackPanel>
+        </Grid>
+
+        <Grid Grid.Row="3" Visibility="{x:Bind ViewModel.HasNoFilterResults, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
+                <FontIcon Glyph="&#xE721;" FontSize="30" Foreground="{StaticResource TextMuted}"/>
+                <TextBlock Text="没有符合当前搜索或标签筛选的图片" Foreground="{StaticResource TextMain}" FontSize="15" FontWeight="SemiBold"/>
+                <TextBlock Text="清空搜索内容或切换为“全部图片”即可恢复列表。" Foreground="{StaticResource TextMuted}" FontSize="12"/>
             </StackPanel>
         </Grid>
 
         <!-- Gallery -->
         <Grid x:Name="ImageGalleryPanel"
               Grid.Row="3"
-              Visibility="{x:Bind ViewModel.HasImages, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
+              Visibility="{x:Bind ViewModel.HasVisibleImages, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
             <GridView x:Name="ImageGrid"
                       ItemsSource="{x:Bind ViewModel.Images, Mode=OneWay}"
                       SelectionMode="Multiple"
@@ -339,23 +357,33 @@
                       ScrollViewer.HorizontalScrollMode="Disabled"
                       ScrollViewer.VerticalScrollBarVisibility="Auto"
                       ContainerContentChanging="ImageGrid_ContainerContentChanging"
+                      SelectionChanged="ImageGrid_SelectionChanged"
                       DoubleTapped="ImageGrid_DoubleTapped">
                 <GridView.ItemTemplate>
                     <DataTemplate x:DataType="models:ImageItem">
-                        <Border Width="180" Height="230" Margin="8" Background="{StaticResource CardBg}" CornerRadius="8" BorderBrush="{StaticResource BorderColor}" BorderThickness="1">
+                        <Border Width="180" Height="230" Margin="8" Background="{StaticResource PanelSurface}" CornerRadius="8" BorderBrush="{StaticResource BorderColor}" BorderThickness="1">
+                            <Border.ContextFlyout>
+                                <MenuFlyout>
+                                    <MenuFlyoutItem Text="打开文件位置" Tag="{x:Bind}" Click="ContextOpenLocation_Click"/>
+                                    <MenuFlyoutItem Text="编辑自定义标签" Tag="{x:Bind}" Click="ContextEditTags_Click"/>
+                                    <MenuFlyoutItem Text="自动增强" Tag="{x:Bind}" Click="ContextEnhance_Click"/>
+                                    <MenuFlyoutSeparator/>
+                                    <MenuFlyoutItem Text="移至回收站" Tag="{x:Bind}" Click="ContextDelete_Click"/>
+                                </MenuFlyout>
+                            </Border.ContextFlyout>
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="150"/>
                                     <RowDefinition Height="*"/>
                                 </Grid.RowDefinitions>
 
-                                <Border Grid.Row="0" Background="#FF0C1116" CornerRadius="8,8,0,0">
+                                <Border Grid.Row="0" Background="{StaticResource MediaSurface}" CornerRadius="8,8,0,0">
                                     <Grid>
                                         <Image Source="{x:Bind ImageSource, Mode=OneWay}" Stretch="UniformToFill"/>
-                                        <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8" Background="#CC101418" CornerRadius="4" Padding="6,2">
-                                            <TextBlock Text="{x:Bind MediaTypeLabel}" Foreground="{StaticResource AccentGreen}" FontSize="9" FontWeight="SemiBold"/>
+                                        <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8" Background="{StaticResource BadgeSurface}" CornerRadius="4" Padding="6,2">
+                                            <TextBlock Text="{x:Bind MediaTypeLabel}" Foreground="{StaticResource AccentSafe}" FontSize="9" FontWeight="SemiBold"/>
                                         </Border>
-                                        <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8" Background="#CC101418" CornerRadius="4" Padding="6,2">
+                                        <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8" Background="{StaticResource BadgeSurface}" CornerRadius="4" Padding="6,2">
                                             <TextBlock Text="{x:Bind FileExtensionLabel}" Foreground="{StaticResource TextMain}" FontSize="9" FontWeight="SemiBold"/>
                                         </Border>
                                     </Grid>
@@ -364,10 +392,10 @@
                                 <StackPanel Grid.Row="1" Padding="10,8" Spacing="4">
                                     <TextBlock Text="{x:Bind FileName}" Foreground="{StaticResource TextMain}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
                                     <TextBlock Text="{x:Bind DetailLineText}" Visibility="{x:Bind HasDetailLine, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}" Foreground="{StaticResource TextMuted}" FontSize="10" TextTrimming="CharacterEllipsis"/>
-                                    <TextBlock Text="{x:Bind CustomTagSummaryText}" Visibility="{x:Bind HasCustomTags, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}" Foreground="{StaticResource AccentGreen}" FontSize="9" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="{x:Bind CustomTagSummaryText}" Visibility="{x:Bind HasCustomTags, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}" Foreground="{StaticResource AccentSafe}" FontSize="9" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
                                     <Grid Margin="0,4,0,0">
                                         <TextBlock Text="{x:Bind MetadataPrimaryText}" Foreground="{StaticResource TextMuted}" FontSize="10" HorizontalAlignment="Left"/>
-                                        <TextBlock Text="{x:Bind MetadataSecondaryText}" Foreground="{StaticResource AccentGreen}" FontSize="10" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                                        <TextBlock Text="{x:Bind MetadataSecondaryText}" Foreground="{StaticResource AccentSafe}" FontSize="10" FontWeight="SemiBold" HorizontalAlignment="Right"/>
                                     </Grid>
                                 </StackPanel>
                             </Grid>
@@ -376,6 +404,28 @@
                 </GridView.ItemTemplate>
             </GridView>
 
+            <Border x:Name="SelectionDetailsPanel"
+                    Grid.Column="1"
+                    Width="250"
+                    Margin="0,18,20,18"
+                    Padding="14"
+                    Visibility="Collapsed"
+                    Background="{StaticResource PanelSurfaceStrong}"
+                    BorderBrush="{StaticResource BorderColor}"
+                    BorderThickness="1"
+                    CornerRadius="10"
+                    DataContext="{Binding SelectedItem, ElementName=ImageGrid}">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="所选图片" Foreground="{StaticResource TextMuted}" FontSize="11"/>
+                    <Image Source="{Binding ImageSource}" Height="150" Stretch="Uniform" HorizontalAlignment="Stretch"/>
+                    <TextBlock Text="{Binding FileName}" Foreground="{StaticResource TextMain}" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                    <TextBlock Text="{Binding DetailLineText}" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap"/>
+                    <TextBlock Text="{Binding MetadataPrimaryText}" Foreground="{StaticResource TextSecondary}" FontSize="11"/>
+                    <TextBlock Text="{Binding MetadataSecondaryText}" Foreground="{StaticResource AccentSafe}" FontSize="11"/>
+                    <TextBlock Text="{Binding CustomTagSummaryText}" Foreground="{StaticResource AccentInspect}" FontSize="11" TextWrapping="Wrap"/>
+                    <TextBlock Text="{Binding ImagePath}" Foreground="{StaticResource TextMuted}" FontSize="10" TextWrapping="Wrap" MaxHeight="56"/>
+                </StackPanel>
+            </Border>
         </Grid>
 
         <!-- Status Bar -->
@@ -383,7 +433,7 @@
               Padding="18,8"
               BorderBrush="{StaticResource BorderColor}"
               BorderThickness="0,1,0,0"
-              Background="{StaticResource HeaderBg}">
+              Background="{StaticResource PanelSurfaceStrong}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
@@ -391,12 +441,12 @@
             </Grid.ColumnDefinitions>
 
             <StackPanel Orientation="Horizontal" Spacing="8">
-                <TextBlock Text="OK" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentGreen}" VerticalAlignment="Center"/>
+                <TextBlock Text="OK" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentSafe}" VerticalAlignment="Center"/>
                 <TextBlock Text="{x:Bind ViewModel.TabStatusText}" FontSize="12" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center"/>
             </StackPanel>
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" Margin="18,0,0,0">
-                <TextBlock Text="ITEMS:" FontSize="12" Foreground="{StaticResource TextMuted}"/>
+                <TextBlock Text="项目：" FontSize="12" Foreground="{StaticResource TextMuted}"/>
                 <TextBlock Text="{x:Bind ViewModel.CountText, Mode=OneWay}" FontSize="12" Foreground="{StaticResource TextMuted}"/>
             </StackPanel>
 
@@ -405,14 +455,14 @@
 
         <!-- App-wide Busy Indicator Overlay -->
         <Grid Grid.RowSpan="5" 
-              Background="#D90C1116" 
+              Background="{StaticResource OverlayScrim}"
               Canvas.ZIndex="100"
               Visibility="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
             <StackPanel HorizontalAlignment="Center"
                         VerticalAlignment="Center"
                         Spacing="16">
-                <ProgressRing IsActive="{x:Bind ViewModel.IsBusy, Mode=OneWay}" Width="60" Height="60" Foreground="{StaticResource AccentGreen}"/>
-                <TextBlock Text="{x:Bind ViewModel.StatusMainText, Mode=OneWay}" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource AccentGreen}" HorizontalAlignment="Center"/>
+                <ProgressRing IsActive="{x:Bind ViewModel.IsBusy, Mode=OneWay}" Width="60" Height="60" Foreground="{StaticResource AccentSafe}"/>
+                <TextBlock Text="{x:Bind ViewModel.StatusMainText, Mode=OneWay}" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource AccentSafe}" HorizontalAlignment="Center"/>
                 <TextBlock Text="{x:Bind ViewModel.StatusDetailText, Mode=OneWay}" FontSize="14" Foreground="{StaticResource TextMain}" HorizontalAlignment="Center" Opacity="0.8"/>
                 <ProgressBar Width="400"
                              Margin="0,10,0,0"
@@ -422,7 +472,8 @@
                              Visibility="{x:Bind ViewModel.IsProgressVisible, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"/>
                 <Button Content="取消操作"
                         Command="{x:Bind ViewModel.CancelOperationCommand}"
-                        Style="{StaticResource AccentButtonStyle}"
+                        Style="{StaticResource PrimaryActionButtonStyle}"
+                        Visibility="{x:Bind ViewModel.CanCancelOperation, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
                         HorizontalAlignment="Center"
                         Margin="0,12,0,0"/>
             </StackPanel>

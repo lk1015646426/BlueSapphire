@@ -152,7 +152,7 @@ namespace BlueSapphire.ViewModels.Cleaner
                     e.PropertyName == nameof(CleanerSettingsViewModel.ReminderEnabled) ||
                     e.PropertyName == nameof(CleanerSettingsViewModel.AutoLowRiskCleanupEnabled))
                 {
-                    OnSettingsChanged();
+                    NotifyPropertiesChanged();
                 }
             };
         }
@@ -179,27 +179,6 @@ namespace BlueSapphire.ViewModels.Cleaner
             OnPropertyChanged(nameof(AutomationHintText));
             OnPropertyChanged(nameof(AutomationScheduleText));
             OnPropertyChanged(nameof(AutomationScheduleDetailText));
-        }
-
-        private void OnSettingsChanged()
-        {
-            _ = PersistAutomationSettingsAsync();
-        }
-
-        private async Task PersistAutomationSettingsAsync()
-        {
-            try
-            {
-                _automationStatus = await _automationService.SaveSettingsAsync(
-                    Settings.ReminderEnabled,
-                    Settings.AutoLowRiskCleanupEnabled,
-                    Settings.ReminderIntervalDays);
-                NotifyPropertiesChanged();
-            }
-            catch
-            {
-                // handled by settings view model or globally
-            }
         }
 
         [RelayCommand]

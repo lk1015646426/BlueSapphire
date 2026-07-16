@@ -1,6 +1,7 @@
 using BlueSapphire.Models;
 using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace BlueSapphire.Services
@@ -11,6 +12,7 @@ namespace BlueSapphire.Services
 
         private readonly CleanerStateStore _stateStore;
         private readonly CleanerAutomationScheduleService _scheduleService;
+        private readonly SemaphoreSlim _mutationGate = new(1, 1);
 
         public CleanerAutomationService(
             CleanerStateStore stateStore,
@@ -32,32 +34,43 @@ namespace BlueSapphire.Services
             bool autoLowRiskCleanupEnabled,
             int reminderIntervalDays)
         {
-            CleanerPreferenceState preferences = await _stateStore.LoadPreferencesAsync();
-            preferences.ReminderEnabled = reminderEnabled;
-            preferences.AutoLowRiskCleanupEnabled = autoLowRiskCleanupEnabled;
-            preferences.ReminderIntervalDays = NormalizeInterval(reminderIntervalDays);
-            CleanerAutomationScheduleState scheduleState = await _scheduleService.SyncAsync(preferences);
-            ApplyScheduleState(preferences, scheduleState);
-            await _stateStore.SavePreferencesAsync(preferences);
-            return BuildStatus(preferences, DateTimeOffset.Now, scheduleState);
+            await _mutationGate.WaitAsync();
+            try
+            {
+                CleanerPreferenceState preferences = await _stateStore.UpdatePreferencesAsync(state =>
+                {
+                    state.ReminderEnabled = reminderEnabled;
+                    state.AutoLowRiskCleanupEnabled = autoLowRiskCleanupEnabled;
+                    state.ReminderIntervalDays = NormalizeInterval(reminderIntervalDays);
+                });
+                CleanerAutomationScheduleState scheduleState = await _scheduleService.SyncAsync(preferences);
+                preferences = await _stateStore.UpdatePreferencesAsync(
+                    state => ApplyScheduleState(state, scheduleState));
+                return BuildStatus(preferences, DateTimeOffset.Now, scheduleState);
+            }
+            finally
+            {
+                _mutationGate.Release();
+            }
         }
 
         public async Task<CleanerAutomationStatus> MarkReminderHandledAsync(DateTimeOffset? handledAt = null)
         {
-            CleanerPreferenceState preferences = await _stateStore.LoadPreferencesAsync();
-            preferences.LastReminderAt = handledAt ?? DateTimeOffset.Now;
-            await _stateStore.SavePreferencesAsync(preferences);
+            DateTimeOffset timestamp = handledAt ?? DateTimeOffset.Now;
+            CleanerPreferenceState preferences = await _stateStore.UpdatePreferencesAsync(
+                state => state.LastReminderAt = timestamp);
             CleanerAutomationScheduleState scheduleState = await _scheduleService.GetStateAsync(preferences);
-            return BuildStatus(preferences, preferences.LastReminderAt.Value, scheduleState);
+            return BuildStatus(preferences, timestamp, scheduleState);
         }
 
         public async Task<CleanerAutomationStatus> MarkAutoCleanupHandledAsync(DateTimeOffset? handledAt = null)
         {
-            CleanerPreferenceState preferences = await _stateStore.LoadPreferencesAsync();
             DateTimeOffset timestamp = handledAt ?? DateTimeOffset.Now;
-            preferences.LastAutoCleanupAt = timestamp;
-            preferences.LastReminderAt = timestamp;
-            await _stateStore.SavePreferencesAsync(preferences);
+            CleanerPreferenceState preferences = await _stateStore.UpdatePreferencesAsync(state =>
+            {
+                state.LastAutoCleanupAt = timestamp;
+                state.LastReminderAt = timestamp;
+            });
             CleanerAutomationScheduleState scheduleState = await _scheduleService.GetStateAsync(preferences);
             return BuildStatus(preferences, timestamp, scheduleState);
         }

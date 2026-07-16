@@ -263,7 +263,7 @@ ViewModel 层的 bug 直接暴露给用户：该禁用的按钮可以点击、�
 
 | 服务 | 源文件行数 | 测试覆盖情况 |
 |---|---|---|
-| `MediaScanService` | 302 | 仅覆盖 `HammingDistance`、`ComputeMD5Async`、`ComputeDHashAsync`、`ComputeQuickHeaderFooterHashAsync` 四个工具方法 |
+| `MediaScanService` | 302 | 覆盖 `HammingDistance`、`ComputeSHA256Async`、`ComputeDHashAsync`、`ComputeQuickHeaderFooterHashAsync` 等工具方法 |
 | `MediaDeduplicationService` | 226 | 零覆盖 |
 | `MediaRenameService` | 94 | 零覆盖 |
 | `MediaTagService` | 219 | 零覆盖 |

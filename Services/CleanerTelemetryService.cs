@@ -10,12 +10,13 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using BlueSapphire.Helpers;
 
 namespace BlueSapphire.Services
 {
     public sealed class CleanerTelemetryService
     {
-        private static readonly HttpClient SharedClient = new HttpClient();
+        private static readonly HttpClient SharedClient = NetworkSafety.CreateSafeHttpClient();
 
         private readonly CleanerStateStore _stateStore;
         private readonly CleanerAuditService _auditService;
@@ -39,7 +40,7 @@ namespace BlueSapphire.Services
             _auditService = auditService;
             _ruleService = ruleService;
             _profileService = profileService;
-            _httpClient = httpClient ?? httpClientFactory?.CreateClient() ?? SharedClient;
+            _httpClient = httpClient ?? httpClientFactory?.CreateClient("ExternalSafe") ?? SharedClient;
             _uploader = uploader ?? UploadCoreAsync;
             _logger = logger;
         }
@@ -62,10 +63,19 @@ namespace BlueSapphire.Services
 
         public async Task<CleanerTelemetryStatus> SaveSettingsAsync(bool enabled, string? endpoint)
         {
-            CleanerPreferenceState preferences = await _stateStore.LoadPreferencesAsync();
-            preferences.TelemetryEnabled = enabled;
-            preferences.TelemetryEndpoint = NormalizeEndpoint(endpoint);
-            await _stateStore.SavePreferencesAsync(preferences);
+            string normalizedEndpoint = NormalizeEndpoint(endpoint);
+            if (!string.IsNullOrWhiteSpace(normalizedEndpoint) &&
+                (!Uri.TryCreate(normalizedEndpoint, UriKind.Absolute, out Uri? uri) ||
+                 uri.Scheme != Uri.UriSchemeHttps))
+            {
+                throw new InvalidOperationException("遥测上传地址必须使用 HTTPS。");
+            }
+
+            CleanerPreferenceState preferences = await _stateStore.UpdatePreferencesAsync(state =>
+            {
+                state.TelemetryEnabled = enabled;
+                state.TelemetryEndpoint = normalizedEndpoint;
+            });
 
             CleanerProfileState profile = await _profileService.GetProfileAsync();
             return BuildStatus(preferences, profile);
@@ -81,9 +91,9 @@ namespace BlueSapphire.Services
             }
 
             if (!Uri.TryCreate(preferences.TelemetryEndpoint, UriKind.Absolute, out Uri? endpoint) ||
-                (endpoint.Scheme != Uri.UriSchemeHttp && endpoint.Scheme != Uri.UriSchemeHttps))
+                endpoint.Scheme != Uri.UriSchemeHttps)
             {
-                throw new InvalidOperationException("请先配置有效的遥测上传地址。");
+                throw new InvalidOperationException("请先配置有效的 HTTPS 遥测上传地址。");
             }
 
             CleanerAuditSnapshot snapshot = await _auditService.LoadSnapshotAsync();
@@ -98,17 +108,24 @@ namespace BlueSapphire.Services
                     throw new InvalidOperationException(string.IsNullOrWhiteSpace(result.Message) ? "遥测端点未接受当前上报。" : result.Message);
                 }
 
-                preferences.LastTelemetryUploadedAt = DateTimeOffset.Now;
-                preferences.LastTelemetryStatus = string.IsNullOrWhiteSpace(result.Message)
+                DateTimeOffset uploadedAt = DateTimeOffset.Now;
+                string statusMessage = string.IsNullOrWhiteSpace(result.Message)
                     ? "上传成功"
                     : $"上传成功 · {result.Message}";
-                await _stateStore.SavePreferencesAsync(preferences);
+                preferences = await _stateStore.UpdatePreferencesAsync(state =>
+                {
+                    state.LastTelemetryUploadedAt = uploadedAt;
+                    state.LastTelemetryStatus = statusMessage;
+                });
                 _logger?.LogInformation("[CleanerTelemetryService] 遥测数据上传成功至 {Endpoint}，状态: {Status}", endpoint, preferences.LastTelemetryStatus);
             }
             catch (Exception ex)
             {
-                preferences.LastTelemetryStatus = $"上传失败 · {ex.Message}";
-                await _stateStore.SavePreferencesAsync(preferences);
+                string statusMessage = $"上传失败 · {ex.Message}";
+                preferences = await _stateStore.UpdatePreferencesAsync(state =>
+                {
+                    state.LastTelemetryStatus = statusMessage;
+                });
                 _logger?.LogError(ex, "[CleanerTelemetryService] 遥测数据上传失败至 {Endpoint}", endpoint);
                 throw;
             }
@@ -133,9 +150,32 @@ namespace BlueSapphire.Services
 
         private async Task<CleanerTelemetryUploadResult> UploadCoreAsync(Uri endpoint, string payload, CancellationToken cancellationToken)
         {
+            await NetworkSafety.ValidatePublicUriAsync(endpoint, requireHttps: true, cancellationToken);
             using StringContent content = new(payload, Encoding.UTF8, "application/json");
-            using HttpResponseMessage response = await _httpClient.PostAsync(endpoint, content, cancellationToken);
-            string responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            using HttpRequestMessage request = new(HttpMethod.Post, endpoint)
+            {
+                Content = content
+            };
+            using HttpResponseMessage response = await _httpClient.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken);
+            if ((int)response.StatusCode is 301 or 302 or 303 or 307 or 308)
+            {
+                return new CleanerTelemetryUploadResult(false, "为避免向未验证地址转发遥测，已拒绝服务器重定向。");
+            }
+            string responseBody;
+            try
+            {
+                responseBody = await NetworkSafety.ReadContentAsStringAsync(
+                    response.Content,
+                    64 * 1024,
+                    cancellationToken);
+            }
+            catch (InvalidOperationException)
+            {
+                responseBody = "响应内容超过 64 KB 限制";
+            }
             if (!response.IsSuccessStatusCode)
             {
                 return new CleanerTelemetryUploadResult(false, $"{(int)response.StatusCode} {response.ReasonPhrase}".Trim());
@@ -143,7 +183,7 @@ namespace BlueSapphire.Services
 
             string message = string.IsNullOrWhiteSpace(responseBody)
                 ? response.ReasonPhrase ?? "遥测已接收"
-                : responseBody.Trim();
+                : responseBody.Trim()[..Math.Min(responseBody.Trim().Length, 1000)];
             return new CleanerTelemetryUploadResult(true, message);
         }
 

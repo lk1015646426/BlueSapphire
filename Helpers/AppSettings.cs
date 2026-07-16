@@ -15,9 +15,14 @@ namespace BlueSapphire.Helpers
 
     public static class AppSettings
     {
-        private static readonly string FolderPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BlueSapphire");
+        private static readonly string FolderPath =
+            Environment.GetEnvironmentVariable("BLUESAPPHIRE_SETTINGS_ROOT")
+            ?? Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "BlueSapphire");
         private static readonly string FilePath = Path.Combine(FolderPath, "config.json");
         private const string SecretKeySuffix = ".Secret";
+        private static readonly object Sync = new();
 
         private static Dictionary<string, JsonElement> _settingsCache = new();
 
@@ -53,53 +58,63 @@ namespace BlueSapphire.Helpers
         {
             string? plainKey = Get<string>("DeepSeekApiKey", null);
             if (string.IsNullOrWhiteSpace(plainKey)) return;
-            SaveSecret("DeepSeekApiKey", plainKey);
-            _settingsCache.Remove("DeepSeekApiKey");
+
             try
             {
-                string json = JsonSerializer.Serialize(
-                    _settingsCache,
-                    typeof(Dictionary<string, JsonElement>),
-                    AppSettingsJsonContext.Default);
-                File.WriteAllText(FilePath, json);
+                byte[] encryptedBytes = ProtectedData.Protect(
+                    Encoding.UTF8.GetBytes(plainKey),
+                    null,
+                    DataProtectionScope.CurrentUser);
+                lock (Sync)
+                {
+                    _settingsCache["DeepSeekApiKey" + SecretKeySuffix] =
+                        SerializeValue(Convert.ToBase64String(encryptedBytes));
+                    _settingsCache.Remove("DeepSeekApiKey");
+                    WriteSettingsUnsafe();
+                }
             }
             catch { }
         }
 
         public static void Save(string key, object value)
         {
-            _settingsCache[key] = SerializeValue(value);
-            try
+            lock (Sync)
             {
-                string json = JsonSerializer.Serialize(
-                    _settingsCache,
-                    typeof(Dictionary<string, JsonElement>),
-                    AppSettingsJsonContext.Default);
-                File.WriteAllText(FilePath, json);
+                _settingsCache[key] = SerializeValue(value);
+                try { WriteSettingsUnsafe(); } catch { }
             }
-            catch { }
         }
 
         public static T? Get<T>(string key, T? defaultValue = default)
         {
-            if (_settingsCache.TryGetValue(key, out JsonElement val))
+            lock (Sync)
             {
-                try
+                if (_settingsCache.TryGetValue(key, out JsonElement val))
                 {
-                    if (typeof(T) == typeof(bool)) return (T)(object)val.GetBoolean();
-                    if (typeof(T) == typeof(string)) return (T)(object)(val.GetString() ?? string.Empty);
-                    return JsonSerializer.Deserialize<T>(val.GetRawText());
+                    try
+                    {
+                        if (typeof(T) == typeof(bool)) return (T)(object)val.GetBoolean();
+                        if (typeof(T) == typeof(string)) return (T)(object)(val.GetString() ?? string.Empty);
+                        return JsonSerializer.Deserialize<T>(val.GetRawText());
+                    }
+                    catch
+                    {
+                        return defaultValue;
+                    }
                 }
-                catch
-                {
-                    return defaultValue;
-                }
+
+                return defaultValue;
             }
-            return defaultValue;
         }
 
         public static void SaveSecret(string key, string value)
         {
+            if (string.IsNullOrEmpty(value))
+            {
+                Remove(key + SecretKeySuffix);
+                return;
+            }
+
             byte[] plainBytes = Encoding.UTF8.GetBytes(value);
             byte[] encryptedBytes = ProtectedData.Protect(plainBytes, null, DataProtectionScope.CurrentUser);
             string base64 = Convert.ToBase64String(encryptedBytes);
@@ -119,6 +134,39 @@ namespace BlueSapphire.Helpers
             catch
             {
                 return null;
+            }
+        }
+
+        private static void Remove(string key)
+        {
+            lock (Sync)
+            {
+                if (!_settingsCache.Remove(key)) return;
+                try { WriteSettingsUnsafe(); } catch { }
+            }
+        }
+
+        private static void WriteSettingsUnsafe()
+        {
+            Directory.CreateDirectory(FolderPath);
+            string json = JsonSerializer.Serialize(
+                _settingsCache,
+                typeof(Dictionary<string, JsonElement>),
+                AppSettingsJsonContext.Default);
+            string temporaryPath = FilePath + ".tmp";
+            try
+            {
+                File.WriteAllText(temporaryPath, json);
+                File.Move(temporaryPath, FilePath, true);
+            }
+            catch
+            {
+                try
+                {
+                    if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+                }
+                catch { }
+                throw;
             }
         }
 

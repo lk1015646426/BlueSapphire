@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace BlueSapphire.Models
 {
@@ -8,9 +9,12 @@ namespace BlueSapphire.Models
         public string Name { get; set; } = "New MCP Server";
         public string Command { get; set; } = "";
         public string Arguments { get; set; } = "";
-        public bool IsEnabled { get; set; } = true;
-        
-        // 可选：未来可以支持环境变量
+        public bool IsEnabled { get; set; }
+        public bool IsApproved { get; set; }
+
+        [JsonIgnore]
         public Dictionary<string, string> EnvironmentVariables { get; set; } = new();
+
+        public string ProtectedEnvironmentVariables { get; set; } = "";
     }
 }

@@ -3,9 +3,7 @@ using BlueSapphire.Models;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Media.Animation;
 using System;
 using System.IO;
 using System.Reflection;
@@ -43,66 +41,62 @@ namespace BlueSapphire
             }
         }
 
-        private int _versionTapCount;
-        private readonly DispatcherTimer _clickResetTimer;
+        private readonly DispatcherTimer _apiKeySaveTimer;
+        private readonly McpServerManager _mcpManager;
 
         public SettingsPage()
         {
+            _apiKeySaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(650) };
+            _apiKeySaveTimer.Tick += (_, _) =>
+            {
+                _apiKeySaveTimer.Stop();
+                SaveCurrentApiKey();
+            };
+
             InitializeComponent();
             LoadVersionInfo();
             InitializeSettingsSafe();
             Bindings.Update();
 
-            _clickResetTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(800) };
-            _clickResetTimer.Tick += (_, _) =>
-            {
-                _versionTapCount = 0;
-                _clickResetTimer.Stop();
-            };
-
             var skillManager = App.Current.Services.GetRequiredService<WebSkillManager>();
             SkillsList.ItemsSource = skillManager.Skills;
+            var agentSkillManager = App.Current.Services.GetRequiredService<AgentSkillManager>();
+            AgentSkillsList.ItemsSource = agentSkillManager.Skills;
 
-            var mcpManager = App.Current.Services.GetRequiredService<McpServerManager>();
-            mcpManager.OnServersChanged += RefreshMcpServersList;
+            _mcpManager = App.Current.Services.GetRequiredService<McpServerManager>();
+            _mcpManager.OnServersChanged += RefreshMcpServersList;
+            Unloaded += SettingsPage_Unloaded;
             RefreshMcpServersList();
-            
-            // 尝试启动所有已启用的 MCP 服务器
-            _ = mcpManager.StartAllEnabledServersAsync();
         }
 
-        private async void LoadVersionInfo()
+        private void SettingsPage_Unloaded(object sender, RoutedEventArgs e)
+        {
+            if (_apiKeySaveTimer.IsEnabled)
+            {
+                _apiKeySaveTimer.Stop();
+                SaveCurrentApiKey();
+            }
+            _mcpManager.OnServersChanged -= RefreshMcpServersList;
+            Unloaded -= SettingsPage_Unloaded;
+        }
+
+        private void LoadVersionInfo()
         {
             try
             {
                 var assembly = Assembly.GetExecutingAssembly();
                 
-                try
-                {
-                    var logService = App.Current.Services.GetRequiredService<DevLogDataService>();
-                    var logs = await logService.LoadLogsAsync();
-                    var latestLog = logs.OrderByDescending(l => l.Timestamp).FirstOrDefault();
-                    if (latestLog != null)
-                    {
-                        AppDisplayVersion = $"版本 {latestLog.Version}";
-                    }
-                    else
-                    {
-                        var version = assembly.GetName().Version;
-                        if (version != null)
-                            AppDisplayVersion = $"版本 {version.Major}.{version.Minor}.{version.Build}";
-                    }
-                }
-                catch
-                {
-                    var version = assembly.GetName().Version;
-                    if (version != null)
-                        AppDisplayVersion = $"版本 {version.Major}.{version.Minor}.{version.Build}";
-                }
+                string version = assembly
+                    .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+                    .InformationalVersion
+                    .Split('+')[0]
+                    ?? assembly.GetName().Version?.ToString(3)
+                    ?? "未知";
+                AppDisplayVersion = $"版本 {version}";
 
                 if (!string.IsNullOrEmpty(assembly.Location))
                 {
-                    AppBuildDate = File.GetLastWriteTime(assembly.Location).ToString("yyyy.MM.dd");
+                    AppBuildDate = $"文件日期 {File.GetLastWriteTime(assembly.Location):yyyy.MM.dd}";
                 }
             }
             catch
@@ -124,13 +118,23 @@ namespace BlueSapphire
             ParticleSwitch.IsOn = targetState;
             ParticleSwitch.Toggled += ParticleSwitch_Toggled;
 
+            string theme = AppSettings.Get("AppTheme", "System") ?? "System";
+            ThemeComboBox.SelectionChanged -= ThemeComboBox_SelectionChanged;
+            ThemeComboBox.SelectedIndex = theme switch { "Light" => 1, "Dark" => 2, _ => 0 };
+            ThemeComboBox.SelectionChanged += ThemeComboBox_SelectionChanged;
+
+            ReduceMotionSwitch.Toggled -= ReduceMotionSwitch_Toggled;
+            ReduceMotionSwitch.IsOn = AppSettings.Get("ReduceMotion", false);
+            ReduceMotionSwitch.Toggled += ReduceMotionSwitch_Toggled;
+            ParticleSwitch.IsEnabled = !ReduceMotionSwitch.IsOn;
+
             ApiProviderComboBox.SelectionChanged -= ApiProviderComboBox_SelectionChanged;
             string provider = AppSettings.Get("DeepSeekApiProvider", "Official") ?? "Official";
             ApiProviderComboBox.SelectedIndex = provider == "SiliconFlow" ? 1 : 0;
             ApiProviderComboBox.SelectionChanged += ApiProviderComboBox_SelectionChanged;
 
             DeepSeekApiKeyBox.PasswordChanged -= DeepSeekApiKeyBox_PasswordChanged;
-            DeepSeekApiKeyBox.Password = AppSettings.GetSecret($"DeepSeekApiKey_{provider}") ?? AppSettings.GetSecret("DeepSeekApiKey") ?? string.Empty;
+            DeepSeekApiKeyBox.Password = LoadProviderApiKey(provider);
             DeepSeekApiKeyBox.PasswordChanged += DeepSeekApiKeyBox_PasswordChanged;
 
             ApiModelComboBox.SelectionChanged -= ApiModelComboBox_SelectionChanged;
@@ -145,11 +149,28 @@ namespace BlueSapphire
 
         private void DeepSeekApiKeyBox_PasswordChanged(object sender, RoutedEventArgs e)
         {
+            _apiKeySaveTimer.Stop();
+            _apiKeySaveTimer.Start();
+        }
+
+        private void SaveCurrentApiKey()
+        {
             string provider = AppSettings.Get("DeepSeekApiProvider", "Official") ?? "Official";
             AppSettings.SaveSecret($"DeepSeekApiKey_{provider}", DeepSeekApiKeyBox.Password);
-            
-            // 为了兼容性，也保存一份到默认的 key 中（如果之前没有特定提供商配置，方便回滚）
-            AppSettings.SaveSecret("DeepSeekApiKey", DeepSeekApiKeyBox.Password);
+        }
+
+        private static string LoadProviderApiKey(string provider)
+        {
+            string? providerKey = AppSettings.GetSecret($"DeepSeekApiKey_{provider}");
+            if (!string.IsNullOrWhiteSpace(providerKey))
+            {
+                return providerKey;
+            }
+
+            // 历史版本只有 DeepSeek 官方使用未分供应商的旧键。
+            return string.Equals(provider, "Official", StringComparison.OrdinalIgnoreCase)
+                ? AppSettings.GetSecret("DeepSeekApiKey") ?? string.Empty
+                : string.Empty;
         }
 
         private void ApiProviderComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -159,10 +180,12 @@ namespace BlueSapphire
                 string oldProvider = AppSettings.Get("DeepSeekApiProvider", "Official") ?? "Official";
                 if (oldProvider != tag)
                 {
+                    _apiKeySaveTimer.Stop();
+                    AppSettings.SaveSecret($"DeepSeekApiKey_{oldProvider}", DeepSeekApiKeyBox.Password);
                     AppSettings.Save("DeepSeekApiProvider", tag);
                     
                     DeepSeekApiKeyBox.PasswordChanged -= DeepSeekApiKeyBox_PasswordChanged;
-                    DeepSeekApiKeyBox.Password = AppSettings.GetSecret($"DeepSeekApiKey_{tag}") ?? AppSettings.GetSecret("DeepSeekApiKey") ?? string.Empty;
+                    DeepSeekApiKeyBox.Password = LoadProviderApiKey(tag);
                     DeepSeekApiKeyBox.PasswordChanged += DeepSeekApiKeyBox_PasswordChanged;
 
                     if (ApiModelComboBox != null)
@@ -207,9 +230,10 @@ namespace BlueSapphire
                 string? currentSelection = (ApiModelComboBox.SelectedItem as ComboBoxItem)?.Tag as string;
                 ApiModelComboBox.Items.Clear();
 
-                // 强制保存最新的 API Key 到对应提供商
+                // 在发起连接测试前立即落盘，避免等待防抖计时器。
                 string provider = AppSettings.Get("DeepSeekApiProvider", "Official") ?? "Official";
-                AppSettings.SaveSecret($"DeepSeekApiKey_{provider}", DeepSeekApiKeyBox.Password);
+                _apiKeySaveTimer.Stop();
+                SaveCurrentApiKey();
 
                 var aiService = App.Current.Services.GetRequiredService<DeepSeekAIService>();
                 var result = await aiService.GetAvailableModelsAsync();
@@ -249,107 +273,25 @@ namespace BlueSapphire
             AppSettings.Save("IsParticleEffectEnabled", isEnabled);
         }
 
-        private async void SecretVersion_PointerPressed(object sender, PointerRoutedEventArgs e)
+        private void ThemeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            _versionTapCount++;
-            _clickResetTimer.Stop();
-            _clickResetTimer.Start();
-
-            if (_versionTapCount < 5)
+            if (ThemeComboBox.SelectedItem is not ComboBoxItem { Tag: string theme })
             {
-                TriggerMicroBounce(VersionTextBlock);
                 return;
             }
 
-            _versionTapCount = 0;
-            _clickResetTimer.Stop();
-
-            await TriggerCyberPulseEffect(VersionTextBlock);
-            Frame.Navigate(typeof(Views.DevLogPage));
+            AppSettings.Save("AppTheme", theme);
+            App.ApplyThemePreference(theme);
         }
 
-        private void TriggerMicroBounce(TextBlock target)
+        private void ReduceMotionSwitch_Toggled(object sender, RoutedEventArgs e)
         {
-            target.RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5);
-            var scaleTransform = new ScaleTransform { ScaleX = 1.0, ScaleY = 1.0 };
-            target.RenderTransform = scaleTransform;
-
-            var storyboard = new Storyboard();
-            var easeFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut };
-
-            var scaleXAnimation = new DoubleAnimation
-            {
-                To = 1.05,
-                Duration = TimeSpan.FromMilliseconds(50),
-                AutoReverse = true,
-                EasingFunction = easeFunction
-            };
-            Storyboard.SetTarget(scaleXAnimation, scaleTransform);
-            Storyboard.SetTargetProperty(scaleXAnimation, "ScaleX");
-
-            var scaleYAnimation = new DoubleAnimation
-            {
-                To = 1.05,
-                Duration = TimeSpan.FromMilliseconds(50),
-                AutoReverse = true,
-                EasingFunction = easeFunction
-            };
-            Storyboard.SetTarget(scaleYAnimation, scaleTransform);
-            Storyboard.SetTargetProperty(scaleYAnimation, "ScaleY");
-
-            storyboard.Children.Add(scaleXAnimation);
-            storyboard.Children.Add(scaleYAnimation);
-            storyboard.Begin();
-        }
-
-        private async Task TriggerCyberPulseEffect(TextBlock target)
-        {
-            var originalBrush = target.Foreground;
-            target.Foreground = new SolidColorBrush(Microsoft.UI.Colors.White);
-
-            target.RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5);
-            var scaleTransform = new ScaleTransform { ScaleX = 1.0, ScaleY = 1.0 };
-            target.RenderTransform = scaleTransform;
-
-            var storyboard = new Storyboard();
-            var easeFunction = new SineEase { EasingMode = EasingMode.EaseInOut };
-
-            var scaleXAnimation = new DoubleAnimation
-            {
-                To = 1.15,
-                Duration = TimeSpan.FromMilliseconds(120),
-                AutoReverse = true,
-                EasingFunction = easeFunction
-            };
-            Storyboard.SetTarget(scaleXAnimation, scaleTransform);
-            Storyboard.SetTargetProperty(scaleXAnimation, "ScaleX");
-
-            var scaleYAnimation = new DoubleAnimation
-            {
-                To = 1.15,
-                Duration = TimeSpan.FromMilliseconds(120),
-                AutoReverse = true,
-                EasingFunction = easeFunction
-            };
-            Storyboard.SetTarget(scaleYAnimation, scaleTransform);
-            Storyboard.SetTargetProperty(scaleYAnimation, "ScaleY");
-
-            storyboard.Children.Add(scaleXAnimation);
-            storyboard.Children.Add(scaleYAnimation);
-            storyboard.Begin();
-
-            await Task.Delay(300);
-            target.Foreground = originalBrush;
-        }
-
-        private void SecretVersion_PointerEntered(object sender, PointerRoutedEventArgs e)
-        {
-            ProtectedCursor = Microsoft.UI.Input.InputSystemCursor.Create(Microsoft.UI.Input.InputSystemCursorShape.Hand);
-        }
-
-        private void SecretVersion_PointerExited(object sender, PointerRoutedEventArgs e)
-        {
-            ProtectedCursor = Microsoft.UI.Input.InputSystemCursor.Create(Microsoft.UI.Input.InputSystemCursorShape.Arrow);
+            bool reduceMotion = ReduceMotionSwitch.IsOn;
+            AppSettings.Save("ReduceMotion", reduceMotion);
+            ParticleSwitch.IsEnabled = !reduceMotion;
+            WeakReferenceMessenger.Default.Send(
+                new ToggleParticleMessage(reduceMotion ? false : ParticleSwitch.IsOn));
+            WeakReferenceMessenger.Default.Send(new ToggleReducedMotionMessage(reduceMotion));
         }
 
         // --- MCP Server Management UI ---
@@ -359,18 +301,19 @@ namespace BlueSapphire
         {
             DispatcherQueue.TryEnqueue(() =>
             {
-                var mcpManager = App.Current.Services.GetRequiredService<McpServerManager>();
                 McpServers.Clear();
-                foreach (var server in mcpManager.GetServers())
+                foreach (var server in _mcpManager.GetServers())
                 {
-                    bool isRunning = mcpManager.IsServerRunning(server.Id);
+                    bool isRunning = _mcpManager.IsServerRunning(server.Id);
                     McpServers.Add(new McpServerUIModel
                     {
                         Id = server.Id,
                         Name = server.Name,
                         Command = $"{server.Command} {server.Arguments}",
+                        ActionText = isRunning ? "停止" : "启动",
                         StatusText = isRunning ? "● 运行中" : "○ 已停止",
-                        StatusColor = isRunning ? new SolidColorBrush(Microsoft.UI.Colors.LightGreen) : new SolidColorBrush(Microsoft.UI.Colors.Gray)
+                        StatusColor = (Brush)Application.Current.Resources[
+                            isRunning ? "AccentSafe" : "TextMuted"]
                     });
                 }
                 McpServersList.ItemsSource = McpServers;
@@ -382,8 +325,9 @@ namespace BlueSapphire
             var dialog = new ContentDialog
             {
                 Title = "添加 MCP 服务器",
-                PrimaryButtonText = "添加",
+                PrimaryButtonText = "确认添加",
                 CloseButtonText = "取消",
+                DefaultButton = ContentDialogButton.Close,
                 XamlRoot = this.XamlRoot
             };
 
@@ -400,6 +344,13 @@ namespace BlueSapphire
             };
 
             var panel = new StackPanel();
+            panel.Children.Add(new TextBlock
+            {
+                Text = "安全提示：MCP 是可在本机运行的第三方程序。仅添加你信任的来源。添加后不会自动启动。",
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = (Brush)Application.Current.Resources["AccentReview"],
+                Margin = new Thickness(0, 0, 0, 14)
+            });
             panel.Children.Add(new TextBlock { Text = "服务器名称", Margin = new Thickness(0, 0, 0, 5) });
             panel.Children.Add(nameBox);
             panel.Children.Add(new TextBlock { Text = "执行命令", Margin = new Thickness(0, 0, 0, 5) });
@@ -434,12 +385,70 @@ namespace BlueSapphire
                     Command = cmdBox.Text,
                     Arguments = argsBox.Text,
                     EnvironmentVariables = envDict,
-                    IsEnabled = true
+                    IsEnabled = false,
+                    IsApproved = true
                 };
 
-                var mcpManager = App.Current.Services.GetRequiredService<McpServerManager>();
-                mcpManager.AddOrUpdateServer(config);
-                await mcpManager.StartServerAsync(config.Id);
+                try
+                {
+                    _mcpManager.AddOrUpdateServer(config);
+                }
+                catch (Exception ex)
+                {
+                    await new ContentDialog
+                    {
+                        Title = "无法添加服务器",
+                        Content = ex.Message,
+                        CloseButtonText = "确定",
+                        XamlRoot = XamlRoot
+                    }.ShowAsync();
+                }
+            }
+        }
+
+        private async void ToggleMcpBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button button || button.Tag is not string id)
+            {
+                return;
+            }
+
+            if (_mcpManager.IsServerRunning(id))
+            {
+                _mcpManager.StopServer(id);
+                return;
+            }
+
+            McpServerConfig? config = _mcpManager.GetServers().FirstOrDefault(server => server.Id == id);
+            if (config == null)
+            {
+                return;
+            }
+
+            var confirmDialog = new ContentDialog
+            {
+                Title = $"启动 {config.Name}？",
+                Content = $"蓝宝石将启动第三方进程：\n{config.Command} {config.Arguments}",
+                PrimaryButtonText = "启动",
+                CloseButtonText = "取消",
+                DefaultButton = ContentDialogButton.Close,
+                XamlRoot = XamlRoot
+            };
+            if (await confirmDialog.ShowAsync() != ContentDialogResult.Primary)
+            {
+                return;
+            }
+
+            await _mcpManager.StartServerAsync(id);
+            if (!_mcpManager.IsServerRunning(id))
+            {
+                await new ContentDialog
+                {
+                    Title = "启动失败",
+                    Content = "服务器未能建立连接，请检查运行环境、命令和参数。",
+                    CloseButtonText = "确定",
+                    XamlRoot = XamlRoot
+                }.ShowAsync();
             }
         }
 
@@ -447,8 +456,7 @@ namespace BlueSapphire
         {
             if (sender is Button btn && btn.Tag is string id)
             {
-                var mcpManager = App.Current.Services.GetRequiredService<McpServerManager>();
-                mcpManager.RemoveServer(id);
+                _mcpManager.RemoveServer(id);
             }
         }
 
@@ -507,9 +515,15 @@ namespace BlueSapphire
                 }
                 else
                 {
-                    // 若需要更新名称等
                     addedSkill.UseDomesticNetwork = useDomestic;
                     skillManager.SaveConfig();
+                    await new ContentDialog
+                    {
+                        Title = "规范验证完成",
+                        Content = "技能已保存为“待审核”，尚未加入 AI 工具列表。请在列表中选择“审核并启用”。",
+                        CloseButtonText = "确定",
+                        XamlRoot = XamlRoot
+                    }.ShowAsync();
                 }
             }
         }
@@ -519,7 +533,211 @@ namespace BlueSapphire
             if (sender is Button btn && btn.Tag is string id)
             {
                 var skillManager = App.Current.Services.GetRequiredService<WebSkillManager>();
-                skillManager.RemoveSkillAsync(id);
+                skillManager.RemoveSkill(id);
+            }
+        }
+
+        private async void ToggleWebSkillBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button { Tag: string id }) return;
+            var manager = App.Current.Services.GetRequiredService<WebSkillManager>();
+            WebSkillConfig? skill = manager.Skills.FirstOrDefault(item =>
+                string.Equals(item.Id, id, StringComparison.OrdinalIgnoreCase));
+            if (skill == null) return;
+
+            if (skill.IsEnabled)
+            {
+                manager.DisableSkill(id);
+                return;
+            }
+
+            (bool previewed, string previewError) = await manager.PreviewSkillAsync(id);
+            if (!previewed)
+            {
+                await new ContentDialog
+                {
+                    Title = "规范验证失败",
+                    Content = previewError,
+                    CloseButtonText = "确定",
+                    XamlRoot = XamlRoot
+                }.ShowAsync();
+                return;
+            }
+
+            var review = new ContentDialog
+            {
+                Title = $"审核 Web 技能：{skill.Name}",
+                Content = new StackPanel
+                {
+                    Spacing = 8,
+                    MinWidth = 500,
+                    Children =
+                    {
+                        new TextBlock { Text = $"规范来源：{skill.Url}", TextWrapping = TextWrapping.Wrap },
+                        new TextBlock { Text = $"请求目标：{skill.TargetOrigin}", TextWrapping = TextWrapping.Wrap },
+                        new TextBlock { Text = skill.ToolCountText },
+                        new TextBlock
+                        {
+                            Text = "启用后，AI 可看到这些第三方接口的名称和说明；实际发送参数前仍会弹出确认。请只信任你能识别的服务。",
+                            TextWrapping = TextWrapping.Wrap,
+                            Foreground = (Brush)Application.Current.Resources["AccentReview"]
+                        }
+                    }
+                },
+                PrimaryButtonText = "信任并启用",
+                CloseButtonText = "取消",
+                DefaultButton = ContentDialogButton.Close,
+                XamlRoot = XamlRoot
+            };
+            if (await review.ShowAsync() != ContentDialogResult.Primary) return;
+
+            (bool enabled, string error) = await manager.EnableSkillAsync(id);
+            if (!enabled)
+            {
+                await new ContentDialog
+                {
+                    Title = "启用失败",
+                    Content = error,
+                    CloseButtonText = "确定",
+                    XamlRoot = XamlRoot
+                }.ShowAsync();
+            }
+        }
+
+        private async void AddAgentSkillBtn_Click(object sender, RoutedEventArgs e)
+        {
+            var urlBox = new TextBox
+            {
+                PlaceholderText = "https://github.com/owner/repo/tree/main/skill",
+                MinWidth = 420
+            };
+            var dialog = new ContentDialog
+            {
+                Title = "下载 Agent 技能",
+                Content = new StackPanel
+                {
+                    Spacing = 10,
+                    Children =
+                    {
+                        new TextBlock
+                        {
+                            Text = "请输入可信来源的 SKILL.md 或 GitHub 技能目录地址。下载后仍需审核才能启用。",
+                            TextWrapping = TextWrapping.Wrap
+                        },
+                        urlBox
+                    }
+                },
+                PrimaryButtonText = "继续",
+                CloseButtonText = "取消",
+                DefaultButton = ContentDialogButton.Close,
+                XamlRoot = XamlRoot
+            };
+
+            if (await dialog.ShowAsync() != ContentDialogResult.Primary ||
+                string.IsNullOrWhiteSpace(urlBox.Text))
+            {
+                return;
+            }
+
+            var proxyDialog = new Views.SkillProxyConfigDialog("Agent 技能")
+            {
+                XamlRoot = XamlRoot
+            };
+            await proxyDialog.ShowAsync();
+            if (!proxyDialog.Result.HasValue)
+            {
+                return;
+            }
+
+            try
+            {
+                var manager = App.Current.Services.GetRequiredService<AgentSkillManager>();
+                bool added = await manager.AddSkillAsync(urlBox.Text.Trim(), proxyDialog.Result.Value);
+                await new ContentDialog
+                {
+                    Title = added ? "下载完成" : "无法识别技能",
+                    Content = added
+                        ? "技能已下载并保持“待审核”状态。请在列表中选择“审核并启用”。"
+                        : "返回内容不像有效的 SKILL.md。",
+                    CloseButtonText = "确定",
+                    XamlRoot = XamlRoot
+                }.ShowAsync();
+            }
+            catch (Exception ex)
+            {
+                await new ContentDialog
+                {
+                    Title = "下载失败",
+                    Content = ex.Message,
+                    CloseButtonText = "确定",
+                    XamlRoot = XamlRoot
+                }.ShowAsync();
+            }
+        }
+
+        private async void ReviewAgentSkillBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button { Tag: string id })
+            {
+                return;
+            }
+
+            var manager = App.Current.Services.GetRequiredService<AgentSkillManager>();
+            AgentSkillConfig? skill = manager.Skills.FirstOrDefault(item => item.Id == id);
+            if (skill == null) return;
+
+            if (skill.IsEnabled)
+            {
+                skill.IsEnabled = false;
+                manager.SaveConfig();
+                return;
+            }
+
+            string preview = skill.Instructions.Length > 6000
+                ? skill.Instructions[..6000] + "\n\n……预览已截断"
+                : skill.Instructions;
+            var panel = new StackPanel { Spacing = 10, MinWidth = 520 };
+            panel.Children.Add(new TextBlock { Text = $"来源：{skill.Url}", TextWrapping = TextWrapping.Wrap });
+            panel.Children.Add(new TextBlock { Text = skill.Description, TextWrapping = TextWrapping.Wrap });
+            panel.Children.Add(new TextBlock
+            {
+                Text = "以下是第三方指令预览。请确认它与预期用途一致，且不要求泄露数据、绕过确认或执行无关操作：",
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = (Brush)Application.Current.Resources["AccentReview"]
+            });
+            var previewBox = new TextBox
+            {
+                Text = preview,
+                IsReadOnly = true,
+                AcceptsReturn = true,
+                TextWrapping = TextWrapping.Wrap,
+                MaxHeight = 320
+            };
+            ScrollViewer.SetVerticalScrollBarVisibility(previewBox, ScrollBarVisibility.Auto);
+            panel.Children.Add(previewBox);
+
+            var dialog = new ContentDialog
+            {
+                Title = $"审核技能：{skill.Name}",
+                Content = panel,
+                PrimaryButtonText = "信任并启用",
+                CloseButtonText = "取消",
+                DefaultButton = ContentDialogButton.Close,
+                XamlRoot = XamlRoot
+            };
+            if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+            {
+                skill.IsTrusted = true;
+                skill.IsEnabled = true;
+                manager.SaveConfig();
+            }
+        }
+
+        private void DeleteAgentSkillBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button { Tag: string id })
+            {
+                App.Current.Services.GetRequiredService<AgentSkillManager>().RemoveSkill(id);
             }
         }
     }
@@ -530,7 +748,9 @@ namespace BlueSapphire
         public string Name { get; set; } = "";
         public string Command { get; set; } = "";
         public string StatusText { get; set; } = "";
-        public Brush StatusColor { get; set; } = new SolidColorBrush(Microsoft.UI.Colors.White);
+        public string ActionText { get; set; } = "启动";
+        public Brush StatusColor { get; set; } =
+            (Brush)Application.Current.Resources["TextMuted"];
     }
 }
 

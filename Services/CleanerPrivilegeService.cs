@@ -41,13 +41,20 @@ namespace BlueSapphire.Services
                 return false;
             }
 
-            string[] existingArgs = Environment.GetCommandLineArgs().Skip(1).ToArray();
-            string toolArg = string.IsNullOrWhiteSpace(toolId) ? string.Empty : $" --tool={toolId}";
-            string forwardedArgs = string.Join(" ", existingArgs.Where(arg =>
+            List<string> forwardedArgs = Environment.GetCommandLineArgs()
+                .Skip(1)
+                .Where(arg =>
                 !arg.StartsWith("--tool=", StringComparison.OrdinalIgnoreCase) &&
-                !arg.StartsWith("--cleaner-retry-batch=", StringComparison.OrdinalIgnoreCase)));
-            string appendedArgs = extraArguments == null ? string.Empty : $" {string.Join(" ", extraArguments.Where(arg => !string.IsNullOrWhiteSpace(arg)))}";
-            string combinedArgs = $"{forwardedArgs}{toolArg}{appendedArgs}".Trim();
+                !arg.StartsWith("--cleaner-retry-batch=", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (!string.IsNullOrWhiteSpace(toolId))
+            {
+                forwardedArgs.Add($"--tool={toolId}");
+            }
+            if (extraArguments != null)
+            {
+                forwardedArgs.AddRange(extraArguments.Where(arg => !string.IsNullOrWhiteSpace(arg)));
+            }
 
             return await Task.Run(() =>
             {
@@ -56,10 +63,13 @@ namespace BlueSapphire.Services
                     ProcessStartInfo startInfo = new()
                     {
                         FileName = executablePath,
-                        Arguments = combinedArgs,
                         UseShellExecute = true,
                         Verb = "runas"
                     };
+                    foreach (string argument in forwardedArgs)
+                    {
+                        startInfo.ArgumentList.Add(argument);
+                    }
 
                     using Process? process = Process.Start(startInfo);
                     if (process == null)

@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Numerics;
 using System.Security.Cryptography;
+using System.Threading;
 using System.Threading.Tasks;
 using Windows.Graphics.Imaging;
 using Windows.Storage;
@@ -19,7 +20,9 @@ namespace BlueSapphire.Services
 
         // ========================= Exact Dedup: Quick Header/Footer Hash =========================
 
-        public static async Task<string> ComputeQuickHeaderFooterHashAsync(StorageFile file)
+        public static async Task<string> ComputeQuickHeaderFooterHashAsync(
+            StorageFile file,
+            CancellationToken cancellationToken = default)
         {
             try
             {
@@ -30,19 +33,27 @@ namespace BlueSapphire.Services
 
                 if (stream.Length <= buffer.Length)
                 {
-                    bytesRead = await ReadExactlyAsync(stream, buffer, 0, (int)stream.Length);
+                    bytesRead = await ReadExactlyAsync(
+                        stream,
+                        buffer,
+                        0,
+                        (int)stream.Length,
+                        cancellationToken);
                 }
                 else
                 {
-                    await ReadExactlyAsync(stream, buffer, 0, chunkSize);
+                    await ReadExactlyAsync(stream, buffer, 0, chunkSize, cancellationToken);
                     stream.Seek(-chunkSize, SeekOrigin.End);
-                    await ReadExactlyAsync(stream, buffer, chunkSize, chunkSize);
+                    await ReadExactlyAsync(stream, buffer, chunkSize, chunkSize, cancellationToken);
                     bytesRead = buffer.Length;
                 }
 
-                using var md5 = MD5.Create();
-                byte[] hashBytes = md5.ComputeHash(buffer, 0, bytesRead);
+                byte[] hashBytes = SHA256.HashData(buffer.AsSpan(0, bytesRead));
                 return ConvertToHex(hashBytes);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch
             {
@@ -50,16 +61,22 @@ namespace BlueSapphire.Services
             }
         }
 
-        // ========================= Exact Dedup: Full MD5 =========================
+        // ========================= Exact Dedup: Full SHA-256 =========================
 
-        public static async Task<string> ComputeMD5Async(StorageFile file)
+        public static async Task<string> ComputeSHA256Async(
+            StorageFile file,
+            CancellationToken cancellationToken = default)
         {
             try
             {
                 using var stream = await file.OpenStreamForReadAsync();
-                using var md5 = MD5.Create();
-                byte[] hashBytes = await Task.Run(() => md5.ComputeHash(stream));
+                using var sha256 = SHA256.Create();
+                byte[] hashBytes = await sha256.ComputeHashAsync(stream, cancellationToken);
                 return ConvertToHex(hashBytes);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch
             {
@@ -336,13 +353,20 @@ namespace BlueSapphire.Services
             return BitConverter.ToString(bytes).Replace("-", string.Empty).ToLowerInvariant();
         }
 
-        internal static async Task<int> ReadExactlyAsync(Stream stream, byte[] buffer, int offset, int count)
+        internal static async Task<int> ReadExactlyAsync(
+            Stream stream,
+            byte[] buffer,
+            int offset,
+            int count,
+            CancellationToken cancellationToken = default)
         {
             int totalRead = 0;
 
             while (totalRead < count)
             {
-                int read = await stream.ReadAsync(buffer, offset + totalRead, count - totalRead);
+                int read = await stream.ReadAsync(
+                    buffer.AsMemory(offset + totalRead, count - totalRead),
+                    cancellationToken);
                 if (read == 0)
                 {
                     break;

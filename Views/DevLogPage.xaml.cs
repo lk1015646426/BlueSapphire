@@ -58,7 +58,7 @@ namespace BlueSapphire.Views
             }
         }
 
-        private void DeleteLog_Click(object sender, RoutedEventArgs e)
+        private async void DeleteLog_Click(object sender, RoutedEventArgs e)
         {
             if (!ViewModel.IsEditable)
             {
@@ -67,12 +67,26 @@ namespace BlueSapphire.Views
 
             if (sender is Button button && button.CommandParameter is DevLogItem item)
             {
+                var confirm = new ContentDialog
+                {
+                    Title = "删除开发日志？",
+                    Content = $"将删除“{item.Title}”（{item.Version}）。该操作会写入本地日志文件。",
+                    PrimaryButtonText = "删除",
+                    CloseButtonText = "取消",
+                    DefaultButton = ContentDialogButton.Close,
+                    XamlRoot = XamlRoot
+                };
+                if (await confirm.ShowAsync() != ContentDialogResult.Primary)
+                {
+                    return;
+                }
+
                 RootPage.IsTabStop = true;
                 RootPage.Focus(FocusState.Programmatic);
 
                 if (ViewModel.DeleteLogCommand.CanExecute(item))
                 {
-                    ViewModel.DeleteLogCommand.Execute(item);
+                    await ViewModel.DeleteLogCommand.ExecuteAsync(item);
                 }
             }
         }

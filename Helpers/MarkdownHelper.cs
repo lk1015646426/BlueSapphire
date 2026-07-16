@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Documents;
 using Microsoft.UI.Xaml.Media;
 using System;
+using System.Text;
 using Markdig;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
@@ -81,7 +82,11 @@ namespace BlueSapphire.Helpers
             }
             else if (block is QuoteBlock quote)
             {
-                var p = new Paragraph { Margin = new Thickness(12, 0, 0, 12), Foreground = new SolidColorBrush(Microsoft.UI.Colors.LightGray) };
+                var p = new Paragraph
+                {
+                    Margin = new Thickness(12, 0, 0, 12),
+                    Foreground = GetBrush("TextMuted")
+                };
                 foreach (var subBlock in quote)
                 {
                     var b = ParseBlock(subBlock);
@@ -101,28 +106,28 @@ namespace BlueSapphire.Helpers
             else if (block is FencedCodeBlock fencedCode)
             {
                 var p = new Paragraph { Margin = new Thickness(0, 8, 0, 12) };
-                string codeText = "";
+                var codeText = new StringBuilder();
                 if (fencedCode.Lines.Lines != null)
                 {
                     foreach (var line in fencedCode.Lines.Lines)
                     {
                         if (line.Slice.Text != null)
-                            codeText += line.Slice.ToString() + "\n";
+                            codeText.AppendLine(line.Slice.ToString());
                     }
                 }
                 
                 var border = new Border
                 {
-                    Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 20, 20, 20)),
+                    Background = GetBrush("PanelSurfaceStrong"),
                     CornerRadius = new CornerRadius(8),
                     Padding = new Thickness(16, 12, 16, 12),
-                    BorderBrush = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(40, 255, 255, 255)),
+                    BorderBrush = GetBrush("BorderColor"),
                     BorderThickness = new Thickness(1),
                     Child = new TextBlock 
                     { 
-                        Text = codeText.TrimEnd('\n'), 
+                        Text = codeText.ToString().TrimEnd('\r', '\n'),
                         FontFamily = new FontFamily("Consolas"), 
-                        Foreground = new SolidColorBrush(Microsoft.UI.Colors.LightSkyBlue),
+                        Foreground = GetBrush("AccentInspect"),
                         TextWrapping = TextWrapping.Wrap
                     }
                 };
@@ -155,7 +160,8 @@ namespace BlueSapphire.Helpers
             else if (inline is LinkInline link)
             {
                 var h = new Hyperlink();
-                if (Uri.TryCreate(link.Url, UriKind.Absolute, out Uri? result))
+                if (Uri.TryCreate(link.Url, UriKind.Absolute, out Uri? result) &&
+                    result.Scheme == Uri.UriSchemeHttps)
                     h.NavigateUri = result;
                 foreach (var child in link) h.Inlines.Add(ParseInline(child));
                 return h;
@@ -164,7 +170,7 @@ namespace BlueSapphire.Helpers
             {
                 var border = new Border
                 {
-                    Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(60, 255, 255, 255)),
+                    Background = GetBrush("AccentCyanBg"),
                     CornerRadius = new CornerRadius(4),
                     Padding = new Thickness(4, 0, 4, 0),
                     Margin = new Thickness(2, 0, 2, 0),
@@ -172,7 +178,7 @@ namespace BlueSapphire.Helpers
                     { 
                         Text = code.Content, 
                         FontFamily = new FontFamily("Consolas"), 
-                        Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
+                        Foreground = GetBrush("TextMain"),
                         VerticalAlignment = VerticalAlignment.Center
                     }
                 };
@@ -185,6 +191,14 @@ namespace BlueSapphire.Helpers
                 return span;
             }
             return new Run { Text = inline.ToString() };
+        }
+
+        private static Brush GetBrush(string key)
+        {
+            return Application.Current.Resources.TryGetValue(key, out object? value) &&
+                   value is Brush brush
+                ? brush
+                : new SolidColorBrush(Microsoft.UI.Colors.Transparent);
         }
     }
 }

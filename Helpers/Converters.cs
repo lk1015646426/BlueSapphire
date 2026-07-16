@@ -1,4 +1,4 @@
-﻿using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI;
@@ -86,18 +86,55 @@ namespace BlueSapphire
             {
                 return status switch
                 {
-                    DevLogStatus.Pending => new SolidColorBrush(Windows.UI.Color.FromArgb(255, 100, 100, 100)), // 暗灰
-                    DevLogStatus.InProgress => new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 165, 0)), // 呼吸橙
-                    DevLogStatus.Completed => new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 255, 204)), // 霓虹青
-                    _ => new SolidColorBrush(Colors.Gray)
+                    DevLogStatus.Pending => ThemeBrush("TextMuted"),
+                    DevLogStatus.InProgress => ThemeBrush("AccentReview"),
+                    DevLogStatus.Completed => ThemeBrush("AccentSafe"),
+                    _ => ThemeBrush("TextMuted")
                 };
             }
-            return new SolidColorBrush(Colors.Gray);
+            return ThemeBrush("TextMuted");
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, string language)
         {
             return DependencyProperty.UnsetValue;
         }
+
+        private static Brush ThemeBrush(string key) =>
+            Application.Current.Resources.TryGetValue(key, out object? value) && value is Brush brush
+                ? brush
+                : new SolidColorBrush(Colors.Transparent);
+    }
+
+    /// <summary>
+    /// 6. 磁盘使用率转进度条颜色转换器
+    ///    < 70%  → 绿 (AccentSafe)
+    ///    70-85% → 橙 (AccentReview)
+    ///    > 85%  → 红 (AccentDanger)
+    /// </summary>
+    public class UsageToBrushConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, string language)
+        {
+            if (value is double pct)
+            {
+                if (pct > 85)
+                    return ThemeBrush("AccentDanger");
+                if (pct > 70)
+                    return ThemeBrush("AccentReview");
+                return ThemeBrush("AccentSafe");
+            }
+            return ThemeBrush("AccentSafe");
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, string language)
+        {
+            return DependencyProperty.UnsetValue;
+        }
+
+        private static Brush ThemeBrush(string key) =>
+            Application.Current.Resources.TryGetValue(key, out object? value) && value is Brush brush
+                ? brush
+                : new SolidColorBrush(Colors.Transparent);
     }
 }

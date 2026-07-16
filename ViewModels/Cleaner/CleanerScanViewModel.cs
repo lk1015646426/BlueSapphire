@@ -25,6 +25,7 @@ namespace BlueSapphire.ViewModels.Cleaner
         public CleanerSettingsViewModel Settings { get; }
 
         private ICleanerAssistantViewInteraction? _view;
+        private readonly object _operationSync = new();
         private CancellationTokenSource? _currentOperationCts;
         private int _suspendRefreshCount;
 
@@ -32,20 +33,66 @@ namespace BlueSapphire.ViewModels.Cleaner
         public partial bool IsBusy { get; set; }
 
         [ObservableProperty]
+        public partial CleanerScanState CurrentScanState { get; set; } = CleanerScanState.Idle;
+
+        [ObservableProperty]
         public partial int ProgressValue { get; set; }
 
-        [ObservableProperty]
-        public partial string StatusMainText { get; set; } = "就绪";
+        partial void OnProgressValueChanged(int value)
+        {
+            OnPropertyChanged(nameof(ScanningProgressText));
+        }
 
         [ObservableProperty]
-        public partial string StatusDetailText { get; set; } = "点击下方的快速扫描，检查垃圾和可清理项。";
+        public partial string StatusMainText { get; set; } = "等待扫描";
+
+        [ObservableProperty]
+        public partial string StatusDetailText { get; set; } = "选择磁盘后开始扫描";
 
         [ObservableProperty]
         public partial string LastScanText { get; set; } = "最近扫描：无记录";
 
         private CleanerScanScope _lastScope = CleanerScanScope.Quick;
 
-        public string ScanModeText => _lastScope == CleanerScanScope.Deep ? "深度扫描已完成" : "快速扫描已完成";
+        public string ScanModeText => CurrentScanState == CleanerScanState.Completed
+            ? (_lastScope == CleanerScanScope.Deep ? "深度扫描已完成" : "快速扫描已完成")
+            : string.Empty;
+
+        public bool HasScanCompleted => CurrentScanState == CleanerScanState.Completed;
+        public bool HasNoResults => CurrentScanState == CleanerScanState.Completed && !HasResults;
+        public bool ShowIdleEmptyState => CurrentScanState == CleanerScanState.Idle;
+        public bool ShowNoResultsState => HasNoResults;
+        public bool HasAnyCategoryItems => HasSafeItems || HasReviewItems || HasViewOnlyItems;
+        public bool IsScanning => CurrentScanState == CleanerScanState.Scanning;
+        public bool IsNotScanning => !IsScanning;
+        public bool IsIdle => CurrentScanState == CleanerScanState.Idle;
+
+        public bool IsQuickScanMode => _lastScope == CleanerScanScope.Quick;
+        public bool IsDeepScanMode => _lastScope == CleanerScanScope.Deep;
+
+        public string ScanModeNameText => _lastScope == CleanerScanScope.Deep ? "深度扫描" : "快速扫描";
+
+        public string ScanModeDescriptionText => _lastScope == CleanerScanScope.Deep
+            ? "深度扫描将检查安装包残留、旧更新缓存、浏览器缓存、大体积占用项等，覆盖范围更广。"
+            : "快速扫描将检查系统临时文件、缓存、日志、回收站等低风险项目。";
+
+        public string ScanModeEstimateText => _lastScope == CleanerScanScope.Deep
+            ? "预计耗时 1-5 分钟"
+            : "预计耗时 10-30 秒";
+
+        public string ScanModeSafetyText => "清理前会再次确认，建议确认项默认不自动删除。";
+
+        public string ScanningProgressText => IsScanning && ProgressMax > 0
+            ? $"扫描中 {ProgressValue}%"
+            : string.Empty;
+
+        public string CleanupDisabledReasonText => TotalSelectedItemCount == 0
+            ? "请选择清理项"
+            : string.Empty;
+
+        public string BottomRiskHintText => HasSelectedReviewItems
+            ? $"包含 {SelectedReviewItemCount} 项需确认，删除前请核对"
+            : (TotalSelectedItemCount > 0 ? "全部为安全项，可直接清理" : string.Empty);
 
         public CleanerAuditSnapshot? AuditSnapshot { get; private set; }
 
@@ -78,7 +125,15 @@ namespace BlueSapphire.ViewModels.Cleaner
         public string ViewOnlySpaceText => CleanerSizeFormatter.Format(ViewOnlyItemSpaceBytes);
         public string ViewOnlyCountText => $"{ViewOnlyItemCount} 项";
         public bool HasViewOnlyItems => ViewOnlyItems.Count > 0;
-        
+
+        public long TotalCleanableSpaceBytes => SafeItemSpaceBytes + ReviewItemSpaceBytes;
+        public string TotalCleanableSpaceText => CleanerSizeFormatter.Format(TotalCleanableSpaceBytes);
+        public long TotalDetectedSpaceBytes => TotalCleanableSpaceBytes + ViewOnlyItemSpaceBytes;
+        public double SafeSpaceRatio => TotalDetectedSpaceBytes > 0 ? (double)SafeItemSpaceBytes / TotalDetectedSpaceBytes : 0;
+        public double ReviewSpaceRatio => TotalDetectedSpaceBytes > 0 ? (double)ReviewItemSpaceBytes / TotalDetectedSpaceBytes : 0;
+        public double ViewOnlySpaceRatio => TotalDetectedSpaceBytes > 0 ? (double)ViewOnlyItemSpaceBytes / TotalDetectedSpaceBytes : 0;
+        public double SafePlusReviewRatio => SafeSpaceRatio + ReviewSpaceRatio;
+
         public bool HasResults => _allItems.Count > 0;
         public int ProgressMax => 100;
         public bool CanCancelCurrentOperation => IsBusy;
@@ -99,9 +154,13 @@ namespace BlueSapphire.ViewModels.Cleaner
         public int TotalSelectedItemCount => SelectedSafeItemCount + SelectedReviewItemCount;
         public long TotalSelectedSpaceBytes => SelectedSafeItemSpaceBytes + SelectedReviewItemSpaceBytes;
         public string TotalSelectedSpaceText => CleanerSizeFormatter.Format(TotalSelectedSpaceBytes);
+        public string TotalSelectedItemCountText => $"{TotalSelectedItemCount} 项";
+
+        public bool HasSelectedReviewItems => SelectedReviewItemCount > 0;
+        public bool ShowSafeHint => TotalSelectedItemCount > 0 && !HasSelectedReviewItems;
 
         public bool CanRunCleanup => TotalSelectedItemCount > 0 && !IsBusy;
-        public bool CanRunAutomaticLowRiskCleanupNow => SafeItems.Count > 0 && !IsBusy;
+        public bool CanRunAutomaticLowRiskCleanupNow => !IsBusy;
 
         public event EventHandler? DashboardChanged;
         public event EventHandler<CleanerScanScope>? ScanStarted;
@@ -124,7 +183,6 @@ namespace BlueSapphire.ViewModels.Cleaner
             Cleanup = cleanup;
             Settings = settings;
 
-            WeakReferenceMessenger.Default.Register<BlueSapphire.Models.StartQuickScanMessage>(this, async (r, m) => await StartQuickScan());
         }
 
         public async Task InitializeAsync(ICleanerAssistantViewInteraction view)
@@ -136,38 +194,48 @@ namespace BlueSapphire.ViewModels.Cleaner
         [RelayCommand]
         private async Task StartQuickScan()
         {
-            await StartScanAsync(CleanerScanScope.Quick);
+            await RunScanAsync(CleanerScanScope.Quick);
         }
 
         [RelayCommand]
         private async Task StartDeepScan()
         {
-            await StartScanAsync(CleanerScanScope.Deep);
+            await RunScanAsync(CleanerScanScope.Deep);
         }
 
         [RelayCommand]
         private void CancelCurrentOperation()
         {
-            if (_currentOperationCts != null && !_currentOperationCts.IsCancellationRequested)
+            lock (_operationSync)
             {
-                StatusDetailText = "正在取消操作...";
-                _currentOperationCts.Cancel();
+                if (_currentOperationCts != null && !_currentOperationCts.IsCancellationRequested)
+                {
+                    StatusDetailText = "正在取消操作...";
+                    _currentOperationCts.Cancel();
+                }
             }
         }
 
-        private async Task StartScanAsync(CleanerScanScope scope)
+        public async Task<bool> RunScanAsync(CleanerScanScope scope)
         {
-            if (IsBusy) return;
+            if (IsBusy) return false;
 
             ScanStarted?.Invoke(this, scope);
             _lastScope = scope;
-            SetBusyState(true, scope == CleanerScanScope.Quick ? "正在快速扫描..." : "正在深度扫描...", "准备扫描规则和驱动器");
+            CurrentScanState = CleanerScanState.Scanning;
+            SetBusyState(true, scope == CleanerScanScope.Quick ? "正在快速扫描" : "正在深度扫描", "正在初始化扫描规则");
 
             CancellationTokenSource cts = CreateOperationTokenSource();
 
             var progress = new Progress<CleanerScanProgress>(e =>
             {
-                ProgressValue = (int)e.ProgressValue;
+                ProgressValue = e.ProgressMax > 0
+                    ? Math.Clamp((int)Math.Round(e.ProgressValue / e.ProgressMax * 100), 0, 100)
+                    : 0;
+                if (!string.IsNullOrWhiteSpace(e.StageTitle))
+                {
+                    StatusMainText = e.StageTitle;
+                }
                 if (!string.IsNullOrWhiteSpace(e.Detail))
                 {
                     StatusDetailText = e.Detail;
@@ -208,22 +276,32 @@ namespace BlueSapphire.ViewModels.Cleaner
                     ? $"最近扫描：{finalReport.CreatedAt:yyyy-MM-dd HH:mm:ss} · 复用 {finalReport.ReusedItemCount} 项"
                     : $"最近扫描：{finalReport.CreatedAt:yyyy-MM-dd HH:mm:ss}";
 
-                StatusMainText = scope == CleanerScanScope.Quick ? "快速扫描完成" : "深度扫描完成（含抽样分析）";
-                StatusDetailText = BuildScanCompletionText(finalReport, spaceAnalysisResult, orphanResult);
-                
+                StatusMainText = scope == CleanerScanScope.Quick ? "快速扫描完成" : "深度扫描完成";
+                StatusDetailText = TotalCleanableSpaceBytes > 0
+                    ? $"发现 {TotalCleanableSpaceText} 可清理空间"
+                    : "未发现可清理项目，当前系统状态良好";
+                CurrentScanState = CleanerScanState.Completed;
+
                 ScanCompleted?.Invoke(this, EventArgs.Empty);
+                return true;
             }
             catch (OperationCanceledException)
             {
                 StatusMainText = "已取消";
                 StatusDetailText = "扫描任务已被取消。";
+                CurrentScanState = CleanerScanState.Idle;
+                return false;
             }
             catch (Exception ex)
             {
+                StatusMainText = "扫描失败";
+                StatusDetailText = "扫描未完成，请查看错误后重试。";
+                CurrentScanState = CleanerScanState.Idle;
                 if (_view != null)
                 {
                     await _view.ShowTipAsync("扫描失败", ex.Message);
                 }
+                return false;
             }
             finally
             {
@@ -312,7 +390,9 @@ namespace BlueSapphire.ViewModels.Cleaner
             }
             else
             {
-                item.IsSelected = item.RiskLevel == CleanerRiskLevel.Low;
+                item.IsSelected = item.DefaultSelected &&
+                                  item.RiskLevel == CleanerRiskLevel.Low &&
+                                  item.IsSelectableAndEnabled;
             }
         }
 
@@ -343,16 +423,19 @@ namespace BlueSapphire.ViewModels.Cleaner
             OnPropertyChanged(nameof(SafeItemCount));
             OnPropertyChanged(nameof(SafeItemSpaceBytes));
             OnPropertyChanged(nameof(SafeSpaceText));
+            OnPropertyChanged(nameof(SafeCountText));
             OnPropertyChanged(nameof(HasSafeItems));
 
             OnPropertyChanged(nameof(ReviewItemCount));
             OnPropertyChanged(nameof(ReviewItemSpaceBytes));
             OnPropertyChanged(nameof(ReviewSpaceText));
+            OnPropertyChanged(nameof(ReviewCountText));
             OnPropertyChanged(nameof(HasReviewItems));
 
             OnPropertyChanged(nameof(ViewOnlyItemCount));
             OnPropertyChanged(nameof(ViewOnlyItemSpaceBytes));
             OnPropertyChanged(nameof(ViewOnlySpaceText));
+            OnPropertyChanged(nameof(ViewOnlyCountText));
             OnPropertyChanged(nameof(HasViewOnlyItems));
 
             OnPropertyChanged(nameof(SelectedSafeItemCount));
@@ -367,9 +450,40 @@ namespace BlueSapphire.ViewModels.Cleaner
             OnPropertyChanged(nameof(TotalSelectedItemCount));
             OnPropertyChanged(nameof(TotalSelectedSpaceBytes));
             OnPropertyChanged(nameof(TotalSelectedSpaceText));
+            OnPropertyChanged(nameof(TotalSelectedItemCountText));
+
+            OnPropertyChanged(nameof(HasSelectedReviewItems));
+            OnPropertyChanged(nameof(ShowSafeHint));
 
             OnPropertyChanged(nameof(CanRunCleanup));
             OnPropertyChanged(nameof(CanRunAutomaticLowRiskCleanupNow));
+
+            OnPropertyChanged(nameof(TotalCleanableSpaceBytes));
+            OnPropertyChanged(nameof(TotalCleanableSpaceText));
+            OnPropertyChanged(nameof(TotalDetectedSpaceBytes));
+            OnPropertyChanged(nameof(SafeSpaceRatio));
+            OnPropertyChanged(nameof(ReviewSpaceRatio));
+            OnPropertyChanged(nameof(ViewOnlySpaceRatio));
+            OnPropertyChanged(nameof(SafePlusReviewRatio));
+
+            OnPropertyChanged(nameof(HasResults));
+            OnPropertyChanged(nameof(HasScanCompleted));
+            OnPropertyChanged(nameof(HasNoResults));
+            OnPropertyChanged(nameof(ShowIdleEmptyState));
+            OnPropertyChanged(nameof(ShowNoResultsState));
+            OnPropertyChanged(nameof(HasAnyCategoryItems));
+            OnPropertyChanged(nameof(ScanModeText));
+            OnPropertyChanged(nameof(IsScanning));
+            OnPropertyChanged(nameof(IsNotScanning));
+            OnPropertyChanged(nameof(IsIdle));
+            OnPropertyChanged(nameof(IsQuickScanMode));
+            OnPropertyChanged(nameof(IsDeepScanMode));
+            OnPropertyChanged(nameof(ScanModeNameText));
+            OnPropertyChanged(nameof(ScanModeDescriptionText));
+            OnPropertyChanged(nameof(ScanModeEstimateText));
+            OnPropertyChanged(nameof(ScanningProgressText));
+            OnPropertyChanged(nameof(CleanupDisabledReasonText));
+            OnPropertyChanged(nameof(BottomRiskHintText));
 
             DashboardChanged?.Invoke(this, EventArgs.Empty);
         }
@@ -385,13 +499,15 @@ namespace BlueSapphire.ViewModels.Cleaner
 
         public CancellationTokenSource CreateOperationTokenSource()
         {
-            if (_currentOperationCts != null && !_currentOperationCts.IsCancellationRequested)
-            {
-                _currentOperationCts.Cancel();
-            }
-            _currentOperationCts?.Dispose();
             CancellationTokenSource cts = new();
-            _currentOperationCts = cts;
+            lock (_operationSync)
+            {
+                if (_currentOperationCts != null && !_currentOperationCts.IsCancellationRequested)
+                {
+                    _currentOperationCts.Cancel();
+                }
+                _currentOperationCts = cts;
+            }
             return cts;
         }
 
@@ -400,11 +516,27 @@ namespace BlueSapphire.ViewModels.Cleaner
             ReleaseOperationCts(cts);
         }
 
+        public void CancelPendingOperation()
+        {
+            lock (_operationSync)
+            {
+                if (_currentOperationCts != null && !_currentOperationCts.IsCancellationRequested)
+                {
+                    _currentOperationCts.Cancel();
+                }
+                _currentOperationCts = null;
+            }
+            _view = null;
+        }
+
         private void ReleaseOperationCts(CancellationTokenSource currentCts)
         {
-            if (_currentOperationCts == currentCts)
+            lock (_operationSync)
             {
-                _currentOperationCts = null;
+                if (ReferenceEquals(_currentOperationCts, currentCts))
+                {
+                    _currentOperationCts = null;
+                }
             }
             currentCts.Dispose();
         }

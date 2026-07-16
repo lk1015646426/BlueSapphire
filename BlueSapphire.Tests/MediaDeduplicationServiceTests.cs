@@ -110,12 +110,11 @@ public class MediaDeduplicationServiceTests
             // 立即取消
             cts.Cancel();
 
-            var groups = await _service.FindDuplicatesAsync(
-                folder,
-                new Progress<(double Value, string Message, string Detail)>(),
-                cts.Token);
-
-            Assert.Empty(groups);
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                _service.FindDuplicatesAsync(
+                    folder,
+                    new Progress<(double Value, string Message, string Detail)>(),
+                    cts.Token));
         }
         finally
         {

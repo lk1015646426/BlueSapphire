@@ -246,11 +246,13 @@ namespace BlueSapphire.Models
 
             _loadingCts?.Cancel();
             _loadingCts?.Dispose();
-            _loadingCts = new CancellationTokenSource();
-            var token = _loadingCts.Token;
+            var loadingCts = new CancellationTokenSource();
+            _loadingCts = loadingCts;
+            var token = loadingCts.Token;
 
             _isLoaded = true;
             IsImageLoading = true;
+            bool handedOffToUi = false;
 
             try
             {
@@ -275,16 +277,11 @@ namespace BlueSapphire.Models
 
                 if (thumb != null)
                 {
-                    dispatcherQueue.TryEnqueue(async () =>
+                    handedOffToUi = dispatcherQueue.TryEnqueue(async () =>
                     {
-                        if (token.IsCancellationRequested)
-                        {
-                            thumb.Dispose();
-                            return;
-                        }
-
                         try
                         {
+                            token.ThrowIfCancellationRequested();
                             var bitmap = new BitmapImage
                             {
                                 DecodePixelWidth = 220
@@ -294,12 +291,24 @@ namespace BlueSapphire.Models
                         }
                         catch
                         {
+                            _isLoaded = false;
                         }
                         finally
                         {
                             thumb.Dispose();
+                            IsImageLoading = false;
+                            if (ReferenceEquals(_loadingCts, loadingCts))
+                            {
+                                loadingCts.Dispose();
+                                _loadingCts = null;
+                            }
                         }
                     });
+                    if (!handedOffToUi)
+                    {
+                        thumb.Dispose();
+                        _isLoaded = false;
+                    }
                 }
             }
             catch (OperationCanceledException)
@@ -312,7 +321,15 @@ namespace BlueSapphire.Models
             }
             finally
             {
-                dispatcherQueue.TryEnqueue(() => IsImageLoading = false);
+                if (!handedOffToUi)
+                {
+                    dispatcherQueue.TryEnqueue(() => IsImageLoading = false);
+                }
+                if (!handedOffToUi && ReferenceEquals(_loadingCts, loadingCts))
+                {
+                    loadingCts.Dispose();
+                    _loadingCts = null;
+                }
             }
         }
 

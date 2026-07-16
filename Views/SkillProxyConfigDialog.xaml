@@ -14,40 +14,40 @@
         </Grid.RowDefinitions>
         
         <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,0,0,24">
-            <Border Background="#2000FF00" CornerRadius="12" Width="56" Height="56" VerticalAlignment="Center">
-                <FontIcon Glyph="&#xE774;" Foreground="#00FF00" FontSize="28"/>
+            <Border Background="{StaticResource AccentSafeBg}" CornerRadius="12" Width="56" Height="56" VerticalAlignment="Center">
+                <FontIcon Glyph="&#xE774;" Foreground="{StaticResource AccentSafe}" FontSize="28"/>
             </Border>
             <StackPanel VerticalAlignment="Center">
-                <TextBlock Text="为新技能配置网络" FontSize="22" FontWeight="SemiBold" Foreground="White" Margin="0,0,0,4"/>
-                <TextBlock x:Name="SubtitleText" Text="选择该在线技能的连接方式" FontSize="14" Foreground="#A0FFFFFF"/>
+                <TextBlock Text="为新技能配置网络" FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource TextMain}" Margin="0,0,0,4"/>
+                <TextBlock x:Name="SubtitleText" Text="选择该在线技能的连接方式" FontSize="14" Foreground="{StaticResource TextSecondary}"/>
             </StackPanel>
         </StackPanel>
         
         <StackPanel Grid.Row="1" Spacing="12">
-            <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0" CornerRadius="8" Background="#15FFFFFF" BorderBrush="#30FFFFFF" BorderThickness="1" Click="Domestic_Click">
+            <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0" CornerRadius="8" Background="{StaticResource PanelSurface}" BorderBrush="{StaticResource AccentSafe}" BorderThickness="1" Click="Domestic_Click">
                 <Grid Padding="16">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <FontIcon Glyph="&#xE909;" Foreground="#00FF00" FontSize="18" VerticalAlignment="Top" Margin="0,2,12,0"/>
+                    <FontIcon Glyph="&#xE909;" Foreground="{StaticResource AccentSafe}" FontSize="18" VerticalAlignment="Top" Margin="0,2,12,0"/>
                     <StackPanel Grid.Column="1">
-                        <TextBlock Text="国内直连 (推荐)" FontWeight="SemiBold" Foreground="#00FF00" Margin="0,0,0,6"/>
-                        <TextBlock Text="绕过全局代理。如果您添加的是国内服务器（如 aihot），使用此项可防止被代理拦截导致加载失败。" Foreground="#C0FFFFFF" FontSize="13" TextWrapping="Wrap" LineHeight="20"/>
+                        <TextBlock Text="国内直连 (推荐)" FontWeight="SemiBold" Foreground="{StaticResource AccentSafe}" Margin="0,0,0,6"/>
+                        <TextBlock Text="绕过全局代理。如果您添加的是国内服务器（如 aihot），使用此项可防止被代理拦截导致加载失败。" Foreground="{StaticResource TextSecondary}" FontSize="13" TextWrapping="Wrap" LineHeight="20"/>
                     </StackPanel>
                 </Grid>
             </Button>
 
-            <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0" CornerRadius="8" Background="#15FFFFFF" BorderBrush="#20FFFFFF" BorderThickness="1" Click="SystemProxy_Click">
+            <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0" CornerRadius="8" Background="{StaticResource PanelSurface}" BorderBrush="{StaticResource BorderSubtle}" BorderThickness="1" Click="SystemProxy_Click">
                 <Grid Padding="16">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <FontIcon Glyph="&#xE72E;" Foreground="#A0FFFFFF" FontSize="18" VerticalAlignment="Top" Margin="0,2,12,0"/>
+                    <FontIcon Glyph="&#xE72E;" Foreground="{StaticResource TextSecondary}" FontSize="18" VerticalAlignment="Top" Margin="0,2,12,0"/>
                     <StackPanel Grid.Column="1">
-                        <TextBlock Text="跟随系统" FontWeight="SemiBold" Foreground="White" Margin="0,0,0,6"/>
-                        <TextBlock Text="使用电脑默认网络设置。如果不确定，或者需要代理才能访问该网址，请选择此项。" Foreground="#A0FFFFFF" FontSize="13" TextWrapping="Wrap" LineHeight="20"/>
+                        <TextBlock Text="跟随系统" FontWeight="SemiBold" Foreground="{StaticResource TextMain}" Margin="0,0,0,6"/>
+                        <TextBlock Text="使用电脑默认网络设置。如果不确定，或者需要代理才能访问该网址，请选择此项。" Foreground="{StaticResource TextSecondary}" FontSize="13" TextWrapping="Wrap" LineHeight="20"/>
                     </StackPanel>
                 </Grid>
             </Button>

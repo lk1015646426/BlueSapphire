@@ -59,7 +59,8 @@ namespace BlueSapphire.Views
             _fullContent = item.FullContent;
             LevelInput.SelectedIndex = item.UpdateLevel == "核心跃迁" ? 0 : 1;
             FileStatusText.Text = "已加载现有记录，可直接修改后保存";
-            FileStatusText.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Cyan);
+            FileStatusText.Foreground =
+                (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentSafe"];
         }
 
         private async void SelectTxtFile_Click(object sender, RoutedEventArgs e)
@@ -76,16 +77,79 @@ namespace BlueSapphire.Views
             StorageFile file = await picker.PickSingleFileAsync();
             if (file != null)
             {
-                string text = await FileIO.ReadTextAsync(file);
-                _fullContent = text;
-                FullContentInput.Text = text;
+                try
+                {
+                    const ulong maxDocumentBytes = 1024 * 1024;
+                    var properties = await file.GetBasicPropertiesAsync();
+                    if (properties.Size > maxDocumentBytes)
+                    {
+                        FileStatusText.Text = "[读取失败] 文档不能超过 1 MB";
+                        FileStatusText.Foreground =
+                            (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentDanger"];
+                        return;
+                    }
 
-                FileStatusText.Text = $"[读取成功] {file.Name} ({text.Length} 字节)";
-                FileStatusText.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Cyan);
+                    string text = await FileIO.ReadTextAsync(file);
+                    if (text.Length > 100_000)
+                    {
+                        FileStatusText.Text = "[读取失败] 文档正文不能超过 100,000 个字符";
+                        FileStatusText.Foreground =
+                            (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentDanger"];
+                        return;
+                    }
+                    _fullContent = text;
+                    FullContentInput.Text = text;
+
+                    FileStatusText.Text = $"[读取成功] {file.Name} ({properties.Size:N0} 字节)";
+                    FileStatusText.Foreground =
+                        (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentSafe"];
+                }
+                catch (Exception ex)
+                {
+                    FileStatusText.Text = $"[读取失败] {ex.Message}";
+                    FileStatusText.Foreground =
+                        (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentDanger"];
+                }
             }
             else
             {
                 FileStatusText.Text = "[操作已取消]";
+            }
+        }
+
+        private void ContentDialog_PrimaryButtonClick(
+            ContentDialog sender,
+            ContentDialogButtonClickEventArgs args)
+        {
+            string title = TitleInput.Text.Trim();
+            string version = VersionInput.Text.Trim();
+            if (title.Length is 0 or > 200)
+            {
+                args.Cancel = true;
+                FileStatusText.Text = "[无法保存] 标题不能为空且不能超过 200 个字符";
+                FileStatusText.Foreground =
+                    (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentDanger"];
+                TitleInput.Focus(FocusState.Programmatic);
+                return;
+            }
+            if (version.Length > 50 ||
+                DescInput.Text.Length > 2000 ||
+                FullContentInput.Text.Length > 100_000)
+            {
+                args.Cancel = true;
+                FileStatusText.Text = "[无法保存] 版本、摘要或正文超过长度限制";
+                FileStatusText.Foreground =
+                    (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentDanger"];
+                return;
+            }
+            if (!string.IsNullOrWhiteSpace(DateInput.Text) &&
+                !DateTime.TryParse(DateInput.Text, out _))
+            {
+                args.Cancel = true;
+                FileStatusText.Text = "[无法保存] 日期格式无效，请使用“年-月-日”";
+                FileStatusText.Foreground =
+                    (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentDanger"];
+                DateInput.Focus(FocusState.Programmatic);
             }
         }
     }

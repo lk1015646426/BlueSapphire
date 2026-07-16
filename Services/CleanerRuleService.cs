@@ -6,9 +6,11 @@ using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using BlueSapphire.Helpers;
 
 namespace BlueSapphire.Services
 {
@@ -17,13 +19,20 @@ namespace BlueSapphire.Services
         private static readonly JsonSerializerOptions RuleJsonOptions = new()
         {
             PropertyNameCaseInsensitive = true,
+            MaxDepth = 32,
+            UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
             Converters =
             {
                 new JsonStringEnumConverter()
             }
         };
 
-        private static readonly HttpClient SharedClient = new HttpClient();
+        private static readonly HttpClient SharedClient = NetworkSafety.CreateSafeHttpClient();
+        private const int MaxRulePackBytes = 2 * 1024 * 1024;
+        private const int MaxExternalRuleCount = 500;
+        private static readonly Regex SafeRuleIdPattern = new(
+            "^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$",
+            RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
         private readonly CleanerStateStore _stateStore;
         private readonly CleanerProfileService _profileService;
@@ -56,7 +65,7 @@ namespace BlueSapphire.Services
             _stateStore = stateStore;
             _profileService = profileService;
             _builtInRuleFilePath = builtInRuleFilePath ?? Path.Combine(AppContext.BaseDirectory, "Assets", "CleanerRules.json");
-            _httpClient = httpClient ?? httpClientFactory?.CreateClient() ?? SharedClient;
+            _httpClient = httpClient ?? httpClientFactory?.CreateClient("ExternalSafe") ?? SharedClient;
             _logger = logger;
         }
 
@@ -85,9 +94,29 @@ namespace BlueSapphire.Services
 
         public async Task<CleanerRuleBundleStatus> ImportRulePackAsync(string sourcePath)
         {
+            FileInfo sourceInfo = new(sourcePath);
+            if (!sourceInfo.Exists || sourceInfo.Length <= 0 || sourceInfo.Length > MaxRulePackBytes)
+            {
+                throw new InvalidOperationException("规则包不存在、为空或超过 2 MB 限制。");
+            }
+
             CleanerRuleBundleDocument bundle = await LoadBundleDocumentAsync(sourcePath);
             Directory.CreateDirectory(_stateStore.RulePackDirectoryPath);
-            File.Copy(sourcePath, _stateStore.ImportedRulePackPath, true);
+            string importTempPath = _stateStore.ImportedRulePackPath + ".tmp";
+            try
+            {
+                File.Copy(sourcePath, importTempPath, true);
+                File.Move(importTempPath, _stateStore.ImportedRulePackPath, true);
+            }
+            catch
+            {
+                try
+                {
+                    if (File.Exists(importTempPath)) File.Delete(importTempPath);
+                }
+                catch { }
+                throw;
+            }
 
             CleanerRuleUpdateState updateState = await _stateStore.LoadRuleUpdateStateAsync();
             updateState.LastRefreshedAt = DateTimeOffset.Now;
@@ -102,21 +131,50 @@ namespace BlueSapphire.Services
         public async Task<CleanerRuleBundleStatus> RefreshFromRemoteAsync(string remoteUri, CancellationToken cancellationToken)
         {
             if (!Uri.TryCreate(remoteUri, UriKind.Absolute, out Uri? uri) ||
-                (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+                uri.Scheme != Uri.UriSchemeHttps)
             {
-                throw new InvalidOperationException("规则链接必须是有效的 http 或 https 地址。");
+                throw new InvalidOperationException("远程规则链接必须使用 HTTPS。");
             }
 
-            using HttpResponseMessage response = await _httpClient.GetAsync(uri, cancellationToken);
+            await NetworkSafety.ValidatePublicUriAsync(uri, requireHttps: true, cancellationToken);
+            using HttpResponseMessage response = await NetworkSafety.GetFollowingSafeRedirectsAsync(
+                _httpClient,
+                uri,
+                requireHttps: true,
+                cancellationToken);
             response.EnsureSuccessStatusCode();
 
-            string json = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (response.Content.Headers.ContentLength is > MaxRulePackBytes)
+            {
+                throw new InvalidOperationException("远程规则包超过 2 MB 限制。");
+            }
+
+            string json = await NetworkSafety.ReadContentAsStringAsync(
+                response.Content,
+                MaxRulePackBytes,
+                cancellationToken);
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                throw new InvalidOperationException("远程规则包为空。");
+            }
             CleanerRuleBundleDocument bundle = ParseBundleDocument(json);
 
             Directory.CreateDirectory(_stateStore.RulePackDirectoryPath);
             string tempPath = _stateStore.ImportedRulePackPath + ".tmp";
-            await File.WriteAllTextAsync(tempPath, json, cancellationToken);
-            File.Move(tempPath, _stateStore.ImportedRulePackPath, true);
+            try
+            {
+                await File.WriteAllTextAsync(tempPath, json, cancellationToken);
+                File.Move(tempPath, _stateStore.ImportedRulePackPath, true);
+            }
+            catch
+            {
+                try
+                {
+                    if (File.Exists(tempPath)) File.Delete(tempPath);
+                }
+                catch { }
+                throw;
+            }
 
             CleanerRuleUpdateState updateState = await _stateStore.LoadRuleUpdateStateAsync();
             updateState.RemoteUri = remoteUri;
@@ -202,9 +260,17 @@ namespace BlueSapphire.Services
                 builtInManifest.Rules,
                 externalBundle?.Rules ?? new List<CleanerRuleDefinition>());
 
+            HashSet<string> builtInRuleIds = builtInManifest.Rules
+                .Where(rule => !string.IsNullOrWhiteSpace(rule.Id))
+                .Select(rule => rule.Id)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            IReadOnlyList<string> externalDisabledRuleIds = (externalBundle?.DisabledRuleIds ?? new List<string>())
+                .Where(id => !builtInRuleIds.Contains(id))
+                .ToList();
+
             (IReadOnlyList<CleanerRuleDefinition> effectiveRules, int rolloutFilteredCount) = MergeRules(
                 knownRules,
-                externalBundle?.DisabledRuleIds ?? new List<string>(),
+                externalDisabledRuleIds,
                 localDisabledRuleIds,
                 profile);
 
@@ -215,7 +281,7 @@ namespace BlueSapphire.Services
                 BuiltInRuleCount = builtInManifest.Rules.Count,
                 EffectiveRuleCount = effectiveRules.Count,
                 ExternalRuleCount = externalBundle?.Rules.Count ?? 0,
-                DisabledRuleCount = (externalBundle?.DisabledRuleIds.Count ?? 0) + localDisabledRuleIds.Count,
+                DisabledRuleCount = externalDisabledRuleIds.Count + localDisabledRuleIds.Count,
                 RolloutFilteredRuleCount = rolloutFilteredCount,
                 LocalDisabledRuleCount = localDisabledRuleIds.Count,
                 HasExternalBundle = externalBundle != null,
@@ -241,7 +307,15 @@ namespace BlueSapphire.Services
                 return null;
             }
 
-            return await LoadBundleDocumentAsync(_stateStore.ImportedRulePackPath);
+            try
+            {
+                return await LoadBundleDocumentAsync(_stateStore.ImportedRulePackPath);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "[CleanerRuleService] 已忽略无效的外部规则包");
+                return null;
+            }
         }
 
         private static async Task<CleanerRuleManifest> LoadManifestAsync(string path)
@@ -258,12 +332,22 @@ namespace BlueSapphire.Services
 
         private static async Task<CleanerRuleBundleDocument> LoadBundleDocumentAsync(string path)
         {
+            FileInfo info = new(path);
+            if (!info.Exists || info.Length is <= 0 or > MaxRulePackBytes)
+            {
+                throw new InvalidOperationException("规则包不存在、为空或超过 2 MB 限制。");
+            }
             string json = await File.ReadAllTextAsync(path);
             return ParseBundleDocument(json);
         }
 
         private static CleanerRuleBundleDocument ParseBundleDocument(string json)
         {
+            if (string.IsNullOrWhiteSpace(json) || System.Text.Encoding.UTF8.GetByteCount(json) > MaxRulePackBytes)
+            {
+                throw new InvalidOperationException("规则包为空或超过 2 MB 限制。");
+            }
+
             using JsonDocument document = JsonDocument.Parse(json);
             JsonElement root = document.RootElement;
 
@@ -275,7 +359,7 @@ namespace BlueSapphire.Services
             if (HasProperty(root, "rules"))
             {
                 CleanerRuleBundleDocument? bundle = JsonSerializer.Deserialize<CleanerRuleBundleDocument>(json, RuleJsonOptions);
-                return bundle ?? new CleanerRuleBundleDocument();
+                return ValidateAndSandboxExternalBundle(bundle ?? new CleanerRuleBundleDocument());
             }
 
             CleanerRuleManifest? manifest = JsonSerializer.Deserialize<CleanerRuleManifest>(json, RuleJsonOptions);
@@ -284,43 +368,149 @@ namespace BlueSapphire.Services
                 throw new InvalidOperationException("无法解析规则包内容。");
             }
 
-            return new CleanerRuleBundleDocument
+            return ValidateAndSandboxExternalBundle(new CleanerRuleBundleDocument
             {
                 Source = "导入规则包",
                 Rules = manifest.Rules
-            };
+            });
         }
 
         private static IReadOnlyList<CleanerRuleDefinition> MergeOverrides(
             IReadOnlyList<CleanerRuleDefinition> builtInRules,
             IReadOnlyList<CleanerRuleDefinition> externalRules)
         {
-            Dictionary<string, CleanerRuleDefinition> externalLookup = externalRules
+            HashSet<string> builtInIds = builtInRules
                 .Where(rule => !string.IsNullOrWhiteSpace(rule.Id))
+                .Select(rule => rule.Id)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            List<CleanerRuleDefinition> acceptedExternalRules = externalRules
+                .Where(rule => !string.IsNullOrWhiteSpace(rule.Id))
+                .Where(rule => !builtInIds.Contains(rule.Id))
                 .GroupBy(rule => rule.Id, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(group => group.Key, group => group.Last(), StringComparer.OrdinalIgnoreCase);
+                .Select(group => group.Last())
+                .ToList();
 
-            List<CleanerRuleDefinition> merged = new();
-            foreach (CleanerRuleDefinition builtIn in builtInRules)
+            List<CleanerRuleDefinition> merged = builtInRules
+                .Where(rule => !string.IsNullOrWhiteSpace(rule.Id))
+                .ToList();
+            merged.AddRange(acceptedExternalRules);
+            return merged;
+        }
+
+        private static CleanerRuleBundleDocument ValidateAndSandboxExternalBundle(CleanerRuleBundleDocument bundle)
+        {
+            if (bundle.Rules.Count > MaxExternalRuleCount)
             {
-                if (string.IsNullOrWhiteSpace(builtIn.Id))
-                {
-                    continue;
-                }
-
-                if (externalLookup.TryGetValue(builtIn.Id, out CleanerRuleDefinition? replacement))
-                {
-                    merged.Add(replacement);
-                    externalLookup.Remove(builtIn.Id);
-                }
-                else
-                {
-                    merged.Add(builtIn);
-                }
+                throw new InvalidOperationException($"外部规则数量不能超过 {MaxExternalRuleCount} 条。");
             }
 
-            merged.AddRange(externalLookup.Values);
-            return merged;
+            HashSet<string> ids = new(StringComparer.OrdinalIgnoreCase);
+            foreach (CleanerRuleDefinition rule in bundle.Rules)
+            {
+                if (!SafeRuleIdPattern.IsMatch(rule.Id) || !ids.Add(rule.Id))
+                {
+                    throw new InvalidOperationException($"外部规则 ID 无效或重复：{rule.Id}");
+                }
+
+                if (string.IsNullOrWhiteSpace(rule.Name) || rule.Name.Length > 120)
+                {
+                    throw new InvalidOperationException($"规则 {rule.Id} 缺少有效名称。");
+                }
+
+                if (rule.Paths.Count is 0 or > 32)
+                {
+                    throw new InvalidOperationException($"规则 {rule.Id} 的路径数量必须在 1 到 32 之间。");
+                }
+
+                foreach (string path in rule.Paths)
+                {
+                    ValidateExternalPath(rule.Id, path);
+                }
+
+                if (rule.IncludePatterns.Count > 32 ||
+                    rule.IncludePatterns.Any(pattern =>
+                        string.IsNullOrWhiteSpace(pattern) ||
+                        pattern.Length > 120 ||
+                        pattern.Contains("..", StringComparison.Ordinal) ||
+                        pattern.Contains(Path.DirectorySeparatorChar) ||
+                        pattern.Contains(Path.AltDirectorySeparatorChar)))
+                {
+                    throw new InvalidOperationException($"规则 {rule.Id} 包含无效的文件匹配模式。");
+                }
+
+                // 未签名的第三方规则只能提供空间分析，不具备删除、提权或默认选中能力。
+                rule.ExecutionMode = CleanerExecutionMode.None;
+                rule.RiskLevel = CleanerRiskLevel.High;
+                rule.DefaultSelected = false;
+                rule.RequiresElevation = false;
+                rule.ViewOnly = true;
+                rule.BoundaryRoots.Clear();
+                rule.OwnerApp = string.IsNullOrWhiteSpace(rule.OwnerApp)
+                    ? "第三方规则"
+                    : $"{rule.OwnerApp}（第三方规则）";
+            }
+
+            bundle.DisabledRuleIds = bundle.DisabledRuleIds
+                .Where(id => SafeRuleIdPattern.IsMatch(id))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(MaxExternalRuleCount)
+                .ToList();
+            bundle.Version = bundle.Version?.Trim() ?? string.Empty;
+            bundle.Source = bundle.Source?.Trim() ?? string.Empty;
+            return bundle;
+        }
+
+        private static void ValidateExternalPath(string ruleId, string rawPath)
+        {
+            if (string.IsNullOrWhiteSpace(rawPath) ||
+                rawPath.Length > 260 ||
+                rawPath.Contains("..", StringComparison.Ordinal) ||
+                rawPath.StartsWith(@"\\", StringComparison.Ordinal) ||
+                rawPath.StartsWith(@"\\?\", StringComparison.Ordinal) ||
+                rawPath.StartsWith(@"\\.\", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException($"规则 {ruleId} 包含不安全路径。");
+            }
+
+            string expanded = Environment.ExpandEnvironmentVariables(rawPath);
+            string fullPath;
+            try
+            {
+                fullPath = Path.GetFullPath(expanded);
+            }
+            catch
+            {
+                throw new InvalidOperationException($"规则 {ruleId} 包含无法解析的路径。");
+            }
+
+            string[] allowedRoots =
+            {
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                Path.GetTempPath()
+            };
+
+            if (!allowedRoots.Any(root => IsSameOrDescendant(fullPath, root)))
+            {
+                throw new InvalidOperationException(
+                    $"规则 {ruleId} 的路径超出第三方规则允许分析的缓存目录范围。");
+            }
+        }
+
+        private static bool IsSameOrDescendant(string candidate, string root)
+        {
+            if (string.IsNullOrWhiteSpace(root))
+            {
+                return false;
+            }
+
+            string normalizedCandidate = Path.TrimEndingDirectorySeparator(Path.GetFullPath(candidate));
+            string normalizedRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
+            return string.Equals(normalizedCandidate, normalizedRoot, StringComparison.OrdinalIgnoreCase) ||
+                   normalizedCandidate.StartsWith(
+                       normalizedRoot + Path.DirectorySeparatorChar,
+                       StringComparison.OrdinalIgnoreCase);
         }
 
         private static (IReadOnlyList<CleanerRuleDefinition> Rules, int RolloutFilteredCount) MergeRules(

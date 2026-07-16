@@ -1,11 +1,19 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using System;
+using System.Reflection;
+using System.Threading.Tasks;
+using BlueSapphire.Helpers;
+using BlueSapphire.Models;
+using BlueSapphire.Services;
+using Microsoft.Extensions.DependencyInjection;
+using CommunityToolkit.Mvvm.Messaging;
 
 namespace BlueSapphire
 {
     public sealed partial class HomePage : Page
     {
+        private bool _isLoaded;
         private readonly string[] HourlyGreetings =
         {
             "深夜引擎仍在运转，保持节奏就好。",
@@ -37,13 +45,89 @@ namespace BlueSapphire
         public HomePage()
         {
             InitializeComponent();
+            WeakReferenceMessenger.Default.Register<ToggleReducedMotionMessage>(
+                this,
+                (_, message) => DispatcherQueue.TryEnqueue(() =>
+                    ApplyReducedMotion(message.Value)));
         }
 
-        private void Page_Loaded(object sender, RoutedEventArgs e)
+        private async void Page_Loaded(object sender, RoutedEventArgs e)
         {
+            _isLoaded = true;
             UpdateHourlyGreeting();
+            await UpdateStatusAsync();
+            ApplyReducedMotion(AppSettings.Get("ReduceMotion", false));
+        }
+
+        private void Page_Unloaded(object sender, RoutedEventArgs e)
+        {
+            _isLoaded = false;
+            CoreIdleAnimation.Stop();
+            EntranceStoryboard.Stop();
+        }
+
+        private void ApplyReducedMotion(bool reduceMotion)
+        {
+            if (!_isLoaded) return;
+            if (reduceMotion)
+            {
+                CoreIdleAnimation.Stop();
+                EntranceStoryboard.Stop();
+                ContentStack.Opacity = 1;
+                ContentTranslate.Y = 0;
+                CoreScale.ScaleX = 1;
+                CoreScale.ScaleY = 1;
+                CoreTranslate.Y = 0;
+                return;
+            }
+
             CoreIdleAnimation.Begin();
             EntranceStoryboard.Begin();
+        }
+
+        private async Task UpdateStatusAsync()
+        {
+            string provider = AppSettings.Get("DeepSeekApiProvider", "Official") ?? "Official";
+            string? apiKey = AppSettings.GetSecret($"DeepSeekApiKey_{provider}");
+            if (string.IsNullOrWhiteSpace(apiKey) &&
+                string.Equals(provider, "Official", StringComparison.OrdinalIgnoreCase))
+            {
+                apiKey = AppSettings.GetSecret("DeepSeekApiKey");
+            }
+            AIStatusText.Text = string.IsNullOrWhiteSpace(apiKey)
+                ? "AI 服务：尚未配置 API 密钥"
+                : $"AI 服务：已配置{(provider == "SiliconFlow" ? "硅基流动" : "DeepSeek 官方")}接口";
+
+            try
+            {
+                CleanerAuditSnapshot snapshot = await App.Current.Services
+                    .GetRequiredService<CleanerAuditService>()
+                    .LoadSnapshotAsync();
+                CleanerStatusText.Text = snapshot.TotalScans == 0
+                    ? "清理助手：尚无扫描记录"
+                    : $"清理助手：{snapshot.ScanSummaryText} · 累计释放 {CleanerSizeFormatter.Format(snapshot.TotalReleasedBytes)}";
+            }
+            catch
+            {
+                CleanerStatusText.Text = "清理助手：状态暂不可用";
+            }
+
+            string version = Assembly.GetExecutingAssembly()
+                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+                .InformationalVersion
+                .Split('+')[0]
+                ?? Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)
+                ?? "未知";
+            ReleaseStatusText.Text = $"版本：{version} · .NET 8 · Windows x64";
+        }
+
+        private void OpenTool_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement { Tag: string toolId } &&
+                App.CurrentWindow is MainWindow mainWindow)
+            {
+                mainWindow.NavigateToTool(toolId);
+            }
         }
 
         private void UpdateHourlyGreeting()

@@ -39,18 +39,18 @@ namespace BlueSapphire.Services
             var groupedBySize = new ConcurrentDictionary<ulong, ConcurrentBag<StorageFile>>();
             int processed = 0;
             long lastReportTicks1 = 0;
-            using var semaphore = new SemaphoreSlim(Environment.ProcessorCount * 2);
-
-            var sizeTasks = allFiles.Select(async file =>
-            {
-                if (token.IsCancellationRequested)
+            await Parallel.ForEachAsync(
+                allFiles,
+                new ParallelOptions
                 {
-                    return;
-                }
-
-                await semaphore.WaitAsync(token);
+                    MaxDegreeOfParallelism = Math.Max(2, Environment.ProcessorCount * 2),
+                    CancellationToken = token
+                },
+                async (file, ct) =>
+                {
                 try
                 {
+                    ct.ThrowIfCancellationRequested();
                     var props = await file.GetBasicPropertiesAsync();
                     if (props.Size > 0)
                     {
@@ -63,19 +63,16 @@ namespace BlueSapphire.Services
                 }
                 finally
                 {
-                    semaphore.Release();
                     int current = Interlocked.Increment(ref processed);
                     long now = Environment.TickCount64;
                     if (current == allFiles.Count || now - Interlocked.Read(ref lastReportTicks1) >= 100)
                     {
                         Interlocked.Exchange(ref lastReportTicks1, now);
-                        double percent = allFiles.Count > 0 ? (double)current / allFiles.Count * 100 : 0;
+                        double percent = allFiles.Count > 0 ? (double)current / allFiles.Count * 25 : 0;
                         progress?.Report((percent, "阶段 1/3: 按大小分组...", $"{current} / {allFiles.Count}"));
                     }
                 }
             });
-
-            await Task.WhenAll(sizeTasks);
             if (token.IsCancellationRequested)
             {
                 return new List<List<StorageFile>>();
@@ -94,7 +91,7 @@ namespace BlueSapphire.Services
 
             progress?.Report((0, "正在深度校验 (Tier 2/3)...", $"0 / {totalSuspects}"));
 
-            var result = new List<List<StorageFile>>();
+            var quickCandidateGroups = new List<List<StorageFile>>();
             int scanned = 0;
             long lastReportTicks2 = 0;
 
@@ -108,7 +105,8 @@ namespace BlueSapphire.Services
                 var groupedByQuickHash = new Dictionary<string, List<StorageFile>>(StringComparer.OrdinalIgnoreCase);
                 foreach (var file in sizeGroup)
                 {
-                    string quickHash = await MediaScanService.ComputeQuickHeaderFooterHashAsync(file);
+                    token.ThrowIfCancellationRequested();
+                    string quickHash = await MediaScanService.ComputeQuickHeaderFooterHashAsync(file, token);
                     if (!string.IsNullOrWhiteSpace(quickHash))
                     {
                         if (!groupedByQuickHash.TryGetValue(quickHash, out var quickGroup))
@@ -125,33 +123,63 @@ namespace BlueSapphire.Services
                     if (scanned == totalSuspects || now - lastReportTicks2 >= 100)
                     {
                         lastReportTicks2 = now;
-                        double percent = totalSuspects > 0 ? (double)scanned / totalSuspects * 100 : 0;
+                        double percent = totalSuspects > 0
+                            ? 25 + (double)scanned / totalSuspects * 35
+                            : 25;
                         progress?.Report((percent, "正在深度校验 (Tier 2/3)...", $"{scanned} / {totalSuspects}"));
                     }
                 }
 
-                foreach (var quickGroup in groupedByQuickHash.Values.Where(group => group.Count > 1))
-                {
-                    var groupedByMd5 = new Dictionary<string, List<StorageFile>>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var file in quickGroup)
-                    {
-                        string fullHash = await MediaScanService.ComputeMD5Async(file);
-                        if (!string.IsNullOrWhiteSpace(fullHash))
-                        {
-                            if (!groupedByMd5.TryGetValue(fullHash, out var md5Group))
-                            {
-                                md5Group = new List<StorageFile>();
-                                groupedByMd5[fullHash] = md5Group;
-                            }
-
-                            md5Group.Add(file);
-                        }
-                    }
-
-                    result.AddRange(groupedByMd5.Values.Where(group => group.Count > 1));
-                }
+                quickCandidateGroups.AddRange(
+                    groupedByQuickHash.Values.Where(group => group.Count > 1));
             }
 
+            int totalFullHashes = quickCandidateGroups.Sum(group => group.Count);
+            if (totalFullHashes == 0)
+            {
+                progress?.Report((100, "扫描完成", "未发现内容重复的文件。"));
+                return new List<List<StorageFile>>();
+            }
+
+            var result = new List<List<StorageFile>>();
+            int fullScanned = 0;
+            long lastReportTicks3 = 0;
+            foreach (var quickGroup in quickCandidateGroups)
+            {
+                token.ThrowIfCancellationRequested();
+                var groupedBySha256 = new Dictionary<string, List<StorageFile>>(StringComparer.OrdinalIgnoreCase);
+                foreach (var file in quickGroup)
+                {
+                    token.ThrowIfCancellationRequested();
+                    string fullHash = await MediaScanService.ComputeSHA256Async(file, token);
+                    if (!string.IsNullOrWhiteSpace(fullHash))
+                    {
+                        if (!groupedBySha256.TryGetValue(fullHash, out var sha256Group))
+                        {
+                            sha256Group = new List<StorageFile>();
+                            groupedBySha256[fullHash] = sha256Group;
+                        }
+
+                        sha256Group.Add(file);
+                    }
+
+                    fullScanned++;
+                    long now = Environment.TickCount64;
+                    if (fullScanned == totalFullHashes || now - lastReportTicks3 >= 100)
+                    {
+                        lastReportTicks3 = now;
+                        double percent = 60 + (double)fullScanned / totalFullHashes * 40;
+                        progress?.Report((
+                            percent,
+                            "阶段 3/3: 计算 SHA-256 完整内容指纹...",
+                            $"{fullScanned} / {totalFullHashes}"));
+                    }
+                }
+
+                result.AddRange(groupedBySha256.Values.Where(group => group.Count > 1));
+            }
+
+            progress?.Report((100, "扫描完成", $"发现 {result.Count} 组完全重复文件。"));
             return result;
         }
 
@@ -164,8 +192,8 @@ namespace BlueSapphire.Services
         /// Uses EXIF thumbnail fast path (~1-5ms/file for JPEG) with full-decode fallback.
         /// </para>
         /// <para>
-        /// Phase 2: Cluster images by Hamming distance (≤5 bits = similar).
-        /// Groups are sorted by file size descending (largest/highest-quality first).
+        /// Phase 2: Group images whose fingerprints are directly within the Hamming threshold.
+        /// Groups are sorted by file size descending as a non-authoritative keep suggestion.
         /// </para>
         /// </summary>
         public async Task<List<List<StorageFile>>> FindSimilarImagesAsync(
@@ -222,7 +250,7 @@ namespace BlueSapphire.Services
                         if (cur == total || now - Interlocked.Read(ref lastReportTicks3) >= 100)
                         {
                             Interlocked.Exchange(ref lastReportTicks3, now);
-                            progress?.Report(((double)cur / total * 100,
+                            progress?.Report(((double)cur / total * 90,
                                 "阶段 1/2: 极速提取视觉指纹...",
                                 $"{cur} / {total}"));
                         }
@@ -271,30 +299,20 @@ namespace BlueSapphire.Services
                 if (node.Visited) continue;
 
                 var cluster = new List<(StorageFile File, ulong Size)>();
-                var queue = new Queue<BKTreeNode>();
-                queue.Enqueue(node);
-                node.Visited = true;
-
-                while (queue.Count > 0)
+                var directMatches = new List<BKTreeNode>();
+                root?.Search(node.Hash, 5, directMatches);
+                foreach (var match in directMatches)
                 {
-                    var current = queue.Dequeue();
-                    cluster.AddRange(current.Items);
-
-                    var neighbors = new List<BKTreeNode>();
-                    root?.Search(current.Hash, 5, neighbors);
-                    foreach (var neighbor in neighbors)
+                    if (!match.Visited)
                     {
-                        if (!neighbor.Visited)
-                        {
-                            neighbor.Visited = true;
-                            queue.Enqueue(neighbor);
-                        }
+                        match.Visited = true;
+                        cluster.AddRange(match.Items);
                     }
                 }
 
                 if (cluster.Count > 1)
                 {
-                    // Largest file first (highest quality / resolution)
+                    // 文件较大只是保留建议的一项弱信号，界面会明确要求人工确认。
                     result.Add(cluster
                         .OrderByDescending(g => g.Size)
                         .Select(g => g.File)
@@ -302,6 +320,7 @@ namespace BlueSapphire.Services
                 }
             }
 
+            progress?.Report((100, "相似图片扫描完成", $"发现 {result.Count} 组候选，请人工确认。"));
             return result;
         }
 

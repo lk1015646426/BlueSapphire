@@ -19,6 +19,8 @@ namespace BlueSapphire.ViewModels.Cleaner
         private readonly CleanerStateStore _stateStore;
         private readonly NativeFileService _nativeFileService;
         private ICleanerAssistantViewInteraction? _view;
+        private readonly object _restoreSync = new();
+        private CancellationTokenSource? _restoreCts;
 
         private CleanerCleanupBatch? _latestBatch;
 
@@ -228,14 +230,33 @@ namespace BlueSapphire.ViewModels.Cleaner
                 bool confirmed = await _view.ShowRestoreConfirmationAsync(LatestCleanupSummaryText);
                 if (!confirmed) return;
 
-                CleanerRestoreSummary summary = await _executionService.RestoreLatestAsync(CancellationToken.None);
+                CancellationTokenSource cts = BeginRestoreOperation();
+                CleanerRestoreSummary summary;
+                try
+                {
+                    summary = await _executionService.RestoreLatestAsync(cts.Token);
+                }
+                finally
+                {
+                    EndRestoreOperation(cts);
+                }
                 
                 await ReloadHistoryAndExclusionsAsync();
                 WeakReferenceMessenger.Default.Send(new ShowTipMessage("恢复完毕", summary.Message));
             }
+            catch (OperationCanceledException)
+            {
+                if (_view != null)
+                {
+                    WeakReferenceMessenger.Default.Send(new ShowTipMessage("已取消", "恢复操作已取消。"));
+                }
+            }
             catch (Exception ex)
             {
-                WeakReferenceMessenger.Default.Send(new ShowTipMessage("恢复失败", ex.Message));
+                if (_view != null)
+                {
+                    WeakReferenceMessenger.Default.Send(new ShowTipMessage("恢复失败", ex.Message));
+                }
             }
         }
 
@@ -250,14 +271,36 @@ namespace BlueSapphire.ViewModels.Cleaner
                 if (!confirmed) return;
 
                 if (_latestBatch == null) return;
-                CleanerRestoreSummary summary = await _executionService.RestoreEntryAsync(_latestBatch.BatchId, entry.EntryId, CancellationToken.None);
+                CancellationTokenSource cts = BeginRestoreOperation();
+                CleanerRestoreSummary summary;
+                try
+                {
+                    summary = await _executionService.RestoreEntryAsync(
+                        _latestBatch.BatchId,
+                        entry.EntryId,
+                        cts.Token);
+                }
+                finally
+                {
+                    EndRestoreOperation(cts);
+                }
                 
                 await ReloadHistoryAndExclusionsAsync();
                 WeakReferenceMessenger.Default.Send(new ShowTipMessage("恢复完毕", summary.Message));
             }
+            catch (OperationCanceledException)
+            {
+                if (_view != null)
+                {
+                    WeakReferenceMessenger.Default.Send(new ShowTipMessage("已取消", "恢复操作已取消。"));
+                }
+            }
             catch (Exception ex)
             {
-                WeakReferenceMessenger.Default.Send(new ShowTipMessage("恢复失败", ex.Message));
+                if (_view != null)
+                {
+                    WeakReferenceMessenger.Default.Send(new ShowTipMessage("恢复失败", ex.Message));
+                }
             }
         }
 
@@ -320,6 +363,39 @@ namespace BlueSapphire.ViewModels.Cleaner
             OnPropertyChanged(nameof(LatestCleanupHintText));
             OnPropertyChanged(nameof(FailureRecoveryHeadlineText));
             OnPropertyChanged(nameof(FailureRecoveryDetailText));
+        }
+
+        public void CancelPendingOperations()
+        {
+            lock (_restoreSync)
+            {
+                _restoreCts?.Cancel();
+                _restoreCts = null;
+            }
+            _view = null;
+        }
+
+        private CancellationTokenSource BeginRestoreOperation()
+        {
+            var next = new CancellationTokenSource();
+            lock (_restoreSync)
+            {
+                _restoreCts?.Cancel();
+                _restoreCts = next;
+            }
+            return next;
+        }
+
+        private void EndRestoreOperation(CancellationTokenSource cts)
+        {
+            lock (_restoreSync)
+            {
+                if (ReferenceEquals(_restoreCts, cts))
+                {
+                    _restoreCts = null;
+                }
+            }
+            cts.Dispose();
         }
     }
 }

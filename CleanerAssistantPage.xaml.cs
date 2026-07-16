@@ -1,8 +1,12 @@
+using BlueSapphire.Controls;
 using BlueSapphire.Interfaces;
+using BlueSapphire.Models;
 using BlueSapphire.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using System;
 using System.ComponentModel;
 using System.Linq;
@@ -22,6 +26,7 @@ namespace BlueSapphire
             ViewModel = App.Current.Services.GetRequiredService<CleanerAssistantViewModel>();
             InitializeComponent();
             Loaded += CleanerAssistantPage_Loaded;
+            Unloaded += CleanerAssistantPage_Unloaded;
         }
 
         private async void CleanerAssistantPage_Loaded(object sender, RoutedEventArgs e)
@@ -34,7 +39,19 @@ namespace BlueSapphire
             _isInitialized = true;
             try
             {
+                if (!BlueSapphire.Helpers.AppSettings.Get("ReduceMotion", false))
+                {
+                    CardEntrance.Begin();
+                }
+                ViewModel.Scan.PropertyChanged += Scan_PropertyChanged;
                 await ViewModel.InitializeAsync(this);
+
+                // Default to first settings section
+                SettingsNav.SelectedIndex = 0;
+                HistoryNav.SelectedIndex = 0;
+                MainTabBar.SelectedIndex = 0;
+
+                UpdateDonutChart();
             }
             catch (Exception ex)
             {
@@ -46,6 +63,99 @@ namespace BlueSapphire
             }
         }
 
+        private void CleanerAssistantPage_Unloaded(object sender, RoutedEventArgs e)
+        {
+            ViewModel.Scan.PropertyChanged -= Scan_PropertyChanged;
+            ViewModel.Shutdown();
+            _isInitialized = false;
+        }
+
+        private void Scan_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName is not (nameof(ViewModel.Scan.SafeSpaceRatio) or
+                                        nameof(ViewModel.Scan.ReviewSpaceRatio) or
+                                        nameof(ViewModel.Scan.ViewOnlySpaceRatio) or
+                                        nameof(ViewModel.Scan.TotalCleanableSpaceBytes) or
+                                        nameof(ViewModel.Scan.CurrentScanState) or
+                                        nameof(ViewModel.Scan.HasResults)))
+                return;
+
+            DispatcherQueue.TryEnqueue(UpdateDonutChart);
+        }
+
+        private void SettingsNav_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (sender is not ListView lv) return;
+            for (int i = 0; i < SettingsContentPanel.Children.Count; i++)
+            {
+                if (SettingsContentPanel.Children[i] is FrameworkElement fe)
+                {
+                    fe.Visibility = i == lv.SelectedIndex ? Visibility.Visible : Visibility.Collapsed;
+                }
+            }
+        }
+
+        private void HistoryNav_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (sender is not ListView lv) return;
+            for (int i = 0; i < HistoryContentPanel.Children.Count; i++)
+            {
+                if (HistoryContentPanel.Children[i] is FrameworkElement fe)
+                {
+                    fe.Visibility = i == lv.SelectedIndex ? Visibility.Visible : Visibility.Collapsed;
+                }
+            }
+        }
+
+        private void MainTabBar_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (sender is not ListView lv) return;
+            Tab1Content.Visibility = lv.SelectedIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
+            Tab2Content.Visibility = lv.SelectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
+            Tab3Content.Visibility = lv.SelectedIndex == 2 ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void UpdateDonutChart()
+        {
+            if (ViewModel.Scan.CurrentScanState == CleanerScanState.Idle)
+            {
+                DonutChart.SetDisplayMode(DonutChart.DonutDisplayMode.Idle);
+                return;
+            }
+
+            if (ViewModel.Scan.CurrentScanState == CleanerScanState.Completed && !ViewModel.Scan.HasResults)
+            {
+                DonutChart.SetDisplayMode(DonutChart.DonutDisplayMode.NoResults);
+                return;
+            }
+
+            DonutChart.SetDisplayMode(DonutChart.DonutDisplayMode.Data);
+            DonutChart.Update(
+                ViewModel.Scan.SafeItemSpaceBytes,
+                ViewModel.Scan.ReviewItemSpaceBytes,
+                ViewModel.Scan.ViewOnlyItemSpaceBytes,
+                ViewModel.Scan.TotalCleanableSpaceText,
+                ViewModel.Scan.SafeSpaceText,
+                ViewModel.Scan.ReviewSpaceText,
+                ViewModel.Scan.ViewOnlySpaceText);
+        }
+
+        private void ItemRow_Tapped(object sender, TappedRoutedEventArgs e)
+        {
+            if (sender is FrameworkElement fe && fe.DataContext is Models.CleanerScanItem item)
+            {
+                ViewModel.SelectedScanItem = item;
+            }
+        }
+
+        private void ApplyDialogStyle(ContentDialog dialog)
+        {
+            dialog.Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["PanelSurfaceStrong"];
+            dialog.BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentInspect"];
+            dialog.BorderThickness = new Thickness(1);
+            dialog.CornerRadius = new CornerRadius(16);
+            dialog.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextMain"];
+        }
 
         public async Task ShowTipAsync(string title, string message)
         {
@@ -56,6 +166,7 @@ namespace BlueSapphire
                 CloseButtonText = "确定",
                 XamlRoot = XamlRoot
             };
+            ApplyDialogStyle(dialog);
 
             await dialog.ShowAsync();
         }
@@ -75,6 +186,7 @@ namespace BlueSapphire
                 DefaultButton = ContentDialogButton.Close,
                 XamlRoot = XamlRoot
             };
+            ApplyDialogStyle(dialog);
 
             return await dialog.ShowAsync() == ContentDialogResult.Primary;
         }
@@ -90,6 +202,7 @@ namespace BlueSapphire
                 DefaultButton = ContentDialogButton.Close,
                 XamlRoot = XamlRoot
             };
+            ApplyDialogStyle(dialog);
 
             return await dialog.ShowAsync() == ContentDialogResult.Primary;
         }
@@ -105,6 +218,7 @@ namespace BlueSapphire
                 DefaultButton = ContentDialogButton.Close,
                 XamlRoot = XamlRoot
             };
+            ApplyDialogStyle(dialog);
 
             return await dialog.ShowAsync() == ContentDialogResult.Primary;
         }
@@ -138,6 +252,7 @@ namespace BlueSapphire
                 DefaultButton = ContentDialogButton.Primary,
                 XamlRoot = XamlRoot
             };
+            ApplyDialogStyle(dialog);
 
             return await dialog.ShowAsync() == ContentDialogResult.Primary
                 ? input.Text.Trim()
@@ -162,6 +277,7 @@ namespace BlueSapphire
                 DefaultButton = ContentDialogButton.Primary,
                 XamlRoot = XamlRoot
             };
+            ApplyDialogStyle(dialog);
 
             return await dialog.ShowAsync() == ContentDialogResult.Primary
                 ? input.Text.Trim()

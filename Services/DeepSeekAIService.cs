@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
@@ -13,6 +14,10 @@ namespace BlueSapphire.Services
 {
     public class DeepSeekAIService
     {
+        private const int MaxJsonResponseBytes = 4 * 1024 * 1024;
+        private const int MaxErrorResponseBytes = 32 * 1024;
+        private const int MaxStreamCharacters = 8 * 1024 * 1024;
+        private const int MaxStreamLineCharacters = 1024 * 1024;
         private readonly IHttpClientFactory _httpClientFactory;
 
         public DeepSeekAIService(IHttpClientFactory httpClientFactory)
@@ -23,8 +28,7 @@ namespace BlueSapphire.Services
         public async Task<ChatMessage> SendChatAsync(List<ChatMessage> messages, List<ChatTool>? tools = null, CancellationToken cancellationToken = default)
         {
             string provider = AppSettings.Get("DeepSeekApiProvider", "Official") ?? "Official";
-            string? apiKey = AppSettings.GetSecret($"DeepSeekApiKey_{provider}");
-            if (string.IsNullOrWhiteSpace(apiKey)) apiKey = AppSettings.GetSecret("DeepSeekApiKey");
+            string? apiKey = GetApiKey(provider);
 
             if (string.IsNullOrWhiteSpace(apiKey))
             {
@@ -52,30 +56,51 @@ namespace BlueSapphire.Services
 
             var requestJson = JsonSerializer.Serialize(requestBody, new JsonSerializerOptions { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull });
 
-            var jsonContent = new StringContent(
+            using var jsonContent = new StringContent(
                 requestJson,
                 Encoding.UTF8,
                 "application/json");
 
             HttpClient httpClient = _httpClientFactory.CreateClient("DeepSeek");
-            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-            httpClient.DefaultRequestHeaders.Add("User-Agent", "BlueSapphire/1.0");
 
             try
             {
-                var response = await httpClient.PostAsync(apiUrl, jsonContent, cancellationToken);
-                var responseString = await response.Content.ReadAsStringAsync();
+                using var request = new HttpRequestMessage(HttpMethod.Post, apiUrl)
+                {
+                    Content = jsonContent
+                };
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+                using HttpResponseMessage response = await httpClient.SendAsync(
+                    request,
+                    HttpCompletionOption.ResponseHeadersRead,
+                    cancellationToken);
+                string responseString = await NetworkSafety.ReadContentAsStringAsync(
+                    response.Content,
+                    response.IsSuccessStatusCode ? MaxJsonResponseBytes : MaxErrorResponseBytes,
+                    cancellationToken);
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    return new ChatMessage { Role = "assistant", Content = $"API 请求失败: {response.StatusCode}\n{responseString}" };
+                    return new ChatMessage
+                    {
+                        Role = "assistant",
+                        Content = $"API 请求失败：{(int)response.StatusCode} {response.ReasonPhrase}\n{responseString}"
+                    };
                 }
 
-                var jsonDoc = JsonDocument.Parse(responseString);
+                using var jsonDoc = JsonDocument.Parse(responseString);
                 var choice = jsonDoc.RootElement.GetProperty("choices")[0];
                 var message = choice.GetProperty("message");
 
                 return JsonSerializer.Deserialize<ChatMessage>(message.GetRawText()) ?? new ChatMessage { Role = "assistant", Content = "API 解析失败" };
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (JsonException)
+            {
+                return new ChatMessage { Role = "assistant", Content = "API 返回了无法解析的数据。" };
             }
             catch (Exception ex)
             {
@@ -86,8 +111,7 @@ namespace BlueSapphire.Services
         public async Task<(List<string> Models, string? Error)> GetAvailableModelsAsync(CancellationToken cancellationToken = default)
         {
             string provider = AppSettings.Get("DeepSeekApiProvider", "Official") ?? "Official";
-            string? apiKey = AppSettings.GetSecret($"DeepSeekApiKey_{provider}");
-            if (string.IsNullOrWhiteSpace(apiKey)) apiKey = AppSettings.GetSecret("DeepSeekApiKey");
+            string? apiKey = GetApiKey(provider);
 
             if (string.IsNullOrWhiteSpace(apiKey)) return (new List<string>(), "API Key 未配置");
 
@@ -96,20 +120,26 @@ namespace BlueSapphire.Services
                 : "https://api.deepseek.com/v1/models";
 
             HttpClient httpClient = _httpClientFactory.CreateClient("DeepSeek");
-            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-            httpClient.DefaultRequestHeaders.Add("User-Agent", "BlueSapphire/1.0");
 
             try
             {
-                var response = await httpClient.GetAsync(apiUrl, cancellationToken);
-                var responseString = await response.Content.ReadAsStringAsync();
+                using var request = new HttpRequestMessage(HttpMethod.Get, apiUrl);
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+                using HttpResponseMessage response = await httpClient.SendAsync(
+                    request,
+                    HttpCompletionOption.ResponseHeadersRead,
+                    cancellationToken);
+                string responseString = await NetworkSafety.ReadContentAsStringAsync(
+                    response.Content,
+                    response.IsSuccessStatusCode ? MaxJsonResponseBytes : MaxErrorResponseBytes,
+                    cancellationToken);
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    return (new List<string>(), $"请求失败 ({response.StatusCode}): {responseString}");
+                    return (new List<string>(), $"请求失败 ({(int)response.StatusCode} {response.ReasonPhrase}): {responseString}");
                 }
 
-                var jsonDoc = JsonDocument.Parse(responseString);
+                using var jsonDoc = JsonDocument.Parse(responseString);
                 
                 var models = new List<string>();
                 if (jsonDoc.RootElement.TryGetProperty("data", out var dataElement))
@@ -118,11 +148,23 @@ namespace BlueSapphire.Services
                     {
                         if (item.TryGetProperty("id", out var idElement))
                         {
-                            models.Add(idElement.GetString() ?? "");
+                            string id = idElement.GetString() ?? string.Empty;
+                            if (!string.IsNullOrWhiteSpace(id) && id.Length <= 200)
+                            {
+                                models.Add(id);
+                            }
                         }
                     }
                 }
-                return (models, null);
+                return (models.Distinct(StringComparer.Ordinal).Take(500).ToList(), null);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (JsonException)
+            {
+                return (new List<string>(), "服务返回了无法解析的模型列表。");
             }
             catch (Exception ex)
             {
@@ -146,8 +188,7 @@ namespace BlueSapphire.Services
         public async IAsyncEnumerable<ChatStreamEvent> SendChatStreamAsync(List<ChatMessage> messages, List<ChatTool>? tools = null, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             string provider = AppSettings.Get("DeepSeekApiProvider", "Official") ?? "Official";
-            string? apiKey = AppSettings.GetSecret($"DeepSeekApiKey_{provider}");
-            if (string.IsNullOrWhiteSpace(apiKey)) apiKey = AppSettings.GetSecret("DeepSeekApiKey");
+            string? apiKey = GetApiKey(provider);
 
             if (string.IsNullOrWhiteSpace(apiKey))
             {
@@ -179,27 +220,40 @@ namespace BlueSapphire.Services
             var jsonContent = new StringContent(requestJson, Encoding.UTF8, "application/json");
 
             HttpClient httpClient = _httpClientFactory.CreateClient("DeepSeek");
-            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-            httpClient.DefaultRequestHeaders.Add("User-Agent", "BlueSapphire/1.0");
 
             using var request = new HttpRequestMessage(HttpMethod.Post, apiUrl) { Content = jsonContent };
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
             using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             
             if (!response.IsSuccessStatusCode)
             {
-                var err = await response.Content.ReadAsStringAsync();
-                yield return new ChatStreamEvent { ContentDelta = $"API 请求失败: {response.StatusCode}\n{err}" };
+                string err = await NetworkSafety.ReadContentAsStringAsync(
+                    response.Content,
+                    MaxErrorResponseBytes,
+                    cancellationToken);
+                yield return new ChatStreamEvent
+                {
+                    ContentDelta = $"API 请求失败：{(int)response.StatusCode} {response.ReasonPhrase}\n{err}"
+                };
                 yield break;
             }
 
-            using var stream = await response.Content.ReadAsStreamAsync();
+            using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
             using var reader = new System.IO.StreamReader(stream);
 
+            int streamedCharacters = 0;
             while (!cancellationToken.IsCancellationRequested)
             {
-                var line = await reader.ReadLineAsync();
+                var line = await reader.ReadLineAsync(cancellationToken);
                 if (line == null) break;
                 if (string.IsNullOrWhiteSpace(line)) continue;
+                streamedCharacters += line.Length;
+                if (line.Length > MaxStreamLineCharacters ||
+                    streamedCharacters > MaxStreamCharacters)
+                {
+                    yield return new ChatStreamEvent { ContentDelta = "\n响应内容过长，已停止继续读取。" };
+                    yield break;
+                }
                 if (line.StartsWith("data: "))
                 {
                     var data = line.Substring(6);
@@ -254,6 +308,19 @@ namespace BlueSapphire.Services
                     }
                 }
             }
+        }
+
+        private static string? GetApiKey(string provider)
+        {
+            string? providerKey = AppSettings.GetSecret($"DeepSeekApiKey_{provider}");
+            if (!string.IsNullOrWhiteSpace(providerKey))
+            {
+                return providerKey;
+            }
+
+            return string.Equals(provider, "Official", StringComparison.OrdinalIgnoreCase)
+                ? AppSettings.GetSecret("DeepSeekApiKey")
+                : null;
         }
     }
 

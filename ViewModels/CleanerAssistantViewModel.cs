@@ -21,6 +21,7 @@ namespace BlueSapphire.ViewModels
         private readonly CleanerLaunchActionService _launchActionService;
         private readonly CleanerAutomationService _automationService;
         private readonly CleanerRecommendationService _recommendationService;
+        private readonly NativeFileService _nativeFileService;
 
         private ICleanerAssistantViewInteraction? _view;
 
@@ -54,6 +55,7 @@ namespace BlueSapphire.ViewModels
             _launchActionService = launchActionService;
             _automationService = automationService;
             _recommendationService = recommendationService;
+            _nativeFileService = nativeFileService;
             Settings = settings;
 
             Drive = new CleanerDriveSelectionViewModel(driveService, stateStore);
@@ -90,7 +92,7 @@ namespace BlueSapphire.ViewModels
             await Drive.InitializeAsync();
             await Cleanup.InitializeAsync(view);
             await Automation.InitializeAsync();
-            await Rule.InitializeAsync();
+            await Rule.InitializeAsync(view);
             await Scan.InitializeAsync(view);
             
             await HandleLaunchActionsAsync();
@@ -131,18 +133,21 @@ namespace BlueSapphire.ViewModels
                 await _auditService.RecordCleanupAsync(batch, Scan.DeselectedDefaultItemCount);
                 
                 string failureSummary = batch.FailedCount > 0 ? $"\n失败 {batch.FailedCount} 项。" : string.Empty;
-                await _view.ShowTipAsync("清理完成", $"本次释放 {CleanerSizeFormatter.Format(batch.ReleasedBytes)}，共处理 {batch.Entries.Count} 个对象。{failureSummary}");
+                if (_view != null)
+                {
+                    await _view.ShowTipAsync("清理完成", $"本次释放 {CleanerSizeFormatter.Format(batch.ReleasedBytes)}，共处理 {batch.Entries.Count} 个对象。{failureSummary}");
+                }
 
                 await Scan.StartQuickScanCommand.ExecuteAsync(null);
                 await Cleanup.ReloadHistoryAndExclusionsAsync();
             }
             catch (OperationCanceledException)
             {
-                await _view.ShowTipAsync("已取消", "清理任务已被取消。");
+                if (_view != null) await _view.ShowTipAsync("已取消", "清理任务已被取消。");
             }
             catch (Exception ex)
             {
-                await _view.ShowTipAsync("清理失败", ex.Message);
+                if (_view != null) await _view.ShowTipAsync("清理失败", ex.Message);
             }
             finally
             {
@@ -216,17 +221,17 @@ namespace BlueSapphire.ViewModels
                         ? $"重试完成，释放 {CleanerSizeFormatter.Format(batch.ReleasedBytes)}，但仍有 {batch.FailedCount} 项失败。"
                         : $"重试圆满完成，释放 {CleanerSizeFormatter.Format(batch.ReleasedBytes)}，全部成功！";
 
-                    await _view.ShowTipAsync(completionTitle, resultMessage);
+                    if (_view != null) await _view.ShowTipAsync(completionTitle, resultMessage);
                     await Scan.StartQuickScanCommand.ExecuteAsync(null);
                 }
             }
             catch (OperationCanceledException)
             {
-                await _view.ShowTipAsync("已取消", "重试任务已被取消。");
+                if (_view != null) await _view.ShowTipAsync("已取消", "重试任务已被取消。");
             }
             catch (Exception ex)
             {
-                await _view.ShowTipAsync("重试失败", ex.Message);
+                if (_view != null) await _view.ShowTipAsync("重试失败", ex.Message);
             }
             finally
             {
@@ -235,11 +240,13 @@ namespace BlueSapphire.ViewModels
             }
         }
 
-        private Task HandleLaunchActionsAsync()
+        private async Task HandleLaunchActionsAsync()
         {
-            // 预留用于处理从命令行参数或外部协议启动时触发的自动化动作
-            // 例如：自动快速扫描、自动低风险清理、自动重试失败项
-            return Task.CompletedTask;
+            string? retryBatchId = _launchActionService.ConsumeRetryBatchId();
+            if (!string.IsNullOrWhiteSpace(retryBatchId))
+            {
+                await RetryFailedCleanupEntriesCoreAsync(retryBatchId, "管理员模式重试");
+            }
         }
 
         private async Task HandleAutomationAsync()
@@ -271,13 +278,26 @@ namespace BlueSapphire.ViewModels
         {
             if (Scan.IsBusy) return;
 
+            bool scanCompleted = await Scan.RunScanAsync(CleanerScanScope.Quick);
+            if (!scanCompleted)
+            {
+                if (showCompletionTip && _view != null)
+                {
+                    if (_view != null) await _view.ShowTipAsync(title, "扫描未完成，未执行自动清理。");
+                }
+                return;
+            }
+
             CancellationTokenSource cts = Scan.CreateOperationTokenSource();
             try
             {
-                Scan.SetBusyState(true, $"{title}扫描中...", "自动模式只处理安全的低风险项");
-                await Scan.StartQuickScanCommand.ExecuteAsync(null);
-
-                List<CleanerScanItem> safeItems = Scan.SafeItems.Where(i => i.IsSelected).ToList();
+                List<CleanerScanItem> safeItems = Scan.SafeItems
+                    .Where(item =>
+                        item.IsSelected &&
+                        item.IsSelectableAndEnabled &&
+                        item.RiskLevel == CleanerRiskLevel.Low &&
+                        item.ExecutionMode != CleanerExecutionMode.None)
+                    .ToList();
                 if (safeItems.Count == 0)
                 {
                     if (showCompletionTip && _view != null) await _view.ShowTipAsync(title, "没有发现需要清理的安全垃圾。");
@@ -312,6 +332,16 @@ namespace BlueSapphire.ViewModels
                 Scan.ReleaseOperationTokenSource(cts);
                 Scan.SetBusyState(false, "自动保洁完成", "");
             }
+        }
+
+        public void Shutdown()
+        {
+            Scan.CancelPendingOperation();
+            Cleanup.CancelPendingOperations();
+            Rule.Shutdown();
+            Settings.Shutdown();
+            WeakReferenceMessenger.Default.UnregisterAll(this);
+            _view = null;
         }
     }
 }
