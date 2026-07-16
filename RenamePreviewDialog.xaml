@@ -7,6 +7,7 @@
     Title="批量重命名预览"
     PrimaryButtonText="确认修改"
     CloseButtonText="取消"
+    PrimaryButtonStyle="{StaticResource PrimaryActionButtonStyle}"
     DefaultButton="Close">
 
     <ContentDialog.Resources>
@@ -33,7 +34,7 @@
                   ItemTemplate="{StaticResource RenameItemTemplate}"/>
 
         <TextBlock x:Name="WarningText" 
-                   Foreground="Orange" 
+                   Foreground="{StaticResource AccentReview}"
                    FontSize="12" 
                    TextWrapping="Wrap" 
                    Visibility="Collapsed"/>

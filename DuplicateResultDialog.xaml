@@ -8,13 +8,14 @@
     PrimaryButtonText="移至回收站"
     CloseButtonText="取消"
     DefaultButton="Close"
+    PrimaryButtonStyle="{StaticResource DangerActionButtonStyle}"
     IsPrimaryButtonEnabled="False">
 
     <ContentDialog.Resources>
         <CollectionViewSource x:Name="GroupedItems" IsSourceGrouped="True" />
 
         <DataTemplate x:Key="DuplicateGroupHeaderTemplate" x:DataType="models:DuplicateGroup">
-            <Grid Background="{StaticResource PanelHighlight}" Padding="10,6" Margin="0,10,0,0" CornerRadius="4">
+            <Grid Background="{StaticResource PanelHighlight}" Padding="10,6" Margin="0,10,0,0" CornerRadius="8">
                 <TextBlock Text="{x:Bind GroupTitle}" FontWeight="SemiBold" Foreground="{StaticResource AccentCyan}"/>
             </Grid>
         </DataTemplate>
@@ -34,7 +35,7 @@
                           VerticalAlignment="Center"
                           Margin="0,0,10,0"/>
 
-                <Border Grid.Column="1" CornerRadius="4" Background="{StaticResource MediaSurface}" Width="50" Height="50" VerticalAlignment="Center">
+                <Border Grid.Column="1" CornerRadius="8" Background="{StaticResource MediaSurface}" Width="50" Height="50" VerticalAlignment="Center">
                     <Image Source="{x:Bind Thumbnail, Mode=OneWay}" Stretch="UniformToFill"/>
                 </Border>
 

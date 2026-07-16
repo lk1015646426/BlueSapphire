@@ -13,6 +13,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Windows.Storage;
 using Windows.System;
+using Microsoft.UI.Xaml.Navigation;
 
 namespace BlueSapphire
 {
@@ -24,16 +25,10 @@ namespace BlueSapphire
 
         public MediaManagerPage()
         {
+            NavigationCacheMode = NavigationCacheMode.Required;
             ViewModel = App.Current.Services.GetRequiredService<MediaManagerViewModel>();
             InitializeComponent();
             ViewModel.Initialize(this, DispatcherQueue);
-            Unloaded += MediaManagerPage_Unloaded;
-        }
-
-        private void MediaManagerPage_Unloaded(object sender, RoutedEventArgs e)
-        {
-            ViewModel.CancelPendingOperations();
-            Unloaded -= MediaManagerPage_Unloaded;
         }
 
         public async Task<StorageFolder?> PickFolderAsync()

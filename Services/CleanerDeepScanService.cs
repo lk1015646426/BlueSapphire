@@ -39,7 +39,7 @@ namespace BlueSapphire.Services
             CleanerScanReport coreReport = await _scanService.ScanAsync(
                 CleanerScanScope.Deep,
                 BuildCoreOptions(options),
-                progress,
+                MapProgress(progress, 0, 75),
                 cancellationToken);
             _logger.LogInformation("[DeepScan] 核心深扫完成，命中 {Count} 项。", coreReport.Items.Count);
 
@@ -50,14 +50,14 @@ namespace BlueSapphire.Services
                 options,
                 exclusions,
                 combinedItems,
-                progress,
+                MapProgress(progress, 75, 90),
                 cancellationToken);
 
             CleanerScanAddOnResult orphanResidue = await RunOrphanResidueAsync(
                 options,
                 exclusions,
                 combinedItems,
-                progress,
+                MapProgress(progress, 90, 100),
                 cancellationToken);
 
             _logger.LogInformation("[DeepScan] 附加分析完成，合并后 {CombinedCount} 项；抽样补充 {AddedSpaceCount}，残留补充 {AddedOrphanCount}。", 
@@ -69,6 +69,45 @@ namespace BlueSapphire.Services
                 SpaceAnalysis = spaceAnalysis,
                 OrphanResidue = orphanResidue
             };
+        }
+
+        private static IProgress<CleanerScanProgress>? MapProgress(
+            IProgress<CleanerScanProgress>? target,
+            double start,
+            double end)
+        {
+            return target == null
+                ? null
+                : new MappedScanProgress(target, start, end);
+        }
+
+        private sealed class MappedScanProgress : IProgress<CleanerScanProgress>
+        {
+            private readonly IProgress<CleanerScanProgress> _target;
+            private readonly double _start;
+            private readonly double _range;
+
+            public MappedScanProgress(IProgress<CleanerScanProgress> target, double start, double end)
+            {
+                _target = target;
+                _start = start;
+                _range = Math.Max(0, end - start);
+            }
+
+            public void Report(CleanerScanProgress value)
+            {
+                double ratio = value.ProgressMax > 0
+                    ? Math.Clamp(value.ProgressValue / value.ProgressMax, 0, 1)
+                    : 0;
+
+                _target.Report(new CleanerScanProgress
+                {
+                    StageTitle = value.StageTitle,
+                    Detail = value.Detail,
+                    ProgressValue = _start + (_range * ratio),
+                    ProgressMax = 100
+                });
+            }
         }
 
         private async Task<HashSet<string>> LoadExclusionsAsync()

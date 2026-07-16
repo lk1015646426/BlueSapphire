@@ -6,37 +6,94 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     Loaded="Page_Loaded"
     Unloaded="Page_Unloaded"
+    Background="Transparent"
     mc:Ignorable="d">
 
     <Page.Resources>
         <Storyboard x:Name="CoreIdleAnimation">
-
-            <DoubleAnimation Storyboard.TargetName="CoreScale" Storyboard.TargetProperty="ScaleX" From="0.98" To="1.02" Duration="0:0:3" AutoReverse="True" RepeatBehavior="Forever">
+            <DoubleAnimation Storyboard.TargetName="CoreScale"
+                             Storyboard.TargetProperty="ScaleX"
+                             From="0.985"
+                             To="1.015"
+                             Duration="0:0:3.8"
+                             AutoReverse="True"
+                             RepeatBehavior="Forever">
                 <DoubleAnimation.EasingFunction>
                     <SineEase EasingMode="EaseInOut"/>
                 </DoubleAnimation.EasingFunction>
             </DoubleAnimation>
-            <DoubleAnimation Storyboard.TargetName="CoreScale" Storyboard.TargetProperty="ScaleY" From="0.98" To="1.02" Duration="0:0:3" AutoReverse="True" RepeatBehavior="Forever">
+            <DoubleAnimation Storyboard.TargetName="CoreScale"
+                             Storyboard.TargetProperty="ScaleY"
+                             From="0.985"
+                             To="1.015"
+                             Duration="0:0:3.8"
+                             AutoReverse="True"
+                             RepeatBehavior="Forever">
                 <DoubleAnimation.EasingFunction>
                     <SineEase EasingMode="EaseInOut"/>
                 </DoubleAnimation.EasingFunction>
             </DoubleAnimation>
-
-            <DoubleAnimation Storyboard.TargetName="CoreTranslate" Storyboard.TargetProperty="Y" From="-6" To="6" Duration="0:0:5" AutoReverse="True" RepeatBehavior="Forever">
+            <DoubleAnimation Storyboard.TargetName="CoreTranslate"
+                             Storyboard.TargetProperty="Y"
+                             From="-3"
+                             To="3"
+                             Duration="0:0:5.5"
+                             AutoReverse="True"
+                             RepeatBehavior="Forever">
                 <DoubleAnimation.EasingFunction>
                     <SineEase EasingMode="EaseInOut"/>
                 </DoubleAnimation.EasingFunction>
             </DoubleAnimation>
-
+            <DoubleAnimation Storyboard.TargetName="OuterRing"
+                             Storyboard.TargetProperty="Opacity"
+                             From="0.06"
+                             To="0.22"
+                             Duration="0:0:3.8"
+                             AutoReverse="True"
+                             RepeatBehavior="Forever">
+                <DoubleAnimation.EasingFunction>
+                    <SineEase EasingMode="EaseInOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="RingScale"
+                             Storyboard.TargetProperty="ScaleX"
+                             From="0.94"
+                             To="1.04"
+                             Duration="0:0:3.8"
+                             AutoReverse="True"
+                             RepeatBehavior="Forever">
+                <DoubleAnimation.EasingFunction>
+                    <SineEase EasingMode="EaseInOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="RingScale"
+                             Storyboard.TargetProperty="ScaleY"
+                             From="0.94"
+                             To="1.04"
+                             Duration="0:0:3.8"
+                             AutoReverse="True"
+                             RepeatBehavior="Forever">
+                <DoubleAnimation.EasingFunction>
+                    <SineEase EasingMode="EaseInOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
         </Storyboard>
 
         <Storyboard x:Name="EntranceStoryboard">
-            <DoubleAnimation Storyboard.TargetName="ContentStack" Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:1.5">
+            <DoubleAnimation Storyboard.TargetName="ContentStack"
+                             Storyboard.TargetProperty="Opacity"
+                             From="0"
+                             To="1"
+                             Duration="0:0:0.55">
                 <DoubleAnimation.EasingFunction>
                     <CubicEase EasingMode="EaseOut"/>
                 </DoubleAnimation.EasingFunction>
             </DoubleAnimation>
-            <DoubleAnimation Storyboard.TargetName="ContentTranslate" Storyboard.TargetProperty="Y" From="20" To="0" Duration="0:0:1.5">
+            <DoubleAnimation Storyboard.TargetName="ContentTranslate"
+                             Storyboard.TargetProperty="Y"
+                             From="18"
+                             To="0"
+                             Duration="0:0:0.55">
                 <DoubleAnimation.EasingFunction>
                     <CircleEase EasingMode="EaseOut"/>
                 </DoubleAnimation.EasingFunction>
@@ -44,121 +101,84 @@
         </Storyboard>
     </Page.Resources>
 
-    <Grid Background="{StaticResource BgColor}">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
-            <Grid x:Name="ContentStack"
-                  MaxWidth="1180"
-                  Padding="40,32"
-                  HorizontalAlignment="Center"
-                  Opacity="0"
-                  ColumnSpacing="24">
-                <Grid.RenderTransform>
-                    <TranslateTransform x:Name="ContentTranslate"/>
-                </Grid.RenderTransform>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="0.85*"/>
-                    <ColumnDefinition Width="1.15*"/>
-                </Grid.ColumnDefinitions>
+    <Grid x:Name="HomeRoot" Background="Transparent">
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <Grid MinHeight="{Binding ActualHeight, ElementName=HomeRoot}"
+                  Padding="48,56">
+                <StackPanel x:Name="ContentStack"
+                            MaxWidth="720"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Spacing="28"
+                            Opacity="0">
+                    <StackPanel.RenderTransform>
+                        <TranslateTransform x:Name="ContentTranslate"/>
+                    </StackPanel.RenderTransform>
 
-                <StackPanel Spacing="20">
-                    <Border Width="180"
-                            Height="180"
-                            HorizontalAlignment="Left"
-                            CornerRadius="38"
-                            BorderBrush="{StaticResource BorderActive}"
-                            BorderThickness="1"
-                            AutomationProperties.Name="蓝宝石工具箱品牌标志">
-                        <Border.RenderTransform>
-                            <TransformGroup>
-                                <ScaleTransform x:Name="CoreScale" CenterX="90" CenterY="90"/>
-                                <TranslateTransform x:Name="CoreTranslate"/>
-                            </TransformGroup>
-                        </Border.RenderTransform>
+                    <Grid Width="210" Height="210" HorizontalAlignment="Center">
+                        <Border x:Name="OuterRing"
+                                Width="188"
+                                Height="188"
+                                CornerRadius="94"
+                                BorderBrush="{StaticResource AccentCyan}"
+                                BorderThickness="1"
+                                Opacity="0.1"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                IsHitTestVisible="False">
+                            <Border.RenderTransform>
+                                <ScaleTransform x:Name="RingScale" CenterX="94" CenterY="94"/>
+                            </Border.RenderTransform>
+                        </Border>
+
+                        <Border Width="162"
+                                Height="162"
+                                CornerRadius="81"
+                                BorderBrush="{StaticResource AccentCyan}"
+                                BorderThickness="1"
+                                Opacity="0.12"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                IsHitTestVisible="False"/>
+
                         <Image Source="ms-appx:///BS.ico"
-                               Stretch="UniformToFill"/>
-                    </Border>
+                               Width="136"
+                               Height="136"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Stretch="Uniform"
+                               AutomationProperties.Name="蓝宝石工具箱品牌标志">
+                            <Image.RenderTransform>
+                                <TransformGroup>
+                                    <ScaleTransform x:Name="CoreScale" CenterX="68" CenterY="68"/>
+                                    <TranslateTransform x:Name="CoreTranslate"/>
+                                </TransformGroup>
+                            </Image.RenderTransform>
+                        </Image>
+                    </Grid>
 
-                    <StackPanel Spacing="8">
-                        <TextBlock Text="蓝宝石工具箱" Style="{StaticResource TextStyle_PageTitle}"/>
+                    <StackPanel HorizontalAlignment="Center" Spacing="12">
+                        <TextBlock Text="蓝宝石工具箱"
+                                   FontSize="38"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextMain}"
+                                   HorizontalAlignment="Center"/>
                         <TextBlock x:Name="GreetingText"
-                                   Text="正在读取工作状态…"
-                                   FontSize="18"
+                                   Text="正在准备你的工作空间…"
+                                   FontSize="19"
                                    Foreground="{StaticResource TextSecondary}"
-                                   TextWrapping="Wrap"/>
-                        <TextBlock Text="从这里进入常用工具，所有清理、下载和第三方扩展操作都会在执行前明确确认。"
-                                   Foreground="{StaticResource TextMuted}"
-                                   FontSize="13"
-                                   TextWrapping="Wrap"/>
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   HorizontalAlignment="Center"/>
                     </StackPanel>
 
-                    <Border Style="{StaticResource CardBorderStyle}">
-                        <StackPanel Spacing="9">
-                            <TextBlock Text="当前状态" FontWeight="SemiBold" Foreground="{StaticResource TextMain}"/>
-                            <TextBlock x:Name="AIStatusText" Text="AI 服务：检测中" Foreground="{StaticResource TextSecondary}" FontSize="12"/>
-                            <TextBlock x:Name="CleanerStatusText" Text="清理助手：读取中" Foreground="{StaticResource TextSecondary}" FontSize="12"/>
-                            <TextBlock x:Name="ReleaseStatusText" Text="版本：读取中" Foreground="{StaticResource TextSecondary}" FontSize="12"/>
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
-
-                <StackPanel Grid.Column="1" Spacing="14">
-                    <TextBlock Text="快速开始" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextMain}"/>
-
-                    <Button Tag="AICopilotTool" Click="OpenTool_Click" Style="{StaticResource ActionButtonStyle}" HorizontalContentAlignment="Stretch" AutomationProperties.Name="打开 AI 智能助手">
-                        <Grid Padding="6" ColumnSpacing="14">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                            <Border Width="42" Height="42" CornerRadius="10" Background="{StaticResource AccentCyanBg}">
-                                <FontIcon Glyph="&#xE9D9;" Foreground="{StaticResource AccentCyan}" FontSize="20"/>
-                            </Border>
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                <TextBlock Text="AI 智能助手" Foreground="{StaticResource TextMain}" FontWeight="SemiBold"/>
-                                <TextBlock Text="对话分析、工具导航与经确认的自动操作" Foreground="{StaticResource TextMuted}" FontSize="12"/>
-                            </StackPanel>
-                            <FontIcon Grid.Column="2" Glyph="&#xE72A;" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center"/>
-                        </Grid>
-                    </Button>
-
-                    <Button Tag="CleanerAssistant" Click="OpenTool_Click" Style="{StaticResource ActionButtonStyle}" HorizontalContentAlignment="Stretch" AutomationProperties.Name="打开清理助手">
-                        <Grid Padding="6" ColumnSpacing="14">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                            <Border Width="42" Height="42" CornerRadius="10" Background="{StaticResource AccentSafeBg}">
-                                <FontIcon Glyph="&#xE74D;" Foreground="{StaticResource AccentSafe}" FontSize="19"/>
-                            </Border>
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                <TextBlock Text="清理助手" Foreground="{StaticResource TextMain}" FontWeight="SemiBold"/>
-                                <TextBlock Text="扫描、风险分级、隔离恢复与审计记录" Foreground="{StaticResource TextMuted}" FontSize="12"/>
-                            </StackPanel>
-                            <FontIcon Grid.Column="2" Glyph="&#xE72A;" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center"/>
-                        </Grid>
-                    </Button>
-
-                    <Button Tag="MediaManager" Click="OpenTool_Click" Style="{StaticResource ActionButtonStyle}" HorizontalContentAlignment="Stretch" AutomationProperties.Name="打开媒体管家">
-                        <Grid Padding="6" ColumnSpacing="14">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                            <Border Width="42" Height="42" CornerRadius="10" Background="{StaticResource AccentInspectBg}">
-                                <FontIcon Glyph="&#xE8B9;" Foreground="{StaticResource AccentInspect}" FontSize="19"/>
-                            </Border>
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                <TextBlock Text="媒体管家" Foreground="{StaticResource TextMain}" FontWeight="SemiBold"/>
-                                <TextBlock Text="图片搜索、标签、去重、批量编辑与自动增强" Foreground="{StaticResource TextMuted}" FontSize="12"/>
-                            </StackPanel>
-                            <FontIcon Grid.Column="2" Glyph="&#xE72A;" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center"/>
-                        </Grid>
-                    </Button>
-
-                    <Button Tag="EvolutionLog" Click="OpenTool_Click" Style="{StaticResource ActionButtonStyle}" HorizontalContentAlignment="Stretch" AutomationProperties.Name="打开更新日志">
-                        <Grid Padding="6" ColumnSpacing="14">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                            <Border Width="42" Height="42" CornerRadius="10" Background="{StaticResource AccentReviewBg}">
-                                <FontIcon Glyph="&#xE8A5;" Foreground="{StaticResource AccentReview}" FontSize="19"/>
-                            </Border>
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                <TextBlock Text="更新日志" Foreground="{StaticResource TextMain}" FontWeight="SemiBold"/>
-                                <TextBlock Text="查看版本变化、修复记录和功能说明" Foreground="{StaticResource TextMuted}" FontSize="12"/>
-                            </StackPanel>
-                            <FontIcon Grid.Column="2" Glyph="&#xE72A;" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center"/>
-                        </Grid>
-                    </Button>
+                    <Border Width="64"
+                            Height="2"
+                            CornerRadius="1"
+                            Background="{StaticResource AccentCyan}"
+                            Opacity="0.55"
+                            HorizontalAlignment="Center"/>
                 </StackPanel>
             </Grid>
         </ScrollViewer>

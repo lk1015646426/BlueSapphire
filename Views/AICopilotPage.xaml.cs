@@ -13,6 +13,8 @@ using System.Threading;
 using System.Collections.Generic;
 using BlueSapphire.Helpers;
 using Markdig;
+using BlueSapphire.Models;
+using Microsoft.UI.Xaml.Navigation;
 
 namespace BlueSapphire.Views
 {
@@ -21,34 +23,37 @@ namespace BlueSapphire.Views
         private readonly DeepSeekAIService _aiService;
         private readonly AIToolsRegistry _toolsRegistry;
         private readonly AIChatHistoryService _historyService;
+        private readonly AITaskCenterService _taskCenter;
+        private readonly AIMemoryService _memoryService;
+        private readonly AIOfflineIntentService _offlineIntentService;
+        private readonly AIInsightService _insightService;
         public ObservableCollection<ChatBubble> Messages { get; set; } = new();
 
         private readonly List<ChatMessage> _messageHistory = new();
         private readonly Task _initializationTask;
+        private readonly Task _connectionCheckTask;
         private CancellationTokenSource? _responseCts;
         private bool _isProcessing;
+        private bool _isConnected;
 
         public AICopilotPage()
         {
+            NavigationCacheMode = NavigationCacheMode.Required;
             this.InitializeComponent();
             _aiService = App.Current.Services.GetRequiredService<DeepSeekAIService>();
             _toolsRegistry = App.Current.Services.GetRequiredService<AIToolsRegistry>();
             _historyService = App.Current.Services.GetRequiredService<AIChatHistoryService>();
+            _taskCenter = App.Current.Services.GetRequiredService<AITaskCenterService>();
+            _memoryService = App.Current.Services.GetRequiredService<AIMemoryService>();
+            _offlineIntentService = App.Current.Services.GetRequiredService<AIOfflineIntentService>();
+            _insightService = App.Current.Services.GetRequiredService<AIInsightService>();
             ChatList.ItemsSource = Messages;
             if (AppSettings.Get("ReduceMotion", false))
             {
                 ChatList.ItemContainerTransitions = null;
             }
-            Unloaded += AICopilotPage_Unloaded;
-            
             _initializationTask = InitializeSystemPromptAsync(loadSavedHistory: true);
-            _ = CheckConnectionStatusAsync();
-        }
-
-        private void AICopilotPage_Unloaded(object sender, RoutedEventArgs e)
-        {
-            _responseCts?.Cancel();
-            Unloaded -= AICopilotPage_Unloaded;
+            _connectionCheckTask = CheckConnectionStatusAsync();
         }
 
         private async Task CheckConnectionStatusAsync()
@@ -56,6 +61,7 @@ namespace BlueSapphire.Views
             bool isConnected = await _aiService.TestConnectionAsync();
             if (isConnected)
             {
+                _isConnected = true;
                 string provider = AppSettings.Get("DeepSeekApiProvider", "Official") ?? "Official";
                 string defaultModel = provider == "SiliconFlow" ? "deepseek-ai/DeepSeek-V3" : "deepseek-chat";
                 string modelName = AppSettings.Get($"DeepSeekApiModel_{provider}", AppSettings.Get("DeepSeekApiModel", defaultModel)) ?? defaultModel;
@@ -67,12 +73,15 @@ namespace BlueSapphire.Views
             }
             else
             {
+                _isConnected = false;
                 ConnectionStatusIndicator.Fill = Application.Current.Resources["TextMuted"] as Brush;
                 ConnectionStatusText.Text = "未连接 (请前往设置检查 API Key 或刷新模型列表)";
             }
         }
 
-        private async Task InitializeSystemPromptAsync(bool loadSavedHistory)
+        private async Task InitializeSystemPromptAsync(
+            bool loadSavedHistory,
+            bool showWelcomeWhenEmpty = true)
         {
             var featureEnum = new System.Collections.Generic.List<string>();
             if (App.CurrentWindow is MainWindow mainWindow)
@@ -114,7 +123,7 @@ namespace BlueSapphire.Views
                     }
                 }
             }
-            else
+            else if (showWelcomeWhenEmpty)
             {
                 AddMessage("助理", "你好！我是蓝宝石智能助理。你可以让我分析清理结果、打开工具，或在确认后执行操作。");
             }
@@ -142,6 +151,7 @@ namespace BlueSapphire.Views
         {
             if (_isProcessing) return;
             await _initializationTask;
+            await _connectionCheckTask;
             Messages.Clear();
             lock (_messageHistory)
             {
@@ -207,7 +217,28 @@ namespace BlueSapphire.Views
                 Messages.Add(typingBubble);
                 _ = ScrollToBottomAsync();
 
-                await ProcessMessageAsync(_responseCts.Token);
+                if (_isConnected)
+                {
+                    await ProcessMessageAsync(_responseCts.Token);
+                }
+                else
+                {
+                    (bool handled, string response) = await _offlineIntentService.TryHandleAsync(text);
+                    Messages.Remove(typingBubble);
+                    AddMessage(
+                        handled ? "助理" : "系统",
+                        handled
+                            ? response
+                            : $"{response}\n请在设置中检查 API Key 和网络连接。");
+                    lock (_messageHistory)
+                    {
+                        _messageHistory.Add(new ChatMessage
+                        {
+                            Role = "assistant",
+                            Content = response
+                        });
+                    }
+                }
 
                 var tb = Messages.FirstOrDefault(m => m.Content == "思考中...");
                 if (tb != null) Messages.Remove(tb);
@@ -243,6 +274,245 @@ namespace BlueSapphire.Views
                 _responseCts = null;
                 SetProcessingState(false);
                 InputBox.Focus(FocusState.Programmatic);
+            }
+        }
+
+        private async void TaskCenterBtn_Click(object sender, RoutedEventArgs e)
+        {
+            IReadOnlyList<AITaskRecord> tasks = _taskCenter.GetSnapshot();
+            var taskPanel = new StackPanel { Spacing = 8 };
+
+            if (tasks.Count == 0)
+            {
+                taskPanel.Children.Add(new TextBlock
+                {
+                    Text = "还没有后台任务。",
+                    Foreground = Application.Current.Resources["TextMuted"] as Brush
+                });
+            }
+            else
+            {
+                foreach (AITaskRecord task in tasks.Take(30))
+                {
+                    string recentTimeline = string.Join(
+                        Environment.NewLine,
+                        task.Timeline.TakeLast(3).Select(entry =>
+                            $"{entry.Timestamp.ToLocalTime():HH:mm:ss} · {entry.Title} · {entry.Detail}"));
+                    var title = new TextBlock
+                    {
+                        Text = $"{task.Title} · {task.StatusText} · {task.ProgressText}",
+                        FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                        TextWrapping = TextWrapping.Wrap
+                    };
+                    var detail = new TextBlock
+                    {
+                        Text = $"{task.Summary}\n{recentTimeline}\n更新于 {task.UpdatedAtText}",
+                        Foreground = Application.Current.Resources["TextMuted"] as Brush,
+                        FontSize = 12,
+                        TextWrapping = TextWrapping.Wrap
+                    };
+                    var content = new StackPanel { Spacing = 4 };
+                    content.Children.Add(title);
+                    content.Children.Add(detail);
+
+                    if (task.IsActive && task.CanCancel)
+                    {
+                        var cancelButton = new Button
+                        {
+                            Content = "取消任务",
+                            HorizontalAlignment = HorizontalAlignment.Left,
+                            Tag = task.Id
+                        };
+                        cancelButton.Click += (_, _) =>
+                        {
+                            if (cancelButton.Tag is string taskId && _taskCenter.Cancel(taskId))
+                            {
+                                cancelButton.IsEnabled = false;
+                                cancelButton.Content = "已发送取消请求";
+                            }
+                        };
+                        content.Children.Add(cancelButton);
+                    }
+
+                    taskPanel.Children.Add(new Border
+                    {
+                        Background = Application.Current.Resources["PanelSurfaceStrong"] as Brush,
+                        CornerRadius = new CornerRadius(8),
+                        Padding = new Thickness(12, 9, 12, 9),
+                        Child = content
+                    });
+                }
+            }
+
+            var dialog = new ContentDialog
+            {
+                Title = "任务中心",
+                Content = new ScrollViewer
+                {
+                    Content = taskPanel,
+                    MaxHeight = 520,
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+                },
+                PrimaryButtonText = "清除已结束任务",
+                CloseButtonText = "关闭",
+                DefaultButton = ContentDialogButton.Close,
+                XamlRoot = XamlRoot
+            };
+
+            if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+            {
+                _taskCenter.RemoveCompleted();
+            }
+        }
+
+        private async void SuggestionsBtn_Click(object sender, RoutedEventArgs e)
+        {
+            IReadOnlyList<string> suggestions =
+                await _insightService.BuildNonIntrusiveSuggestionsAsync();
+            var panel = new StackPanel { Spacing = 8 };
+            foreach (string suggestion in suggestions)
+            {
+                panel.Children.Add(new Border
+                {
+                    Background = Application.Current.Resources["PanelSurfaceStrong"] as Brush,
+                    CornerRadius = new CornerRadius(8),
+                    Padding = new Thickness(12, 9, 12, 9),
+                    Child = new TextBlock
+                    {
+                        Text = suggestion,
+                        TextWrapping = TextWrapping.Wrap
+                    }
+                });
+            }
+
+            var dialog = new ContentDialog
+            {
+                Title = "本地智能建议",
+                Content = panel,
+                CloseButtonText = "关闭",
+                XamlRoot = XamlRoot
+            };
+            await dialog.ShowAsync();
+        }
+
+        private async void MemoryBtn_Click(object sender, RoutedEventArgs e)
+        {
+            IReadOnlyList<AIMemoryEntry> entries = await _memoryService.GetEntriesAsync();
+            bool wasPaused = await _memoryService.IsPausedAsync();
+
+            var pauseSwitch = new ToggleSwitch
+            {
+                Header = "暂停长期记忆",
+                IsOn = wasPaused,
+                OffContent = "已启用",
+                OnContent = "已暂停"
+            };
+            var list = new ListView
+            {
+                ItemsSource = entries,
+                DisplayMemberPath = nameof(AIMemoryEntry.Content),
+                SelectionMode = ListViewSelectionMode.Single,
+                MaxHeight = 220
+            };
+            var editor = new TextBox
+            {
+                Header = "记忆内容",
+                PlaceholderText = "选择一条记忆进行编辑，或直接输入以新增",
+                TextWrapping = TextWrapping.Wrap,
+                MaxLength = 500
+            };
+            var scope = new ComboBox
+            {
+                Header = "适用范围",
+                ItemsSource = Enum.GetValues<AIMemoryScope>(),
+                SelectedItem = AIMemoryScope.Global
+            };
+            var expiry = new CalendarDatePicker
+            {
+                Header = "有效期（留空表示长期有效）",
+                PlaceholderText = "长期有效"
+            };
+            var enabledSwitch = new ToggleSwitch
+            {
+                Header = "启用这条记忆",
+                IsOn = true
+            };
+            var selectedInfo = new TextBlock
+            {
+                Text = "未选择现有记忆：保存时将新增。",
+                FontSize = 12,
+                Foreground = Application.Current.Resources["TextMuted"] as Brush,
+                TextWrapping = TextWrapping.Wrap
+            };
+
+            list.SelectionChanged += (_, _) =>
+            {
+                if (list.SelectedItem is not AIMemoryEntry selected)
+                {
+                    return;
+                }
+                editor.Text = selected.Content;
+                scope.SelectedItem = selected.Scope;
+                expiry.Date = selected.ExpiresAt;
+                enabledSwitch.IsOn = selected.IsEnabled;
+                selectedInfo.Text = $"{selected.ScopeText} · {selected.StatusText} · {selected.ExpiryText}";
+            };
+
+            var panel = new StackPanel { Spacing = 10 };
+            panel.Children.Add(pauseSwitch);
+            panel.Children.Add(new TextBlock { Text = "已保存的记忆", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
+            panel.Children.Add(list);
+            panel.Children.Add(selectedInfo);
+            panel.Children.Add(editor);
+            panel.Children.Add(scope);
+            panel.Children.Add(expiry);
+            panel.Children.Add(enabledSwitch);
+
+            var dialog = new ContentDialog
+            {
+                Title = "长期记忆管理",
+                Content = new ScrollViewer
+                {
+                    Content = panel,
+                    MaxHeight = 560,
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+                },
+                PrimaryButtonText = "保存",
+                SecondaryButtonText = "删除选中",
+                CloseButtonText = "取消",
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = XamlRoot
+            };
+
+            ContentDialogResult result = await dialog.ShowAsync();
+            await _memoryService.SetPausedAsync(pauseSwitch.IsOn);
+
+            if (result == ContentDialogResult.Primary && !string.IsNullOrWhiteSpace(editor.Text))
+            {
+                if (list.SelectedItem is AIMemoryEntry selected)
+                {
+                    await _memoryService.UpdateEntryAsync(
+                        selected.Id,
+                        editor.Text,
+                        scope.SelectedItem is AIMemoryScope selectedScope ? selectedScope : AIMemoryScope.Global,
+                        expiry.Date,
+                        enabledSwitch.IsOn);
+                }
+                else
+                {
+                    await _memoryService.AddMemoryEntryAsync(
+                        editor.Text,
+                        scope.SelectedItem is AIMemoryScope selectedScope ? selectedScope : AIMemoryScope.Global,
+                        expiry.Date,
+                        "记忆管理页");
+                }
+                await InitializeSystemPromptAsync(loadSavedHistory: false, showWelcomeWhenEmpty: false);
+            }
+            else if (result == ContentDialogResult.Secondary &&
+                     list.SelectedItem is AIMemoryEntry selected)
+            {
+                await _memoryService.RemoveEntryAsync(selected.Id);
+                await InitializeSystemPromptAsync(loadSavedHistory: false, showWelcomeWhenEmpty: false);
             }
         }
 

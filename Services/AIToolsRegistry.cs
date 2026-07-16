@@ -20,6 +20,7 @@ namespace BlueSapphire.Services
     {
         private readonly DeepSeekAIService _aiService;
         private readonly CleanerScanService _scanService;
+        private readonly CleanerDeepScanService _deepScanService;
         private readonly CleanerExecutionService _executionService;
         private readonly CleanerAuditService _auditService;
         private readonly DevLogDataService _devLogDataService;
@@ -27,24 +28,40 @@ namespace BlueSapphire.Services
         private readonly McpServerManager _mcpServerManager;
         private readonly WebSkillManager _webSkillManager;
         private readonly AgentSkillManager _agentSkillManager;
+        private readonly AITaskCenterService _taskCenter;
+        private readonly AISharedContextService _sharedContext;
+        private readonly AIPrivacyService _privacyService;
+        private readonly AIMediaToolService _mediaToolService;
+        private readonly AIDiagnosticsService _diagnosticsService;
+        private readonly AICleanerRuleDraftService _ruleDraftService;
+        private readonly AIInsightService _insightService;
+        private readonly AIOperationPolicyService _operationPolicy;
         private readonly ConcurrentDictionary<string, (string ServerId, string ToolName)> _mcpToolRoutes =
             new(StringComparer.Ordinal);
-
-        private List<CleanerScanItem>? _lastScanResults;
 
         public AIToolsRegistry(
             DeepSeekAIService aiService, 
             CleanerScanService scanService, 
+            CleanerDeepScanService deepScanService,
             CleanerExecutionService executionService, 
             CleanerAuditService auditService,
             DevLogDataService devLogDataService,
             AIMemoryService memoryService,
             McpServerManager mcpServerManager,
             WebSkillManager webSkillManager,
-            AgentSkillManager agentSkillManager)
+            AgentSkillManager agentSkillManager,
+            AITaskCenterService taskCenter,
+            AISharedContextService sharedContext,
+            AIPrivacyService privacyService,
+            AIMediaToolService mediaToolService,
+            AIDiagnosticsService diagnosticsService,
+            AICleanerRuleDraftService ruleDraftService,
+            AIInsightService insightService,
+            AIOperationPolicyService operationPolicy)
         {
             _aiService = aiService;
             _scanService = scanService;
+            _deepScanService = deepScanService;
             _executionService = executionService;
             _auditService = auditService;
             _devLogDataService = devLogDataService;
@@ -52,6 +69,14 @@ namespace BlueSapphire.Services
             _mcpServerManager = mcpServerManager;
             _webSkillManager = webSkillManager;
             _agentSkillManager = agentSkillManager;
+            _taskCenter = taskCenter;
+            _sharedContext = sharedContext;
+            _privacyService = privacyService;
+            _mediaToolService = mediaToolService;
+            _diagnosticsService = diagnosticsService;
+            _ruleDraftService = ruleDraftService;
+            _insightService = insightService;
+            _operationPolicy = operationPolicy;
         }
 
         private static readonly System.Net.Http.HttpClient _directClient = CreateHttpClient(false);
@@ -103,6 +128,11 @@ namespace BlueSapphire.Services
                 systemPrompt += $"\n【可用本地磁盘】系统当前就绪的磁盘有：{drives}。";
             }
             catch { }
+            string? currentMediaFolder = _sharedContext.GetCurrentMediaFolder();
+            if (!string.IsNullOrWhiteSpace(currentMediaFolder))
+            {
+                systemPrompt += $"\n【当前媒体上下文】媒体管家当前目录：{_privacyService.DescribePathWithoutIdentity(currentMediaFolder)}。需要读取该目录时仍应向用户说明范围。";
+            }
 
             systemPrompt += @"
 【你的能力与工具】
@@ -110,7 +140,12 @@ namespace BlueSapphire.Services
 2. execute_cleanup：执行实际的清理操作。你可以指定清理 categories_to_clean (例如 ['Safe', 'app_cache'])。
 3. analyze_latest_cleanup_log：读取最近一次清理的日志。
 4. navigate_to_feature：跳转到指定功能界面。
-6. add_mcp_server：根据用户要求，自动安装和挂载一个外部的 Model Context Protocol (MCP) 服务器/扩展。你需要推断出命令（如 npx.cmd 或 uvx）和参数。
+5. analyze_media_folder / preview_media_organization：只读分析媒体目录并生成整理预览。
+6. execute_exact_duplicate_cleanup：只处理经过 SHA-256 验证的完全重复图片，并且必须再次确认。
+7. diagnose_application：读取脱敏后的本地日志和审计摘要，解释失败原因。
+8. build_cross_module_plan：组合清理与媒体工作流，但只生成计划，不自动执行。
+9. create_cleaner_rule_draft：生成高风险、仅供查看的规则草稿，不会自动启用。
+10. add_mcp_server：根据用户要求，自动安装和挂载一个外部的 Model Context Protocol (MCP) 服务器/扩展。
 ";
             systemPrompt += @"
 【核心交互流程与约束 - 必须严格遵守】
@@ -118,6 +153,8 @@ namespace BlueSapphire.Services
 2. 报告结果：收到 start_smart_cleanup 的结果后，必须使用 Markdown 语法（如表格、加粗、Emoji、列表等）进行优美排版，向用户清晰展示各项详细体积与数量，并且用通俗易懂的语言简单解释这些垃圾文件是用来做什么的，删除它们会有什么好处。
 3. 必须等待授权：汇报完毕后，你必须停下来，询问用户是否要执行清理。**绝对禁止**在用户未明确同意的情况下调用 execute_cleanup。
 4. 结果反馈：收到 execute_cleanup 的结果后，向用户汇报释放的空间大小和失败情况。绝对不可伪造或虚构清理结果！
+5. 计划优先：包含多个模块、移动、重命名或删除的任务，先调用只读计划/预览工具，逐类确认后再执行。
+6. 授权不继承：用户对扫描的同意不代表同意删除；对清理缓存的同意不代表同意处理媒体文件。
 
 【安全红线】
 - 绝不要猜测或虚构文件路径。
@@ -321,6 +358,7 @@ namespace BlueSapphire.Services
 
         private async Task<string> StartSmartCleanupAsync(string args, CancellationToken cancellationToken = default)
         {
+            AITaskLease? task = null;
             try
             {
                 CleanerScanScope scope = CleanerScanScope.Quick;
@@ -353,12 +391,68 @@ namespace BlueSapphire.Services
                     }
                     catch { }
                 }
+                if (options.AnalysisDriveRoots.Count > 0)
+                {
+                    IReadOnlyList<string> validatedRoots =
+                        _operationPolicy.ValidateDriveRoots(options.AnalysisDriveRoots);
+                    options.AnalysisDriveRoots.Clear();
+                    options.AnalysisDriveRoots.AddRange(validatedRoots);
+                }
 
-                var report = await _scanService.ScanAsync(scope, options, null, cancellationToken);
-                _lastScanResults = report.Items.ToList();
+                string driveSummary = options.AnalysisDriveRoots.Count == 0
+                    ? "默认磁盘范围"
+                    : string.Join("、", options.AnalysisDriveRoots.Select(_privacyService.DescribePathWithoutIdentity));
+                task = _taskCenter.Begin(
+                    "cleaner.scan",
+                    scope == CleanerScanScope.Deep ? "AI 深度扫描" : "AI 快速扫描",
+                    $"扫描范围：{driveSummary}",
+                    $"cleaner.scan:{scope}:{string.Join("|", options.AnalysisDriveRoots.OrderBy(path => path, StringComparer.OrdinalIgnoreCase))}");
+                if (task.IsDuplicate)
+                {
+                    AITaskRecord? existing = _taskCenter.Get(task.TaskId);
+                    return existing?.IsActive == true
+                        ? $"相同的扫描任务正在执行中，任务编号：{task.TaskId}。"
+                        : $"相同扫描刚刚完成，可直接使用最近扫描结果。任务编号：{task.TaskId}。";
+                }
 
-                var safeItems = _lastScanResults.Where(x => x.RiskLevel == CleanerRiskLevel.Low).ToList();
-                var reviewItems = _lastScanResults.Where(x => x.RiskLevel == CleanerRiskLevel.Medium).ToList();
+                using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+                    cancellationToken,
+                    task.Token);
+                var progress = new Progress<CleanerScanProgress>(value =>
+                {
+                    double percent = value.ProgressMax > 0
+                        ? value.ProgressValue / value.ProgressMax * 100
+                        : 0;
+                    _taskCenter.Report(
+                        task.TaskId,
+                        percent,
+                        value.StageTitle,
+                        value.Detail);
+                });
+
+                CleanerScanReport report;
+                if (scope == CleanerScanScope.Deep)
+                {
+                    CleanerDeepScanResult deepResult = await _deepScanService.ScanAsync(
+                        options,
+                        progress,
+                        linkedCts.Token);
+                    report = deepResult.Report;
+                }
+                else
+                {
+                    report = await _scanService.ScanAsync(
+                        scope,
+                        options,
+                        progress,
+                        linkedCts.Token);
+                }
+
+                _sharedContext.SetCleanerScan(report);
+                List<CleanerScanItem> scanResults = report.Items.ToList();
+
+                var safeItems = scanResults.Where(x => x.RiskLevel == CleanerRiskLevel.Low).ToList();
+                var reviewItems = scanResults.Where(x => x.RiskLevel == CleanerRiskLevel.Medium).ToList();
 
                 var result = new
                 {
@@ -373,15 +467,34 @@ namespace BlueSapphire.Services
                     }
                 };
 
+                _taskCenter.Complete(
+                    task.TaskId,
+                    $"扫描完成：低风险 {safeItems.Count} 项，建议确认 {reviewItems.Count} 项。");
                 return JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            catch (OperationCanceledException)
             {
-                throw;
+                if (task is { IsDuplicate: false })
+                {
+                    _taskCenter.MarkCancelled(task.TaskId);
+                }
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                return "扫描已由用户从任务中心取消。";
             }
             catch (Exception ex)
             {
+                if (task is { IsDuplicate: false })
+                {
+                    _taskCenter.Fail(task.TaskId, _privacyService.RedactForRemoteModel(ex.Message));
+                }
                 return $"扫描失败: {ex.Message}";
+            }
+            finally
+            {
+                task?.Dispose();
             }
         }
 
@@ -390,11 +503,13 @@ namespace BlueSapphire.Services
             Func<string, Task<bool>>? requestConfirmation,
             CancellationToken cancellationToken = default)
         {
-            if (_lastScanResults == null || _lastScanResults.Count == 0)
+            CleanerScanReport? latestScan = _sharedContext.GetCleanerScan(TimeSpan.FromMinutes(30));
+            if (latestScan == null || latestScan.Items.Count == 0)
             {
-                return "错误：没有找到可清理的项目，请先执行扫描 (start_smart_cleanup)。";
+                return "错误：没有找到 30 分钟内的有效扫描结果，请重新执行扫描。过期结果不能用于删除操作。";
             }
 
+            AITaskLease? task = null;
             try
             {
                 var doc = JsonDocument.Parse(args);
@@ -409,7 +524,7 @@ namespace BlueSapphire.Services
 
                 var itemsToClean = new List<CleanerScanItem>();
                 
-                foreach (var item in _lastScanResults)
+                foreach (var item in latestScan.Items)
                 {
                     if (targets.Contains("Safe") && item.RiskLevel == CleanerRiskLevel.Low)
                     {
@@ -438,14 +553,53 @@ namespace BlueSapphire.Services
                     return "未匹配到需要清理的项目。传入的 categories_to_clean 参数未命中任何扫描结果。可用参数：'Safe', 'Review', 'All' 或具体的类别名称。";
                 }
 
-                if (!await ConfirmRequiredActionAsync(
+                string idempotencyInput =
+                    $"{latestScan.CreatedAt:O}|{string.Join("|", itemsToClean.Select(item => item.ObjectId).OrderBy(id => id, StringComparer.Ordinal))}";
+                string idempotencyKey = $"cleaner.execute:{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(idempotencyInput)))}";
+                task = _taskCenter.Begin(
+                    "cleaner.execute",
+                    "AI 清理任务",
+                    $"等待确认：{itemsToClean.Count} 项，预计释放 {CleanerSizeFormatter.Format(itemsToClean.Sum(item => item.SizeBytes))}",
+                    idempotencyKey);
+                if (task.IsDuplicate)
+                {
+                    AITaskRecord? existing = _taskCenter.Get(task.TaskId);
+                    return existing?.IsActive == true
+                        ? $"相同清理任务已经在执行或等待确认，任务编号：{task.TaskId}。"
+                        : $"相同清理任务刚刚完成，为避免重复执行，本次未再次清理。任务编号：{task.TaskId}。";
+                }
+
+                _taskCenter.Report(
+                    task.TaskId,
+                    5,
+                    "等待用户确认",
+                    $"将处理 {itemsToClean.Count} 个项目",
+                    AITaskStatus.AwaitingConfirmation);
+                if (!await _operationPolicy.ConfirmAsync(
                         requestConfirmation,
+                        "cleaner.execute",
+                        idempotencyKey,
                         $"即将清理 {itemsToClean.Count} 个项目（预计释放 {CleanerSizeFormatter.Format(itemsToClean.Sum(x => x.SizeBytes))}），是否继续？"))
                 {
+                    _taskCenter.MarkCancelled(task.TaskId, "用户拒绝了清理确认");
                     return "用户在安全确认弹窗中拒绝了本次清理操作。请告知用户清理已取消。";
                 }
 
-                var batch = await _executionService.ExecuteAsync(itemsToClean, CleanerScanScope.Quick, null, cancellationToken);
+                using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+                    cancellationToken,
+                    task.Token);
+                var progress = new Progress<CleanerExecutionProgress>(value =>
+                {
+                    double percent = value.ProgressMax > 0
+                        ? 10 + (value.ProgressValue / value.ProgressMax * 90)
+                        : 10;
+                    _taskCenter.Report(task.TaskId, percent, value.StageTitle, value.Detail);
+                });
+                var batch = await _executionService.ExecuteAsync(
+                    itemsToClean,
+                    latestScan.Scope,
+                    progress,
+                    linkedCts.Token);
                 await _auditService.RecordCleanupAsync(batch, 0);
 
                 var failedEntries = batch.Entries.Where(e => !string.Equals(e.Status, "Completed", StringComparison.OrdinalIgnoreCase)).ToList();
@@ -458,15 +612,34 @@ namespace BlueSapphire.Services
                     FailedDetails = failedEntries.Select(e => new { Name = e.ItemName, Error = e.ErrorMessage, Reason = CleanerPresentation.ToFailureReasonText(e.FailureReason) }).Take(5).ToList()
                 };
 
+                _taskCenter.Complete(
+                    task.TaskId,
+                    $"清理完成：成功 {batch.CompletedCount} 项，失败 {batch.FailedCount} 项，释放 {CleanerSizeFormatter.Format(batch.ReleasedBytes)}。");
                 return $"清理完成。结果：\n{JsonSerializer.Serialize(result, new JsonSerializerOptions { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping })}";
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            catch (OperationCanceledException)
             {
-                throw;
+                if (task is { IsDuplicate: false })
+                {
+                    _taskCenter.MarkCancelled(task.TaskId);
+                }
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                return "清理任务已由用户从任务中心取消。";
             }
             catch (Exception ex)
             {
+                if (task is { IsDuplicate: false })
+                {
+                    _taskCenter.Fail(task.TaskId, _privacyService.RedactForRemoteModel(ex.Message));
+                }
                 return $"清理执行失败: {ex.Message}";
+            }
+            finally
+            {
+                task?.Dispose();
             }
         }
 
@@ -559,6 +732,19 @@ namespace BlueSapphire.Services
             {
                 var doc = JsonDocument.Parse(args);
                 string rule = doc.RootElement.GetProperty("rule").GetString() ?? "";
+                string scopeText = doc.RootElement.TryGetProperty("scope", out JsonElement scopeProperty)
+                    ? scopeProperty.GetString() ?? "Global"
+                    : "Global";
+                AIMemoryScope scope = Enum.TryParse(scopeText, ignoreCase: true, out AIMemoryScope parsedScope)
+                    ? parsedScope
+                    : AIMemoryScope.Global;
+                int expiresDays = doc.RootElement.TryGetProperty("expires_days", out JsonElement expiryProperty) &&
+                                  expiryProperty.TryGetInt32(out int parsedDays)
+                    ? Math.Clamp(parsedDays, 0, 3650)
+                    : 0;
+                DateTimeOffset? expiresAt = expiresDays > 0
+                    ? DateTimeOffset.Now.AddDays(expiresDays)
+                    : null;
 
                 if (!string.IsNullOrWhiteSpace(rule))
                 {
@@ -568,7 +754,11 @@ namespace BlueSapphire.Services
                     {
                         return "用户已取消保存长期偏好。";
                     }
-                    bool added = await _memoryService.AddMemoryRuleAsync(rule);
+                    bool added = await _memoryService.AddMemoryEntryAsync(
+                        rule,
+                        scope,
+                        expiresAt,
+                        "AI 建议并经用户确认");
                     return added
                         ? $"已保存长期偏好：{rule}。它只用于表达方式和非安全习惯，不会替代任何操作确认。"
                         : "这条长期偏好已经存在，无需重复保存。";
@@ -1100,6 +1290,236 @@ namespace BlueSapphire.Services
             }
         }
 
+        private async Task<string> AnalyzeMediaFolderAsync(
+            string args,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                using JsonDocument document = JsonDocument.Parse(args);
+                JsonElement root = document.RootElement;
+                string folderPath = root.GetProperty("folder_path").GetString() ?? string.Empty;
+                bool recursive = !root.TryGetProperty("recursive", out JsonElement recursiveProperty) ||
+                                 recursiveProperty.GetBoolean();
+                AIMediaAnalysisContext result = await _mediaToolService.AnalyzeFolderAsync(
+                    folderPath,
+                    recursive,
+                    cancellationToken);
+
+                return JsonSerializer.Serialize(new
+                {
+                    Folder = _privacyService.DescribePathWithoutIdentity(result.FolderPath),
+                    result.FileCount,
+                    TotalSize = CleanerSizeFormatter.Format(result.TotalBytes),
+                    result.ExactDuplicateGroupCount,
+                    result.SimilarCandidateGroupCount,
+                    result.LargeFileCount,
+                    result.LowResolutionCount,
+                    result.FormatCounts,
+                    Safety = "当前只完成分析，没有移动、重命名或删除文件。"
+                }, new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+                });
+            }
+            catch (Exception ex)
+            {
+                return $"媒体分析失败：{_privacyService.RedactForRemoteModel(ex.Message)}";
+            }
+        }
+
+        private string PreviewMediaOrganization(string args)
+        {
+            try
+            {
+                using JsonDocument document = JsonDocument.Parse(args);
+                JsonElement root = document.RootElement;
+                string folderPath = root.GetProperty("folder_path").GetString() ?? string.Empty;
+                bool recursive = !root.TryGetProperty("recursive", out JsonElement recursiveProperty) ||
+                                 recursiveProperty.GetBoolean();
+                AIMediaOrganizationPreview preview = _mediaToolService.BuildOrganizationPreview(
+                    folderPath,
+                    recursive);
+                return JsonSerializer.Serialize(new
+                {
+                    Folder = _privacyService.DescribePathWithoutIdentity(preview.FolderPath),
+                    MoveCount = preview.Moves.Count,
+                    Examples = preview.Moves.Take(12).Select(move => new
+                    {
+                        Source = _privacyService.DescribePathWithoutIdentity(move.SourcePath),
+                        Destination = _privacyService.DescribePathWithoutIdentity(move.DestinationPath),
+                        move.Reason
+                    }),
+                    Safety = "这只是预览，没有移动或重命名文件。"
+                }, new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+                });
+            }
+            catch (Exception ex)
+            {
+                return $"媒体整理预览失败：{_privacyService.RedactForRemoteModel(ex.Message)}";
+            }
+        }
+
+        private async Task<string> ExecuteExactDuplicateCleanupAsync(
+            string args,
+            Func<string, Task<bool>>? requestConfirmation,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                using JsonDocument document = JsonDocument.Parse(args);
+                string strategy = document.RootElement.TryGetProperty("keep_strategy", out JsonElement strategyProperty)
+                    ? strategyProperty.GetString() ?? "newest"
+                    : "newest";
+                IReadOnlyList<string> targets = _mediaToolService.BuildExactDuplicateDeletionPreview(strategy);
+                if (targets.Count == 0)
+                {
+                    return "没有 30 分钟内的完全重复图片候选，请先执行媒体目录分析。";
+                }
+
+                string fingerprint = Convert.ToHexString(SHA256.HashData(
+                    Encoding.UTF8.GetBytes(string.Join(
+                        "|",
+                        targets.OrderBy(path => path, StringComparer.OrdinalIgnoreCase)))));
+                if (!await _operationPolicy.ConfirmAsync(
+                    requestConfirmation,
+                    "media.exact-duplicate-cleanup",
+                    fingerprint,
+                    $"将把 {targets.Count} 张完全重复图片移入系统回收站。\n保留策略：{(strategy == "oldest" ? "保留最早文件" : "保留最新文件")}\n\n相似但不完全相同的图片不会删除。是否继续？"))
+                {
+                    return "用户已取消重复图片清理。";
+                }
+
+                (int success, int failed) = await _mediaToolService.DeleteExactDuplicateCandidatesAsync(
+                    targets,
+                    cancellationToken);
+                return $"重复图片处理完成：成功移入回收站 {success} 张，失败 {failed} 张。";
+            }
+            catch (Exception ex)
+            {
+                return $"重复图片清理失败：{_privacyService.RedactForRemoteModel(ex.Message)}";
+            }
+        }
+
+        private async Task<string> ExecuteMediaOrganizationAsync(
+            Func<string, Task<bool>>? requestConfirmation,
+            CancellationToken cancellationToken)
+        {
+            AIMediaOrganizationPreview? preview =
+                _sharedContext.GetMediaOrganizationPreview(TimeSpan.FromMinutes(30));
+            if (preview == null || preview.Moves.Count == 0)
+            {
+                return "没有 30 分钟内的有效媒体整理预览，请先生成预览。";
+            }
+
+            if (!await _operationPolicy.ConfirmAsync(
+                requestConfirmation,
+                "media.organize",
+                preview.CreatedAt.ToString("O"),
+                $"将按年月移动 {preview.Moves.Count} 张图片。\n不会覆盖同名文件，冲突项将跳过；标签会跟随移动。\n\n是否继续？"))
+            {
+                return "用户已取消媒体整理。";
+            }
+
+            try
+            {
+                (int success, int failed, int skipped) =
+                    await _mediaToolService.ExecuteOrganizationPreviewAsync(cancellationToken);
+                return $"媒体整理完成：成功 {success} 张，失败 {failed} 张，跳过 {skipped} 张。";
+            }
+            catch (Exception ex)
+            {
+                return $"媒体整理失败：{_privacyService.RedactForRemoteModel(ex.Message)}";
+            }
+        }
+
+        private async Task<string> DiagnoseApplicationAsync()
+        {
+            return await _diagnosticsService.BuildDiagnosticSummaryAsync();
+        }
+
+        private string BuildCrossModulePlan(string args)
+        {
+            try
+            {
+                using JsonDocument document = JsonDocument.Parse(args);
+                JsonElement root = document.RootElement;
+                string objective = root.GetProperty("objective").GetString() ?? "整理空间与媒体";
+                string? folderPath = root.TryGetProperty("folder_path", out JsonElement folderProperty)
+                    ? folderProperty.GetString()
+                    : null;
+                return _insightService.BuildCrossModulePlan(
+                    objective,
+                    _privacyService.DescribePathWithoutIdentity(folderPath));
+            }
+            catch (Exception ex)
+            {
+                return $"生成跨模块计划失败：{_privacyService.RedactForRemoteModel(ex.Message)}";
+            }
+        }
+
+        private async Task<string> GetProactiveSuggestionsAsync()
+        {
+            IReadOnlyList<string> suggestions = await _insightService.BuildNonIntrusiveSuggestionsAsync();
+            return string.Join(Environment.NewLine, suggestions.Select(item => $"- {item}"));
+        }
+
+        private async Task<string> CreateCleanerRuleDraftAsync(
+            string args,
+            Func<string, Task<bool>>? requestConfirmation)
+        {
+            try
+            {
+                using JsonDocument document = JsonDocument.Parse(args);
+                JsonElement root = document.RootElement;
+                string name = root.GetProperty("name").GetString() ?? "AI 清理规则草稿";
+                string path = root.GetProperty("path").GetString() ?? string.Empty;
+                bool includeSubdirectories =
+                    !root.TryGetProperty("include_subdirectories", out JsonElement recursiveProperty) ||
+                    recursiveProperty.GetBoolean();
+                List<string> patterns = root.TryGetProperty("include_patterns", out JsonElement patternsProperty) &&
+                                        patternsProperty.ValueKind == JsonValueKind.Array
+                    ? patternsProperty.EnumerateArray()
+                        .Select(item => item.GetString() ?? string.Empty)
+                        .ToList()
+                    : new List<string>();
+                CleanerRuleDefinition draft = _ruleDraftService.BuildDraft(
+                    name,
+                    path,
+                    patterns,
+                    includeSubdirectories);
+
+                string preview = $"""
+                    规则名称：{draft.Name}
+                    路径：{draft.Paths[0]}
+                    匹配：{(draft.IncludePatterns.Count == 0 ? "目录内容" : string.Join("、", draft.IncludePatterns))}
+                    风险：高风险、仅供查看
+                    执行方式：不会删除
+
+                    是否把这份草稿保存到本地规则草稿目录？
+                    """;
+                if (!await _operationPolicy.ConfirmAsync(
+                    requestConfirmation,
+                    "cleaner.rule-draft.save",
+                    draft.Id,
+                    preview))
+                {
+                    return "用户已取消保存规则草稿。";
+                }
+
+                string savedPath = await _ruleDraftService.SaveDraftAsync(draft);
+                return $"规则草稿已保存：{_privacyService.DescribePathWithoutIdentity(savedPath)}。它不会自动生效，请在规则库中人工审核后再导入。";
+            }
+            catch (Exception ex)
+            {
+                return $"生成规则草稿失败：{_privacyService.RedactForRemoteModel(ex.Message)}";
+            }
+        }
+
 
         public async Task<List<ChatTool>> BuildCleanerToolsAsync(IEnumerable<string> features)
         {
@@ -1226,8 +1646,22 @@ namespace BlueSapphire.Services
                             properties = new
                             {
                                 rule = new { type = "string", description = "A concise, actionable rule that captures the user's preference. Keep it short but specific, e.g., '不清理 .mp4 格式文件' or '习惯使用深度扫描'." }
+                                ,
+                                scope = new
+                                {
+                                    type = "string",
+                                    @enum = new[] { "Global", "Cleanup", "Media", "Writing" },
+                                    description = "Where this preference applies."
+                                },
+                                expires_days = new
+                                {
+                                    type = "integer",
+                                    minimum = 0,
+                                    maximum = 3650,
+                                    description = "0 means no expiry; otherwise the memory expires after this many days."
+                                }
                             },
-                            required = new[] { "rule" }
+                            required = new[] { "rule", "scope", "expires_days" }
                         })
                     }
                 },
@@ -1326,6 +1760,143 @@ namespace BlueSapphire.Services
                 }
             };
 
+            baseTools.AddRange(
+            [
+                new ChatTool
+                {
+                    Type = "function",
+                    Function = new ChatFunction
+                    {
+                        Name = "analyze_media_folder",
+                        Description = "Read-only analysis of an image folder. Counts files, formats, size, exact duplicate groups, large files, and low-resolution candidates. Never changes files.",
+                        Parameters = JsonSerializer.SerializeToNode(new
+                        {
+                            type = "object",
+                            properties = new
+                            {
+                                folder_path = new { type = "string", description = "Existing absolute local folder path selected or explicitly provided by the user." },
+                                recursive = new { type = "boolean", description = "Whether to include subfolders. Default true." }
+                            },
+                            required = new[] { "folder_path" }
+                        })
+                    }
+                },
+                new ChatTool
+                {
+                    Type = "function",
+                    Function = new ChatFunction
+                    {
+                        Name = "preview_media_organization",
+                        Description = "Dry-run preview that proposes organizing images into year/month folders. It never moves or renames files.",
+                        Parameters = JsonSerializer.SerializeToNode(new
+                        {
+                            type = "object",
+                            properties = new
+                            {
+                                folder_path = new { type = "string" },
+                                recursive = new { type = "boolean" }
+                            },
+                            required = new[] { "folder_path" }
+                        })
+                    }
+                },
+                new ChatTool
+                {
+                    Type = "function",
+                    Function = new ChatFunction
+                    {
+                        Name = "execute_exact_duplicate_cleanup",
+                        Description = "Moves only SHA-256 verified exact duplicate images from the most recent media analysis to the recycle bin. Must be called only after the user explicitly approves the preview.",
+                        Parameters = JsonSerializer.SerializeToNode(new
+                        {
+                            type = "object",
+                            properties = new
+                            {
+                                keep_strategy = new
+                                {
+                                    type = "string",
+                                    @enum = new[] { "newest", "oldest" },
+                                    description = "Which file to keep in each exact duplicate group."
+                                }
+                            },
+                            required = new[] { "keep_strategy" }
+                        })
+                    }
+                },
+                new ChatTool
+                {
+                    Type = "function",
+                    Function = new ChatFunction
+                    {
+                        Name = "execute_media_organization",
+                        Description = "Executes the most recent year/month media organization preview after explicit confirmation. Never overwrites collisions and preserves BlueSapphire tags."
+                    }
+                },
+                new ChatTool
+                {
+                    Type = "function",
+                    Function = new ChatFunction
+                    {
+                        Name = "diagnose_application",
+                        Description = "Reads local BlueSapphire logs and audit summaries, redacts sensitive data, and explains recent permission, lock, network, rule, and scan failures."
+                    }
+                },
+                new ChatTool
+                {
+                    Type = "function",
+                    Function = new ChatFunction
+                    {
+                        Name = "build_cross_module_plan",
+                        Description = "Builds a read-only, step-by-step plan that combines cleanup and media workflows. It does not execute any operation.",
+                        Parameters = JsonSerializer.SerializeToNode(new
+                        {
+                            type = "object",
+                            properties = new
+                            {
+                                objective = new { type = "string" },
+                                folder_path = new { type = "string" }
+                            },
+                            required = new[] { "objective" }
+                        })
+                    }
+                },
+                new ChatTool
+                {
+                    Type = "function",
+                    Function = new ChatFunction
+                    {
+                        Name = "get_proactive_suggestions",
+                        Description = "Returns non-intrusive local suggestions based on recent tasks, scans, failures, and expired memories. It never displays a popup or changes settings."
+                    }
+                },
+                new ChatTool
+                {
+                    Type = "function",
+                    Function = new ChatFunction
+                    {
+                        Name = "create_cleaner_rule_draft",
+                        Description = "Creates a high-risk, view-only cleaner rule draft after local confirmation. The draft never becomes active automatically.",
+                        Parameters = JsonSerializer.SerializeToNode(new
+                        {
+                            type = "object",
+                            properties = new
+                            {
+                                name = new { type = "string" },
+                                path = new { type = "string", description = "Absolute target directory. Disk roots and Windows core roots are rejected." },
+                                include_patterns = new
+                                {
+                                    type = "array",
+                                    items = new { type = "string" },
+                                    description = "Optional safe filename patterns such as *.log or *.tmp."
+                                },
+                                include_subdirectories = new { type = "boolean" }
+                            },
+                            required = new[] { "name", "path" }
+                        })
+                    }
+                }
+            ]);
+
             try
             {
                 _mcpToolRoutes.Clear();
@@ -1398,7 +1969,8 @@ namespace BlueSapphire.Services
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 TrimMessageHistory(messages);
-                var stream = _aiService.SendChatStreamAsync(messages, tools, cancellationToken);
+                List<ChatMessage> remoteMessages = BuildPrivacySafeMessages(messages);
+                var stream = _aiService.SendChatStreamAsync(remoteMessages, tools, cancellationToken);
 
                 var fullContentBuilder = new StringBuilder();
                 var toolCallsAccumulator = new Dictionary<int, AccumulatingToolCall>();
@@ -1494,6 +2066,14 @@ namespace BlueSapphire.Services
                     if (acc.FunctionName == "start_smart_cleanup") result = await StartSmartCleanupAsync(acc.FunctionArguments, cancellationToken);
                     else if (acc.FunctionName == "execute_cleanup") result = await ExecuteCleanupAsync(acc.FunctionArguments, requestConfirmation, cancellationToken);
                     else if (acc.FunctionName == "analyze_latest_cleanup_log") result = await AnalyzeLatestCleanupLogAsync();
+                    else if (acc.FunctionName == "analyze_media_folder") result = await AnalyzeMediaFolderAsync(acc.FunctionArguments, cancellationToken);
+                    else if (acc.FunctionName == "preview_media_organization") result = PreviewMediaOrganization(acc.FunctionArguments);
+                    else if (acc.FunctionName == "execute_exact_duplicate_cleanup") result = await ExecuteExactDuplicateCleanupAsync(acc.FunctionArguments, requestConfirmation, cancellationToken);
+                    else if (acc.FunctionName == "execute_media_organization") result = await ExecuteMediaOrganizationAsync(requestConfirmation, cancellationToken);
+                    else if (acc.FunctionName == "diagnose_application") result = await DiagnoseApplicationAsync();
+                    else if (acc.FunctionName == "build_cross_module_plan") result = BuildCrossModulePlan(acc.FunctionArguments);
+                    else if (acc.FunctionName == "get_proactive_suggestions") result = await GetProactiveSuggestionsAsync();
+                    else if (acc.FunctionName == "create_cleaner_rule_draft") result = await CreateCleanerRuleDraftAsync(acc.FunctionArguments, requestConfirmation);
                     else if (acc.FunctionName == "navigate_to_feature") result = await NavigateToFeatureAsync(acc.FunctionArguments);
                     else if (acc.FunctionName == "add_dev_log_record") result = await AddDevLogRecordAsync(acc.FunctionArguments, requestConfirmation);
                     else if (acc.FunctionName == "remember_user_preference") result = await RememberUserPreferenceAsync(acc.FunctionArguments, requestConfirmation);
@@ -1578,6 +2158,23 @@ namespace BlueSapphire.Services
             lock (messages) { messages.Add(new ChatMessage { Role = "assistant", Content = err }); }
             onMessageGenerated("assistant", err, false);
             return err;
+        }
+
+        private List<ChatMessage> BuildPrivacySafeMessages(List<ChatMessage> messages)
+        {
+            lock (messages)
+            {
+                return messages.Select(message => new ChatMessage
+                {
+                    Role = message.Role,
+                    Content = message.Content == null
+                        ? null
+                        : _privacyService.RedactForRemoteModel(message.Content),
+                    Name = message.Name,
+                    ToolCalls = message.ToolCalls,
+                    ToolCallId = message.ToolCallId
+                }).ToList();
+            }
         }
 
         private static void TrimMessageHistory(List<ChatMessage> messages)

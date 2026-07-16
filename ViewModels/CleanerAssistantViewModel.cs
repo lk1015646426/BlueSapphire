@@ -22,6 +22,7 @@ namespace BlueSapphire.ViewModels
         private readonly CleanerAutomationService _automationService;
         private readonly CleanerRecommendationService _recommendationService;
         private readonly NativeFileService _nativeFileService;
+        private readonly AITaskCenterService? _taskCenter;
 
         private ICleanerAssistantViewInteraction? _view;
 
@@ -47,7 +48,9 @@ namespace BlueSapphire.ViewModels
             CleanerProfileService profileService,
             CleanerTelemetryService telemetryService,
             CleanerRecommendationService recommendationService,
-            CleanerSettingsViewModel settings)
+            CleanerSettingsViewModel settings,
+            AITaskCenterService? taskCenter = null,
+            AISharedContextService? sharedContext = null)
         {
             _executionService = executionService;
             _auditService = auditService;
@@ -56,11 +59,21 @@ namespace BlueSapphire.ViewModels
             _automationService = automationService;
             _recommendationService = recommendationService;
             _nativeFileService = nativeFileService;
+            _taskCenter = taskCenter;
             Settings = settings;
 
             Drive = new CleanerDriveSelectionViewModel(driveService, stateStore);
             Cleanup = new CleanerCleanupViewModel(executionService, stateStore, nativeFileService);
-            Scan = new CleanerScanViewModel(scanService, deepScanService, auditService, stateStore, Drive, Cleanup, settings);
+            Scan = new CleanerScanViewModel(
+                scanService,
+                deepScanService,
+                auditService,
+                stateStore,
+                Drive,
+                Cleanup,
+                settings,
+                taskCenter,
+                sharedContext);
             Rule = new CleanerRuleManagementViewModel(ruleService, telemetryService, profileService, stateStore, nativeFileService, settings, auditService);
             Automation = new CleanerAutomationViewModel(automationService, settings);
 
@@ -122,11 +135,38 @@ namespace BlueSapphire.ViewModels
             if (!confirmed) return;
 
             CancellationTokenSource cts = Scan.CreateOperationTokenSource();
+            string idempotencyKey = $"cleaner.ui.execute:{string.Join(
+                "|",
+                selectedItems.Select(item => item.ObjectId).OrderBy(id => id, StringComparer.Ordinal))}";
+            using AITaskLease? task = _taskCenter?.Begin(
+                "cleaner.execute",
+                "清理任务",
+                $"处理 {selectedItems.Count} 项，预计释放 {CleanerSizeFormatter.Format(selectedItems.Sum(item => item.SizeBytes))}",
+                idempotencyKey);
+            if (task?.IsDuplicate == true)
+            {
+                Scan.ReleaseOperationTokenSource(cts);
+                await _view.ShowTipAsync("任务已存在", "相同的清理任务正在执行或刚刚完成，本次不会重复执行。");
+                return;
+            }
+            using CancellationTokenSource linkedCts = task == null
+                ? CancellationTokenSource.CreateLinkedTokenSource(cts.Token)
+                : CancellationTokenSource.CreateLinkedTokenSource(cts.Token, task.Token);
             try
             {
                 Scan.SetBusyState(true, "正在执行清理", "优先使用隔离区和回收站，避免不可逆误删。");
-                Progress<CleanerExecutionProgress> progress = new(UpdateExecutionProgress);
-                CleanerCleanupBatch batch = await _executionService.ExecuteAsync(selectedItems, Scan.GetLastScope(), progress, cts.Token);
+                Progress<CleanerExecutionProgress> progress = new(value =>
+                {
+                    UpdateExecutionProgress(value);
+                    if (task != null)
+                    {
+                        double percent = value.ProgressMax > 0
+                            ? value.ProgressValue / value.ProgressMax * 100
+                            : 0;
+                        _taskCenter?.Report(task.TaskId, percent, value.StageTitle, value.Detail);
+                    }
+                });
+                CleanerCleanupBatch batch = await _executionService.ExecuteAsync(selectedItems, Scan.GetLastScope(), progress, linkedCts.Token);
                 
                 Cleanup.ApplyLatestBatch(batch);
                 await _auditService.RecordDeselectionAsync(Scan.AllItems);
@@ -137,16 +177,30 @@ namespace BlueSapphire.ViewModels
                 {
                     await _view.ShowTipAsync("清理完成", $"本次释放 {CleanerSizeFormatter.Format(batch.ReleasedBytes)}，共处理 {batch.Entries.Count} 个对象。{failureSummary}");
                 }
+                if (task != null)
+                {
+                    _taskCenter?.Complete(
+                        task.TaskId,
+                        $"清理完成：释放 {CleanerSizeFormatter.Format(batch.ReleasedBytes)}，失败 {batch.FailedCount} 项。");
+                }
 
                 await Scan.StartQuickScanCommand.ExecuteAsync(null);
                 await Cleanup.ReloadHistoryAndExclusionsAsync();
             }
             catch (OperationCanceledException)
             {
+                if (task != null)
+                {
+                    _taskCenter?.MarkCancelled(task.TaskId);
+                }
                 if (_view != null) await _view.ShowTipAsync("已取消", "清理任务已被取消。");
             }
             catch (Exception ex)
             {
+                if (task != null)
+                {
+                    _taskCenter?.Fail(task.TaskId, ex.Message);
+                }
                 if (_view != null) await _view.ShowTipAsync("清理失败", ex.Message);
             }
             finally

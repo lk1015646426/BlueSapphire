@@ -10,7 +10,7 @@
     Background="{StaticResource BgColor}"
     mc:Ignorable="d">
 
-    <Grid Padding="40,20,40,40">
+    <Grid Padding="{StaticResource PagePaddingLarge}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -18,32 +18,54 @@
         </Grid.RowDefinitions>
 
         <!-- 标题区 + 工具栏 -->
-        <Grid Grid.Row="0" Margin="0,0,0,20">
+        <Grid Grid.Row="0" Margin="0,0,0,16">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <Border Grid.Column="0" Style="{StaticResource SectionCardStyle}" HorizontalAlignment="Left">
-                <StackPanel>
-                    <TextBlock Text="智能助理" FontSize="24" FontWeight="Bold" Foreground="{StaticResource TextMain}"/>
-                    <TextBlock Text="支持已配置的 AI 服务，通过明确确认安全调用本地工具与扩展。" Foreground="{StaticResource TextMuted}" Margin="0,5,0,0"/>
-                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0" VerticalAlignment="Center">
+            <StackPanel Grid.Column="0" Spacing="4" VerticalAlignment="Center">
+                    <TextBlock Text="智能助理" Style="{StaticResource TextStyle_PageTitle}"/>
+                    <TextBlock Text="对话分析、内容整理，以及经你确认的工具操作。" Foreground="{StaticResource TextMuted}"/>
+                    <Border Background="{StaticResource PanelSurfaceStrong}"
+                            CornerRadius="999"
+                            Padding="10,5"
+                            HorizontalAlignment="Left"
+                            Margin="0,6,0,0">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <Ellipse x:Name="ConnectionStatusIndicator" Width="8" Height="8" Fill="{StaticResource TextMuted}" Margin="0,0,8,0"/>
                         <TextBlock x:Name="ConnectionStatusText" Text="连接状态检测中..." FontSize="12" Foreground="{StaticResource TextMuted}"/>
-                    </StackPanel>
-                </StackPanel>
-            </Border>
+                        </StackPanel>
+                    </Border>
+            </StackPanel>
 
             <!-- 工具栏按钮 -->
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
-                <Button x:Name="ClearChatBtn" Style="{StaticResource ActionButtonStyle}" Click="ClearChatBtn_Click" ToolTipService.ToolTip="清空对话" AutomationProperties.Name="清空对话">
+                <Button x:Name="SuggestionsBtn" Style="{StaticResource SubtleActionButtonStyle}" Click="SuggestionsBtn_Click" ToolTipService.ToolTip="查看本地建议" AutomationProperties.Name="本地建议">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xEA80;" FontSize="14"/>
+                        <TextBlock Text="建议" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+                <Button x:Name="TaskCenterBtn" Style="{StaticResource SubtleActionButtonStyle}" Click="TaskCenterBtn_Click" ToolTipService.ToolTip="查看后台任务" AutomationProperties.Name="任务中心">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE9F9;" FontSize="14"/>
+                        <TextBlock Text="任务中心" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+                <Button x:Name="MemoryBtn" Style="{StaticResource SubtleActionButtonStyle}" Click="MemoryBtn_Click" ToolTipService.ToolTip="管理长期记忆" AutomationProperties.Name="记忆管理">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE90F;" FontSize="14"/>
+                        <TextBlock Text="记忆" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+                <Button x:Name="ClearChatBtn" Style="{StaticResource SubtleActionButtonStyle}" Click="ClearChatBtn_Click" ToolTipService.ToolTip="清空对话" AutomationProperties.Name="清空对话">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon Glyph="&#xE74D;" FontSize="14"/>
                         <TextBlock Text="清空对话" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Button>
-                <Button x:Name="ExportChatBtn" Style="{StaticResource ActionButtonStyle}" Click="ExportChatBtn_Click" ToolTipService.ToolTip="导出记录" AutomationProperties.Name="导出对话记录">
+                <Button x:Name="ExportChatBtn" Style="{StaticResource SubtleActionButtonStyle}" Click="ExportChatBtn_Click" ToolTipService.ToolTip="导出记录" AutomationProperties.Name="导出对话记录">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon Glyph="&#xE781;" FontSize="14"/>
                         <TextBlock Text="导出记录" VerticalAlignment="Center"/>
@@ -53,7 +75,12 @@
         </Grid>
 
         <!-- 聊天记录显示区 -->
-        <Border Grid.Row="1" Background="{StaticResource PanelSurface}" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" CornerRadius="12" Padding="15">
+        <Border Grid.Row="1"
+                Background="{StaticResource PanelSurface}"
+                BorderBrush="{StaticResource BorderSubtle}"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="20,12">
             <ScrollViewer x:Name="ChatScrollViewer" VerticalScrollBarVisibility="Auto">
                 <ItemsControl x:Name="ChatList">
                     <ItemsControl.ItemContainerTransitions>
@@ -63,7 +90,7 @@
                     </ItemsControl.ItemContainerTransitions>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Grid Margin="0,12" HorizontalAlignment="{Binding Alignment}" MaxWidth="800">
+                            <Grid Margin="0,10" HorizontalAlignment="{Binding Alignment}" MaxWidth="760">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
@@ -71,8 +98,8 @@
                                 </Grid.ColumnDefinitions>
 
                                 <!-- AI Avatar -->
-                                <Border Grid.Column="0" Width="36" Height="36" CornerRadius="18"
-                                        Background="{StaticResource BorderColor}" BorderBrush="{StaticResource BorderColor}" BorderThickness="1"
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="16"
+                                        Background="{StaticResource SurfaceElevated}" BorderThickness="0"
                                         VerticalAlignment="Top" Margin="0,0,12,0"
                                         Visibility="{Binding AIVisibility}">
                                     <FontIcon Glyph="{Binding AvatarGlyph}" FontSize="16" Foreground="{StaticResource AccentInspect}"/>
@@ -87,9 +114,9 @@
                                     <TextBlock Text="{Binding HeaderText}" FontSize="12" Foreground="{StaticResource TextMuted}" Margin="4,0,0,4"
                                                HorizontalAlignment="{Binding Alignment}"/>
                                     <Border Grid.Row="1" Background="{Binding BubbleBackground}"
-                                            CornerRadius="12"
+                                            CornerRadius="14"
                                             Padding="16,12"
-                                            BorderThickness="1"
+                                            BorderThickness="0"
                                             BorderBrush="{Binding BubbleBorder}">
                                         <Grid>
                                         <!-- User Message (Plain Text) -->
@@ -122,8 +149,8 @@
                                 </Grid>
 
                                 <!-- User Avatar -->
-                                <Border Grid.Column="2" Width="36" Height="36" CornerRadius="18"
-                                        Background="{StaticResource BorderColor}" BorderBrush="{StaticResource BorderColor}" BorderThickness="1"
+                                <Border Grid.Column="2" Width="32" Height="32" CornerRadius="16"
+                                        Background="{StaticResource SurfaceElevated}" BorderThickness="0"
                                         VerticalAlignment="Top" Margin="12,0,0,0"
                                         Visibility="{Binding UserVisibility}">
                                     <FontIcon Glyph="{Binding AvatarGlyph}" FontSize="16" Foreground="{StaticResource AccentReview}"/>
@@ -136,55 +163,62 @@
         </Border>
 
         <!-- 底部输入区 -->
-        <Grid Grid.Row="2" Margin="0,20,0,0" ColumnSpacing="12">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
+        <Border Grid.Row="2"
+                Margin="0,16,0,0"
+                Background="{StaticResource PanelSurfaceStrong}"
+                BorderBrush="{StaticResource BorderSubtle}"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="8">
+            <Grid ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
 
-            <TextBox x:Name="InputBox"
-                     PlaceholderText="输入你的需求，例如：帮我清理一下系统垃圾..."
-                     MinHeight="48"
-                     MaxHeight="120"
-                     TextWrapping="Wrap"
-                     AcceptsReturn="False"
-                     CornerRadius="12"
-                     Background="{StaticResource PanelSurface}"
-                     BorderBrush="{StaticResource BorderColor}"
-                     Foreground="{StaticResource TextMain}"
-                     VerticalContentAlignment="Center"
-                     Padding="16,0,16,0"
-                     FontSize="14"
-                     GotFocus="InputBox_GotFocus"
-                     LostFocus="InputBox_LostFocus"
-                     KeyDown="InputBox_KeyDown"
-                     AutomationProperties.Name="AI 对话输入框"/>
+                <TextBox x:Name="InputBox"
+                         PlaceholderText="输入你的需求，例如：分析这次扫描结果"
+                         MinHeight="44"
+                         MaxHeight="120"
+                         TextWrapping="Wrap"
+                         AcceptsReturn="False"
+                         CornerRadius="10"
+                         Background="Transparent"
+                         BorderBrush="Transparent"
+                         Foreground="{StaticResource TextMain}"
+                         VerticalContentAlignment="Center"
+                         Padding="12,0"
+                         FontSize="14"
+                         GotFocus="InputBox_GotFocus"
+                         LostFocus="InputBox_LostFocus"
+                         KeyDown="InputBox_KeyDown"
+                         AutomationProperties.Name="AI 对话输入框"/>
 
-            <Button x:Name="SendBtn"
-                    Grid.Column="1"
-                    Height="48"
-                    Width="48"
-                    CornerRadius="12"
-                    Style="{StaticResource PrimaryActionButtonStyle}"
-                    Click="SendBtn_Click"
-                    AutomationProperties.Name="发送消息"
-                    ToolTipService.ToolTip="发送消息">
-                <!-- 纸飞机发送图标 -->
-                <FontIcon Glyph="&#xE122;" FontSize="18"/>
-            </Button>
+                <Button x:Name="SendBtn"
+                        Grid.Column="1"
+                        Height="44"
+                        Width="44"
+                        CornerRadius="10"
+                        Style="{StaticResource PrimaryActionButtonStyle}"
+                        Click="SendBtn_Click"
+                        AutomationProperties.Name="发送消息"
+                        ToolTipService.ToolTip="发送消息">
+                    <FontIcon Glyph="&#xE122;" FontSize="18"/>
+                </Button>
 
-            <Button x:Name="StopBtn"
-                    Grid.Column="1"
-                    Height="48"
-                    Width="48"
-                    CornerRadius="12"
-                    Style="{StaticResource ActionButtonStyle}"
-                    Click="StopBtn_Click"
-                    Visibility="Collapsed"
-                    AutomationProperties.Name="停止生成"
-                    ToolTipService.ToolTip="停止生成">
-                <FontIcon Glyph="&#xE71A;" FontSize="16"/>
-            </Button>
-        </Grid>
+                <Button x:Name="StopBtn"
+                        Grid.Column="1"
+                        Height="44"
+                        Width="44"
+                        CornerRadius="10"
+                        Style="{StaticResource DangerActionButtonStyle}"
+                        Click="StopBtn_Click"
+                        Visibility="Collapsed"
+                        AutomationProperties.Name="停止生成"
+                        ToolTipService.ToolTip="停止生成">
+                    <FontIcon Glyph="&#xE71A;" FontSize="16"/>
+                </Button>
+            </Grid>
+        </Border>
     </Grid>
 </Page>

@@ -26,6 +26,7 @@ namespace BlueSapphire.ViewModels
         private readonly ImageMetadataService _imageMetadataService;
         private readonly MediaTagService _mediaTagService;
         private readonly ILogger<MediaManagerViewModel> _logger;
+        private readonly AISharedContextService? _sharedContext;
         private readonly List<ImageItem> _cachedAllItems = new();
 
         private IMediaViewInteraction _view = null!;
@@ -46,7 +47,7 @@ namespace BlueSapphire.ViewModels
             set => SetProperty(ref _images, value);
         }
 
-        private string _statusMainText = "READY";
+        private string _statusMainText = "就绪";
         public string StatusMainText
         {
             get => _statusMainText;
@@ -60,7 +61,7 @@ namespace BlueSapphire.ViewModels
             set => SetProperty(ref _statusDetailText, value);
         }
 
-        private string _pathText = "-";
+        private string _pathText = "尚未选择文件夹";
         public string PathText
         {
             get => _pathText;
@@ -225,7 +226,7 @@ namespace BlueSapphire.ViewModels
 
         public string EmptyStateText => "等待接入图片媒体库...";
         public string ContextModeText => "图片 · 上下文模式";
-        public string TabStatusText => "TAB: 图片";
+        public string TabStatusText => "图片库";
         public string EmptyStateIconGlyph => "\uE8B9";
 
         public MediaManagerViewModel(
@@ -235,7 +236,8 @@ namespace BlueSapphire.ViewModels
             ImageProcessingService imageProcessingService,
             ImageMetadataService imageMetadataService,
             MediaTagService mediaTagService,
-            ILogger<MediaManagerViewModel> logger)
+            ILogger<MediaManagerViewModel> logger,
+            AISharedContextService? sharedContext = null)
         {
             _renameService = renameService;
             _deduplicationService = deduplicationService;
@@ -244,6 +246,7 @@ namespace BlueSapphire.ViewModels
             _imageMetadataService = imageMetadataService;
             _mediaTagService = mediaTagService;
             _logger = logger;
+            _sharedContext = sharedContext;
         }
 
         public void Initialize(IMediaViewInteraction view, DispatcherQueue dispatcherQueue)
@@ -276,6 +279,7 @@ namespace BlueSapphire.ViewModels
             }
 
             _currentFolder = folder;
+            _sharedContext?.SetCurrentMediaFolder(folder.Path);
             await LoadFolderContentAsync(folder);
         }
 
@@ -296,6 +300,7 @@ namespace BlueSapphire.ViewModels
                 try
                 {
                     _currentFolder = await StorageFolder.GetFolderFromPathAsync(Path.GetDirectoryName(files[0].Path));
+                    _sharedContext?.SetCurrentMediaFolder(_currentFolder.Path);
                 }
                 catch { _currentFolder = null; }
             }
@@ -1770,7 +1775,7 @@ namespace BlueSapphire.ViewModels
                 IsProgressVisible = busy;
                 ProgressValue = value;
                 ProgressMax = max;
-                StatusMainText = busy ? text : "READY";
+                StatusMainText = busy ? text : "就绪";
                 StatusDetailText = string.Empty;
             });
         }

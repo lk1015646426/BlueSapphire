@@ -123,19 +123,21 @@ namespace BlueSapphire
             {
                 "Light" => new Dictionary<string, string>
                 {
-                    ["BgColor"] = "#F5FAFA", ["PanelSurface"] = "#FFFFFF",
-                    ["PanelSurfaceStrong"] = "#EDF6F6", ["SurfaceElevated"] = "#E2F0F1",
-                    ["PanelHighlight"] = "#D6EAEC", ["BorderColor"] = "#2A0B2630",
-                    ["BorderSubtle"] = "#160B2630", ["BorderActive"] = "#500B2630",
-                    ["TextMain"] = "#102529", ["TextSecondary"] = "#36545A",
-                    ["TextMuted"] = "#526D72", ["TextFaint"] = "#61777B",
-                    ["AccentCyan"] = "#087C93", ["AccentCyanBg"] = "#1A087C93",
-                    ["AccentSafe"] = "#087A55", ["AccentSafeBg"] = "#18087A55",
-                    ["AccentReview"] = "#805300", ["AccentReviewBg"] = "#1A805300",
-                    ["AccentInspect"] = "#096D9A", ["AccentInspectBg"] = "#18096D9A",
+                    ["BgColor"] = "#F3F6F6", ["PanelSurface"] = "#FFFFFFFF",
+                    ["PanelSurfaceStrong"] = "#F8FAFA", ["SurfaceElevated"] = "#EEF3F4",
+                    ["PanelHighlight"] = "#E8EFF0", ["BorderColor"] = "#260F1F23",
+                    ["BorderSubtle"] = "#180F1F23", ["BorderActive"] = "#520F1F23",
+                    ["TextMain"] = "#17282C", ["TextSecondary"] = "#3E565B",
+                    ["TextMuted"] = "#5A7075", ["TextFaint"] = "#6B7E82",
+                    ["TextOnAccent"] = "#FFFFFFFF",
+                    ["AccentCyan"] = "#007E95", ["AccentCyanHover"] = "#006D82",
+                    ["AccentCyanPressed"] = "#005E70", ["AccentCyanBg"] = "#1C007E95",
+                    ["AccentSafe"] = "#0A7551", ["AccentSafeBg"] = "#180A7551",
+                    ["AccentReview"] = "#7A5500", ["AccentReviewBg"] = "#187A5500",
+                    ["AccentInspect"] = "#176B9A", ["AccentInspectBg"] = "#18176B9A",
                     ["AccentDanger"] = "#B4233C", ["AccentDangerBg"] = "#18B4233C",
-                    ["OverlayScrim"] = "#E6FFFFFF", ["MediaSurface"] = "#E7EFF1",
-                    ["BadgeSurface"] = "#E6FFFFFF"
+                    ["OverlayScrim"] = "#CCF3F6F6", ["MediaSurface"] = "#E9EFF0",
+                    ["BadgeSurface"] = "#F2FFFFFF"
                 },
                 "HighContrast" => new Dictionary<string, string>
                 {
@@ -145,7 +147,9 @@ namespace BlueSapphire
                     ["BorderSubtle"] = "#FFFFFFFF", ["BorderActive"] = "#FFFFFF00",
                     ["TextMain"] = "#FFFFFFFF", ["TextSecondary"] = "#FFFFFFFF",
                     ["TextMuted"] = "#FFE0E0E0", ["TextFaint"] = "#FFC0C0C0",
-                    ["AccentCyan"] = "#FFFFFF00", ["AccentCyanBg"] = "#FF000000",
+                    ["TextOnAccent"] = "#FF000000",
+                    ["AccentCyan"] = "#FFFFFF00", ["AccentCyanHover"] = "#FFFFFFFF",
+                    ["AccentCyanPressed"] = "#FFFFFF00", ["AccentCyanBg"] = "#FF000000",
                     ["AccentSafe"] = "#FF00FF00", ["AccentSafeBg"] = "#FF000000",
                     ["AccentReview"] = "#FFFFFF00", ["AccentReviewBg"] = "#FF000000",
                     ["AccentInspect"] = "#FF00FFFF", ["AccentInspectBg"] = "#FF000000",
@@ -155,19 +159,21 @@ namespace BlueSapphire
                 },
                 _ => new Dictionary<string, string>
                 {
-                    ["BgColor"] = "#080D0F", ["PanelSurface"] = "#0C1518",
-                    ["PanelSurfaceStrong"] = "#0F1C20", ["SurfaceElevated"] = "#13252B",
-                    ["PanelHighlight"] = "#163039", ["BorderColor"] = "#1AFFFFFF",
-                    ["BorderSubtle"] = "#0DFFFFFF", ["BorderActive"] = "#2AFFFFFF",
-                    ["TextMain"] = "#E8F4F1", ["TextSecondary"] = "#A8C0BD",
-                    ["TextMuted"] = "#8FA8A6", ["TextFaint"] = "#6B8786",
-                    ["AccentCyan"] = "#22D3EE", ["AccentCyanBg"] = "#1422D3EE",
-                    ["AccentSafe"] = "#34D399", ["AccentSafeBg"] = "#1434D399",
-                    ["AccentReview"] = "#FBBF24", ["AccentReviewBg"] = "#14FBBF24",
-                    ["AccentInspect"] = "#38BDF8", ["AccentInspectBg"] = "#1438BDF8",
-                    ["AccentDanger"] = "#FB7185", ["AccentDangerBg"] = "#22FB7185",
-                    ["OverlayScrim"] = "#E6080D0F", ["MediaSurface"] = "#0C1116",
-                    ["BadgeSurface"] = "#E6101418"
+                    ["BgColor"] = "#0F1417", ["PanelSurface"] = "#151B1F",
+                    ["PanelSurfaceStrong"] = "#1A2227", ["SurfaceElevated"] = "#222D33",
+                    ["PanelHighlight"] = "#27343B", ["BorderColor"] = "#28FFFFFF",
+                    ["BorderSubtle"] = "#18FFFFFF", ["BorderActive"] = "#46FFFFFF",
+                    ["TextMain"] = "#F1F5F5", ["TextSecondary"] = "#B8C5C7",
+                    ["TextMuted"] = "#93A3A6", ["TextFaint"] = "#75868A",
+                    ["TextOnAccent"] = "#FFFFFFFF",
+                    ["AccentCyan"] = "#26AFC7", ["AccentCyanHover"] = "#38BBD1",
+                    ["AccentCyanPressed"] = "#1494AC", ["AccentCyanBg"] = "#2426AFC7",
+                    ["AccentSafe"] = "#43B581", ["AccentSafeBg"] = "#2043B581",
+                    ["AccentReview"] = "#D9A62E", ["AccentReviewBg"] = "#20D9A62E",
+                    ["AccentInspect"] = "#4AA6D8", ["AccentInspectBg"] = "#204AA6D8",
+                    ["AccentDanger"] = "#E46C7A", ["AccentDangerBg"] = "#24E46C7A",
+                    ["OverlayScrim"] = "#D90B0F12", ["MediaSurface"] = "#10161A",
+                    ["BadgeSurface"] = "#EA151B1F"
                 }
             };
 
@@ -235,8 +241,7 @@ namespace BlueSapphire
             services.AddTransient<MediaManagerTool>();
             services.AddTransient<CleanerAssistantTool>();
             services.AddTransient<BlueSapphire.Tools.AICopilotTool>();
-            services.AddTransient<BlueSapphire.Tools.DevLogTool>();
-            services.AddTransient<BlueSapphire.Tools.AboutTool>();
+            services.AddTransient<BlueSapphire.Tools.AITaskCenterTool>();
             // ✅ 新增：注册我们的重命名业务服务 (使用 Singleton 单例即可，因为它是无状态的工具类)
             services.AddSingleton<BlueSapphire.Services.MediaRenameService>();
 
@@ -248,6 +253,15 @@ namespace BlueSapphire
             services.AddSingleton<BlueSapphire.Services.AIToolsRegistry>();
             services.AddSingleton<BlueSapphire.Services.AIClassifierService>();
             services.AddSingleton<BlueSapphire.Services.AIChatHistoryService>();
+            services.AddSingleton<BlueSapphire.Services.AITaskCenterService>();
+            services.AddSingleton<BlueSapphire.Services.AISharedContextService>();
+            services.AddSingleton<BlueSapphire.Services.AIPrivacyService>();
+            services.AddSingleton<BlueSapphire.Services.AIOfflineIntentService>();
+            services.AddSingleton<BlueSapphire.Services.AIMediaToolService>();
+            services.AddSingleton<BlueSapphire.Services.AIDiagnosticsService>();
+            services.AddSingleton<BlueSapphire.Services.AICleanerRuleDraftService>();
+            services.AddSingleton<BlueSapphire.Services.AIInsightService>();
+            services.AddSingleton<BlueSapphire.Services.AIOperationPolicyService>();
 
             // 注册我们的本地文件系统服务 (回收站功能)
             services.AddSingleton<BlueSapphire.Services.NativeFileService>();

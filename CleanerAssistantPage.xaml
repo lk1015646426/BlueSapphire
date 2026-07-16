@@ -33,26 +33,25 @@
         </Grid.RowDefinitions>
 
         <!-- ═══ Header ═══ -->
-        <Grid Grid.Row="0" Padding="20,12,20,10" BorderBrush="{StaticResource BorderSubtle}" BorderThickness="0,0,0,1">
+        <Grid Grid.Row="0" Padding="24,20,24,12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <StackPanel Spacing="2">
-                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <Ellipse Width="7" Height="7" Fill="{StaticResource AccentCyan}" VerticalAlignment="Center"/>
-                    <TextBlock Text="清理助手" FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource TextMain}" VerticalAlignment="Center"/>
-                    <Border Background="{StaticResource AccentCyanBg}" BorderBrush="{StaticResource BorderSubtle}" BorderThickness="1" CornerRadius="999" Padding="8,2" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                    <TextBlock Text="清理助手" Style="{StaticResource TextStyle_PageTitle}" VerticalAlignment="Center"/>
+                    <Border Background="{StaticResource PanelSurfaceStrong}" BorderThickness="0" CornerRadius="999" Padding="10,4" VerticalAlignment="Center">
                         <TextBlock Text="{x:Bind ViewModel.Scan.StatusMainText, Mode=OneWay}" Foreground="{StaticResource AccentCyan}" FontSize="11" FontWeight="SemiBold"/>
                     </Border>
                 </StackPanel>
-                <TextBlock Text="清理系统缓存、临时文件、日志残留，释放磁盘空间" FontSize="12" Foreground="{StaticResource TextMuted}"/>
+                <TextBlock Text="扫描、确认、清理；风险较高的内容始终由你决定。" FontSize="13" Foreground="{StaticResource TextMuted}"/>
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                 <Button Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.Scan.StartQuickScanCommand}" IsEnabled="{x:Bind ViewModel.Scan.IsNotScanning, Mode=OneWay}">
                     <StackPanel Orientation="Horizontal" Spacing="7"><FontIcon Glyph="&#xE7C3;" FontSize="13" Foreground="{StaticResource AccentSafe}"/><TextBlock Text="快速扫描"/></StackPanel>
                 </Button>
-                <Button Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.Scan.StartDeepScanCommand}" IsEnabled="{x:Bind ViewModel.Scan.IsNotScanning, Mode=OneWay}">
+                <Button Style="{StaticResource SubtleActionButtonStyle}" Command="{x:Bind ViewModel.Scan.StartDeepScanCommand}" IsEnabled="{x:Bind ViewModel.Scan.IsNotScanning, Mode=OneWay}">
                     <StackPanel Orientation="Horizontal" Spacing="7"><FontIcon Glyph="&#xE81E;" FontSize="13" Foreground="{StaticResource AccentInspect}"/><TextBlock Text="深度扫描"/></StackPanel>
                 </Button>
                 <Button Style="{StaticResource PrimaryActionButtonStyle}" Command="{x:Bind ViewModel.RunCleanupCommand}" IsEnabled="{x:Bind ViewModel.Scan.CanRunCleanup, Mode=OneWay}">
@@ -142,9 +141,9 @@
                         </Setter>
                     </Style>
                 </ListView.ItemContainerStyle>
-                <ListViewItem>扫描与清理</ListViewItem>
-                <ListViewItem>规则与自动化</ListViewItem>
-                <ListViewItem>历史与审计</ListViewItem>
+                <ListViewItem>清理</ListViewItem>
+                <ListViewItem>自动化与规则</ListViewItem>
+                <ListViewItem>记录</ListViewItem>
             </ListView>
 
             <!-- Tab Content Area — stretches to fill remaining height -->
@@ -241,13 +240,13 @@
                                     </Border>
 
                                     <!-- ── Result Dashboard (Bento Grid) ── -->
-                                    <Border Background="{StaticResource PanelSurfaceStrong}" BorderBrush="{StaticResource BorderSubtle}" BorderThickness="1" CornerRadius="10" Padding="16,14">
+                                    <Border Background="{StaticResource PanelSurfaceStrong}" BorderThickness="0" CornerRadius="12" Padding="16,14">
                                         <Grid>
 
                                             <!-- Idle state -->
                                             <StackPanel Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center"
                                                         Visibility="{x:Bind ViewModel.Scan.IsIdle, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
-                                                <Border Width="48" Height="48" CornerRadius="24" Background="{StaticResource AccentCyanBg}" BorderBrush="{StaticResource BorderSubtle}" BorderThickness="1" HorizontalAlignment="Center">
+                                                <Border Width="48" Height="48" CornerRadius="24" Background="{StaticResource AccentCyanBg}" BorderThickness="0" HorizontalAlignment="Center">
                                                     <FontIcon Glyph="&#xE909;" FontSize="18" Foreground="{StaticResource TextMuted}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                                 </Border>
                                                 <TextBlock Text="选择磁盘后开始扫描" Foreground="{StaticResource TextSecondary}" FontSize="13" HorizontalAlignment="Center"/>
@@ -295,7 +294,7 @@
                                                         <ColumnDefinition Width="*"/>
                                                         <ColumnDefinition Width="*"/>
                                                     </Grid.ColumnDefinitions>
-                                                    <Border Grid.Column="0" Background="{StaticResource AccentSafeBg}" BorderBrush="{StaticResource BorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="12,9">
+                                                    <Border Grid.Column="0" Background="{StaticResource AccentSafeBg}" BorderThickness="0" CornerRadius="10" Padding="12,9">
                                                         <StackPanel Spacing="1">
                                                             <StackPanel Orientation="Horizontal" Spacing="5">
                                                                 <Ellipse Width="7" Height="7" Fill="{StaticResource AccentSafe}"/>
@@ -305,7 +304,7 @@
                                                             <TextBlock Text="{x:Bind ViewModel.Scan.SafeCountText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="11"/>
                                                         </StackPanel>
                                                     </Border>
-                                                    <Border Grid.Column="1" Background="{StaticResource AccentReviewBg}" BorderBrush="{StaticResource BorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="12,9">
+                                                    <Border Grid.Column="1" Background="{StaticResource AccentReviewBg}" BorderThickness="0" CornerRadius="10" Padding="12,9">
                                                         <StackPanel Spacing="1">
                                                             <StackPanel Orientation="Horizontal" Spacing="5">
                                                                 <Ellipse Width="7" Height="7" Fill="{StaticResource AccentReview}"/>
@@ -315,7 +314,7 @@
                                                             <TextBlock Text="{x:Bind ViewModel.Scan.ReviewCountText, Mode=OneWay}" Foreground="{StaticResource TextMuted}" FontSize="11"/>
                                                         </StackPanel>
                                                     </Border>
-                                                    <Border Grid.Column="2" Background="{StaticResource AccentInspectBg}" BorderBrush="{StaticResource BorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="12,9">
+                                                    <Border Grid.Column="2" Background="{StaticResource AccentInspectBg}" BorderThickness="0" CornerRadius="10" Padding="12,9">
                                                         <StackPanel Spacing="1">
                                                             <StackPanel Orientation="Horizontal" Spacing="5">
                                                                 <Ellipse Width="7" Height="7" Fill="{StaticResource AccentInspect}"/>
@@ -331,7 +330,7 @@
                                             <!-- No results state -->
                                             <StackPanel Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center"
                                                         Visibility="{x:Bind ViewModel.Scan.ShowNoResultsState, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}">
-                                                <Border Width="48" Height="48" CornerRadius="24" Background="{StaticResource AccentSafeBg}" BorderBrush="{StaticResource BorderSubtle}" BorderThickness="1" HorizontalAlignment="Center">
+                                                <Border Width="48" Height="48" CornerRadius="24" Background="{StaticResource AccentSafeBg}" BorderThickness="0" HorizontalAlignment="Center">
                                                     <FontIcon Glyph="&#xE73E;" FontSize="18" Foreground="{StaticResource AccentSafe}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                                 </Border>
                                                 <TextBlock Text="未发现可清理项目" Foreground="{StaticResource TextMain}" FontSize="14" FontWeight="SemiBold" HorizontalAlignment="Center"/>
@@ -347,7 +346,7 @@
                                     <!-- ── Safe Items Group ── -->
                                     <Expander Visibility="{x:Bind ViewModel.Scan.HasSafeItems, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
                                               HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="True"
-                                              CornerRadius="10" Background="{StaticResource PanelSurfaceStrong}" BorderBrush="{StaticResource BorderSubtle}" BorderThickness="1" Padding="12,8">
+                                              CornerRadius="12" Background="{StaticResource PanelSurfaceStrong}" BorderThickness="0" Padding="12,8">
                                         <Expander.Header>
                                             <Grid ColumnSpacing="8">
                                                 <Grid.ColumnDefinitions>
@@ -373,7 +372,7 @@
                                         <ItemsControl ItemsSource="{x:Bind ViewModel.Scan.SafeItems, Mode=OneWay}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate x:DataType="models:CleanerScanItem">
-                                                    <Border Background="{StaticResource PanelSurface}" BorderBrush="{StaticResource BorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="10,8" Margin="0,0,0,5">
+                                                    <Border Background="{StaticResource PanelSurface}" BorderThickness="0" CornerRadius="10" Padding="10,8" Margin="0,0,0,5">
                                                         <Grid ColumnSpacing="8">
                                                             <Grid.ColumnDefinitions>
                                                                 <ColumnDefinition Width="Auto"/>
@@ -389,7 +388,7 @@
                                                                 </StackPanel>
                                                             </Border>
                                                             <TextBlock Grid.Column="2" Text="{x:Bind SizeText}" Foreground="{StaticResource TextSecondary}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                                                            <Border Grid.Column="3" Background="{StaticResource AccentSafeBg}" CornerRadius="4" Padding="6,2" VerticalAlignment="Center">
+                                                            <Border Grid.Column="3" Background="{StaticResource AccentSafeBg}" CornerRadius="8" Padding="7,3" VerticalAlignment="Center">
                                                                 <TextBlock Text="{x:Bind RiskText}" Foreground="{StaticResource AccentSafe}" FontSize="11" FontWeight="SemiBold"/>
                                                             </Border>
                                                         </Grid>
@@ -402,7 +401,7 @@
                                     <!-- ── Review Items Group ── -->
                                     <Expander Visibility="{x:Bind ViewModel.Scan.HasReviewItems, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
                                               HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="False"
-                                              CornerRadius="10" Background="{StaticResource PanelSurfaceStrong}" BorderBrush="{StaticResource BorderSubtle}" BorderThickness="1" Padding="12,8">
+                                              CornerRadius="12" Background="{StaticResource PanelSurfaceStrong}" BorderThickness="0" Padding="12,8">
                                         <Expander.Header>
                                             <Grid ColumnSpacing="8">
                                                 <Grid.ColumnDefinitions>
@@ -428,7 +427,7 @@
                                         <ItemsControl ItemsSource="{x:Bind ViewModel.Scan.ReviewItems, Mode=OneWay}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate x:DataType="models:CleanerScanItem">
-                                                    <Border Background="{StaticResource PanelSurface}" BorderBrush="{StaticResource BorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="10,8" Margin="0,0,0,5">
+                                                    <Border Background="{StaticResource PanelSurface}" BorderThickness="0" CornerRadius="10" Padding="10,8" Margin="0,0,0,5">
                                                         <Grid ColumnSpacing="8">
                                                             <Grid.ColumnDefinitions>
                                                                 <ColumnDefinition Width="Auto"/>
@@ -444,7 +443,7 @@
                                                                 </StackPanel>
                                                             </Border>
                                                             <TextBlock Grid.Column="2" Text="{x:Bind SizeText}" Foreground="{StaticResource TextSecondary}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                                                            <Border Grid.Column="3" Background="{StaticResource AccentReviewBg}" CornerRadius="4" Padding="6,2" VerticalAlignment="Center">
+                                                            <Border Grid.Column="3" Background="{StaticResource AccentReviewBg}" CornerRadius="8" Padding="7,3" VerticalAlignment="Center">
                                                                 <TextBlock Text="{x:Bind RiskText}" Foreground="{StaticResource AccentReview}" FontSize="11" FontWeight="SemiBold"/>
                                                             </Border>
                                                         </Grid>
@@ -457,7 +456,7 @@
                                     <!-- ── ViewOnly Items Group ── -->
                                     <Expander Visibility="{x:Bind ViewModel.Scan.HasViewOnlyItems, Mode=OneWay, Converter={StaticResource BoolToVisibleConverter}}"
                                               HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="False"
-                                              CornerRadius="10" Background="{StaticResource PanelSurfaceStrong}" BorderBrush="{StaticResource BorderSubtle}" BorderThickness="1" Padding="12,8">
+                                              CornerRadius="12" Background="{StaticResource PanelSurfaceStrong}" BorderThickness="0" Padding="12,8">
                                         <Expander.Header>
                                             <Grid ColumnSpacing="8">
                                                 <Grid.ColumnDefinitions>
@@ -483,7 +482,7 @@
                                         <ItemsControl ItemsSource="{x:Bind ViewModel.Scan.ViewOnlyItems, Mode=OneWay}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate x:DataType="models:CleanerScanItem">
-                                                    <Border Background="{StaticResource PanelSurface}" BorderBrush="{StaticResource BorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="10,8" Margin="0,0,0,5">
+                                                    <Border Background="{StaticResource PanelSurface}" BorderThickness="0" CornerRadius="10" Padding="10,8" Margin="0,0,0,5">
                                                         <Grid ColumnSpacing="8">
                                                             <Grid.ColumnDefinitions>
                                                                 <ColumnDefinition Width="Auto"/>
@@ -511,7 +510,7 @@
                             </ScrollViewer>
 
                             <!-- ══ RIGHT COLUMN: Detail Panel ══ -->
-                            <Border Grid.Column="1" Background="{StaticResource PanelSurfaceStrong}" BorderBrush="{StaticResource BorderSubtle}" BorderThickness="1" CornerRadius="10" Padding="14,12">
+                            <Border Grid.Column="1" Background="{StaticResource PanelSurfaceStrong}" BorderThickness="0" CornerRadius="12" Padding="14,12">
                                 <Grid>
 
                                     <!-- Default: scan mode description -->
@@ -521,7 +520,7 @@
                                                 <FontIcon Glyph="&#xE946;" FontSize="14" Foreground="{StaticResource AccentCyan}"/>
                                                 <TextBlock Text="扫描说明" Foreground="{StaticResource TextMain}" FontSize="14" FontWeight="SemiBold"/>
                                             </StackPanel>
-                                            <Border Background="{StaticResource PanelSurface}" BorderBrush="{StaticResource BorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="12,10">
+                                            <Border Background="{StaticResource PanelSurface}" BorderThickness="0" CornerRadius="10" Padding="12,10">
                                                 <StackPanel Spacing="6">
                                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                                         <FontIcon Glyph="&#xE7C3;" FontSize="13" Foreground="{StaticResource AccentSafe}"/>
@@ -695,16 +694,26 @@
                 <!-- Tab 2: 规则与自动化 (双栏设置面板)                -->
                 <!-- ═══════════════════════════════════════════════ -->
                 <Grid x:Name="Tab2Content" Visibility="Collapsed">
-                    <Grid ColumnSpacing="0" Padding="4,4,4,4">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="200"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
+                    <Grid Padding="4">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
 
-                        <!-- Left: settings nav -->
-                        <Border Grid.Column="0" Background="{StaticResource PanelSurface}" BorderBrush="{StaticResource BorderSubtle}" BorderThickness="0,0,1,0" CornerRadius="8,0,0,8">
+                        <!-- 顶部分类导航，避免页面内部再嵌套一条侧边栏 -->
+                        <Border Grid.Row="0" Background="{StaticResource PanelSurface}" BorderThickness="0" CornerRadius="10">
                             <ListView x:Name="SettingsNav" SelectionMode="Single" SelectionChanged="SettingsNav_SelectionChanged"
-                                      Background="Transparent" Padding="6,6" ItemContainerStyle="{StaticResource SettingsNavItemStyle}">
+                                      Background="Transparent"
+                                      Padding="6"
+                                      ScrollViewer.HorizontalScrollMode="Enabled"
+                                      ScrollViewer.HorizontalScrollBarVisibility="Hidden"
+                                      ScrollViewer.VerticalScrollMode="Disabled"
+                                      ItemContainerStyle="{StaticResource SettingsNavItemStyle}">
+                                <ListView.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="4"/>
+                                    </ItemsPanelTemplate>
+                                </ListView.ItemsPanel>
                                 <ListViewItem>
                                     <StackPanel Orientation="Horizontal" Spacing="10">
                                         <FontIcon Glyph="&#xE9D9;" FontSize="14" Foreground="{StaticResource AccentInspect}"/>
@@ -726,7 +735,7 @@
                                 <ListViewItem>
                                     <StackPanel Orientation="Horizontal" Spacing="10">
                                         <FontIcon Glyph="&#xE753;" FontSize="14" Foreground="{StaticResource AccentInspect}"/>
-                                        <TextBlock Text="云端治理" FontSize="13" FontWeight="SemiBold"/>
+                                        <TextBlock Text="数据与同步" FontSize="13" FontWeight="SemiBold"/>
                                     </StackPanel>
                                 </ListViewItem>
                                 <ListViewItem>
@@ -738,8 +747,8 @@
                             </ListView>
                         </Border>
 
-                        <!-- Right: settings content -->
-                        <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Auto" Padding="16,4,4,4">
+                        <!-- 分类内容 -->
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Auto" Padding="4,16,4,4">
                             <StackPanel x:Name="SettingsContentPanel" Spacing="14">
 
                                 <!-- ── 规则库 ── -->
@@ -842,10 +851,10 @@
                                     </ItemsControl>
                                 </StackPanel>
 
-                                <!-- ── 云端治理 ── -->
+                                <!-- ── 数据与同步 ── -->
                                 <StackPanel Spacing="14" Visibility="Collapsed">
                                     <StackPanel Spacing="3">
-                                        <TextBlock Text="云端治理" Foreground="{StaticResource TextMain}" FontSize="18" FontWeight="SemiBold"/>
+                                        <TextBlock Text="数据与同步" Foreground="{StaticResource TextMain}" FontSize="18" FontWeight="SemiBold"/>
                                         <Border Background="{StaticResource AccentInspectBg}" BorderBrush="{StaticResource BorderSubtle}" BorderThickness="1" CornerRadius="6" Padding="10,4" HorizontalAlignment="Left">
                                             <TextBlock Text="{x:Bind ViewModel.Rule.RolloutSummaryText, Mode=OneWay}" Foreground="{StaticResource AccentInspect}" FontSize="13" FontWeight="SemiBold"/>
                                         </Border>
@@ -857,9 +866,9 @@
                                             <TextBlock Text="灰度通道" Foreground="{StaticResource TextSecondary}" FontSize="13" FontWeight="SemiBold"/>
                                             <Grid ColumnSpacing="6">
                                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                                <Button Grid.Column="0" Style="{StaticResource CompactButtonStyle}" Command="{x:Bind ViewModel.Rule.SetStableRolloutChannelCommand}" IsEnabled="{x:Bind ViewModel.Rule.CanChooseStableRollout, Mode=OneWay}"><TextBlock Text="Stable"/></Button>
-                                                <Button Grid.Column="1" Style="{StaticResource CompactButtonStyle}" Command="{x:Bind ViewModel.Rule.SetCanaryRolloutChannelCommand}" IsEnabled="{x:Bind ViewModel.Rule.CanChooseCanaryRollout, Mode=OneWay}"><TextBlock Text="Canary"/></Button>
-                                                <Button Grid.Column="2" Style="{StaticResource CompactButtonStyle}" Command="{x:Bind ViewModel.Rule.SetInternalRolloutChannelCommand}" IsEnabled="{x:Bind ViewModel.Rule.CanChooseInternalRollout, Mode=OneWay}"><TextBlock Text="Internal"/></Button>
+                                                <Button Grid.Column="0" Style="{StaticResource CompactButtonStyle}" Command="{x:Bind ViewModel.Rule.SetStableRolloutChannelCommand}" IsEnabled="{x:Bind ViewModel.Rule.CanChooseStableRollout, Mode=OneWay}"><TextBlock Text="稳定"/></Button>
+                                                <Button Grid.Column="1" Style="{StaticResource CompactButtonStyle}" Command="{x:Bind ViewModel.Rule.SetCanaryRolloutChannelCommand}" IsEnabled="{x:Bind ViewModel.Rule.CanChooseCanaryRollout, Mode=OneWay}"><TextBlock Text="灰度"/></Button>
+                                                <Button Grid.Column="2" Style="{StaticResource CompactButtonStyle}" Command="{x:Bind ViewModel.Rule.SetInternalRolloutChannelCommand}" IsEnabled="{x:Bind ViewModel.Rule.CanChooseInternalRollout, Mode=OneWay}"><TextBlock Text="内测"/></Button>
                                             </Grid>
                                         </StackPanel>
                                     </Border>
@@ -913,16 +922,26 @@
                 <!-- Tab 3: 历史与审计 (双栏设置面板)                  -->
                 <!-- ═══════════════════════════════════════════════ -->
                 <Grid x:Name="Tab3Content" Visibility="Collapsed">
-                    <Grid ColumnSpacing="0" Padding="4,4,4,4">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="200"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
+                    <Grid Padding="4">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
 
-                        <!-- Left: history nav -->
-                        <Border Grid.Column="0" Background="{StaticResource PanelSurface}" BorderBrush="{StaticResource BorderSubtle}" BorderThickness="0,0,1,0" CornerRadius="8,0,0,8">
+                        <!-- 顶部记录分类 -->
+                        <Border Grid.Row="0" Background="{StaticResource PanelSurface}" BorderThickness="0" CornerRadius="10">
                             <ListView x:Name="HistoryNav" SelectionMode="Single" SelectionChanged="HistoryNav_SelectionChanged"
-                                      Background="Transparent" Padding="6,6" ItemContainerStyle="{StaticResource SettingsNavItemStyle}">
+                                      Background="Transparent"
+                                      Padding="6"
+                                      ScrollViewer.HorizontalScrollMode="Enabled"
+                                      ScrollViewer.HorizontalScrollBarVisibility="Hidden"
+                                      ScrollViewer.VerticalScrollMode="Disabled"
+                                      ItemContainerStyle="{StaticResource SettingsNavItemStyle}">
+                                <ListView.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="4"/>
+                                    </ItemsPanelTemplate>
+                                </ListView.ItemsPanel>
                                 <ListViewItem>
                                     <StackPanel Orientation="Horizontal" Spacing="10">
                                         <FontIcon Glyph="&#xE7C3;" FontSize="14" Foreground="{StaticResource AccentSafe}"/>
@@ -968,8 +987,8 @@
                             </ListView>
                         </Border>
 
-                        <!-- Right: history content -->
-                        <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Auto" Padding="16,4,4,4">
+                        <!-- 记录内容 -->
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Auto" Padding="4,16,4,4">
                             <StackPanel x:Name="HistoryContentPanel" Spacing="14">
 
                                 <!-- ── 本次计划 ── -->

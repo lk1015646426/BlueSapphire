@@ -9,45 +9,56 @@
     <local:InverseBoolToVisibleConverter x:Key="InverseBoolToVisibleConverter"/>
 
     <!-- ═══════════════════════════════════════════════════ -->
-    <!-- Color Brushes — Tonal Dark System                    -->
+    <!-- Color Brushes — Fluent neutral surfaces + sapphire accent -->
     <!-- ═══════════════════════════════════════════════════ -->
 
-    <SolidColorBrush x:Key="BgColor" Color="#080D0F"/>
-    <SolidColorBrush x:Key="PanelSurface" Color="#0C1518"/>
-    <SolidColorBrush x:Key="PanelSurfaceStrong" Color="#0F1C20"/>
-    <SolidColorBrush x:Key="SurfaceElevated" Color="#13252B"/>
-    <SolidColorBrush x:Key="PanelHighlight" Color="#163039"/>
-    <SolidColorBrush x:Key="BorderColor" Color="#1AFFFFFF"/>
-    <SolidColorBrush x:Key="BorderSubtle" Color="#0DFFFFFF"/>
-    <SolidColorBrush x:Key="BorderActive" Color="#2AFFFFFF"/>
-    <SolidColorBrush x:Key="TextMain" Color="#E8F4F1"/>
-    <SolidColorBrush x:Key="TextSecondary" Color="#A8C0BD"/>
-    <SolidColorBrush x:Key="TextMuted" Color="#8FA8A6"/>
-    <SolidColorBrush x:Key="TextFaint" Color="#6B8786"/>
-    <SolidColorBrush x:Key="AccentCyan" Color="#22D3EE"/>
-    <SolidColorBrush x:Key="AccentCyanBg" Color="#1422D3EE"/>
-    <SolidColorBrush x:Key="AccentSafe" Color="#34D399"/>
-    <SolidColorBrush x:Key="AccentSafeBg" Color="#1434D399"/>
-    <SolidColorBrush x:Key="AccentReview" Color="#FBBF24"/>
-    <SolidColorBrush x:Key="AccentReviewBg" Color="#14FBBF24"/>
-    <SolidColorBrush x:Key="AccentInspect" Color="#38BDF8"/>
-    <SolidColorBrush x:Key="AccentInspectBg" Color="#1438BDF8"/>
-    <SolidColorBrush x:Key="AccentDanger" Color="#FB7185"/>
-    <SolidColorBrush x:Key="AccentDangerBg" Color="#22FB7185"/>
-    <SolidColorBrush x:Key="OverlayScrim" Color="#E6080D0F"/>
-    <SolidColorBrush x:Key="MediaSurface" Color="#0C1116"/>
-    <SolidColorBrush x:Key="BadgeSurface" Color="#E6101418"/>
+    <SolidColorBrush x:Key="BgColor" Color="#0F1417"/>
+    <SolidColorBrush x:Key="PanelSurface" Color="#151B1F"/>
+    <SolidColorBrush x:Key="PanelSurfaceStrong" Color="#1A2227"/>
+    <SolidColorBrush x:Key="SurfaceElevated" Color="#222D33"/>
+    <SolidColorBrush x:Key="PanelHighlight" Color="#27343B"/>
+    <SolidColorBrush x:Key="BorderColor" Color="#28FFFFFF"/>
+    <SolidColorBrush x:Key="BorderSubtle" Color="#18FFFFFF"/>
+    <SolidColorBrush x:Key="BorderActive" Color="#46FFFFFF"/>
+    <SolidColorBrush x:Key="TextMain" Color="#F1F5F5"/>
+    <SolidColorBrush x:Key="TextSecondary" Color="#B8C5C7"/>
+    <SolidColorBrush x:Key="TextMuted" Color="#93A3A6"/>
+    <SolidColorBrush x:Key="TextFaint" Color="#75868A"/>
+    <SolidColorBrush x:Key="TextOnAccent" Color="#FFFFFFFF"/>
+    <SolidColorBrush x:Key="AccentCyan" Color="#26AFC7"/>
+    <SolidColorBrush x:Key="AccentCyanHover" Color="#38BBD1"/>
+    <SolidColorBrush x:Key="AccentCyanPressed" Color="#1494AC"/>
+    <SolidColorBrush x:Key="AccentCyanBg" Color="#2426AFC7"/>
+    <SolidColorBrush x:Key="AccentSafe" Color="#43B581"/>
+    <SolidColorBrush x:Key="AccentSafeBg" Color="#2043B581"/>
+    <SolidColorBrush x:Key="AccentReview" Color="#D9A62E"/>
+    <SolidColorBrush x:Key="AccentReviewBg" Color="#20D9A62E"/>
+    <SolidColorBrush x:Key="AccentInspect" Color="#4AA6D8"/>
+    <SolidColorBrush x:Key="AccentInspectBg" Color="#204AA6D8"/>
+    <SolidColorBrush x:Key="AccentDanger" Color="#E46C7A"/>
+    <SolidColorBrush x:Key="AccentDangerBg" Color="#24E46C7A"/>
+    <SolidColorBrush x:Key="OverlayScrim" Color="#D90B0F12"/>
+    <SolidColorBrush x:Key="MediaSurface" Color="#10161A"/>
+    <SolidColorBrush x:Key="BadgeSurface" Color="#EA151B1F"/>
+
+    <!-- Align native WinUI controls (toggle, check box, selection) with the app accent. -->
+    <StaticResource x:Key="AccentFillColorDefaultBrush" ResourceKey="AccentCyan"/>
+    <StaticResource x:Key="AccentFillColorSecondaryBrush" ResourceKey="AccentCyanHover"/>
+    <StaticResource x:Key="AccentFillColorTertiaryBrush" ResourceKey="AccentCyanPressed"/>
+    <StaticResource x:Key="AccentFillColorSelectedTextBackgroundBrush" ResourceKey="AccentCyan"/>
+    <StaticResource x:Key="AccentTextFillColorPrimaryBrush" ResourceKey="AccentCyan"/>
+    <StaticResource x:Key="AccentTextFillColorSecondaryBrush" ResourceKey="AccentCyanHover"/>
 
     <!-- ═══════════════════════════════════════════════════ -->
     <!-- Button Styles                                        -->
     <!-- ═══════════════════════════════════════════════════ -->
 
     <Style x:Key="ActionButtonStyle" TargetType="Button">
-        <Setter Property="MinHeight" Value="36"/>
+        <Setter Property="MinHeight" Value="40"/>
         <Setter Property="Padding" Value="14,8"/>
-        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="CornerRadius" Value="10"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="Background" Value="{ThemeResource PanelHighlight}"/>
+        <Setter Property="Background" Value="{ThemeResource PanelSurface}"/>
         <Setter Property="BorderBrush" Value="{ThemeResource BorderColor}"/>
         <Setter Property="Foreground" Value="{ThemeResource TextMain}"/>
         <Setter Property="FontSize" Value="13"/>
@@ -72,17 +83,17 @@
                                 <VisualState x:Name="PointerOver">
                                     <VisualState.Setters>
                                         <Setter Target="ContentPresenter.BorderBrush" Value="{ThemeResource BorderActive}"/>
-                                        <Setter Target="ContentPresenter.Background" Value="{ThemeResource SurfaceElevated}"/>
+                                        <Setter Target="ContentPresenter.Background" Value="{ThemeResource PanelHighlight}"/>
                                     </VisualState.Setters>
                                 </VisualState>
                                 <VisualState x:Name="Pressed">
                                     <VisualState.Setters>
-                                        <Setter Target="ContentPresenter.Opacity" Value="0.7"/>
+                                        <Setter Target="ContentPresenter.Background" Value="{ThemeResource SurfaceElevated}"/>
                                     </VisualState.Setters>
                                 </VisualState>
                                 <VisualState x:Name="Disabled">
                                     <VisualState.Setters>
-                                        <Setter Target="ContentPresenter.Opacity" Value="0.35"/>
+                                        <Setter Target="ContentPresenter.Opacity" Value="0.42"/>
                                     </VisualState.Setters>
                                 </VisualState>
                             </VisualStateGroup>
@@ -103,17 +114,79 @@
     </Style>
 
     <Style x:Key="PrimaryActionButtonStyle" TargetType="Button" BasedOn="{StaticResource ActionButtonStyle}">
-        <Setter Property="Background" Value="{ThemeResource AccentCyanBg}"/>
+        <Setter Property="Background" Value="{ThemeResource AccentCyan}"/>
         <Setter Property="BorderBrush" Value="{ThemeResource AccentCyan}"/>
-        <Setter Property="Foreground" Value="{ThemeResource AccentCyan}"/>
+        <Setter Property="Foreground" Value="{ThemeResource TextOnAccent}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <ContentPresenter x:Name="ContentPresenter"
+                                      Content="{TemplateBinding Content}"
+                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                      ContentTransitions="{TemplateBinding ContentTransitions}"
+                                      Padding="{TemplateBinding Padding}"
+                                      HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                      VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                      Background="{TemplateBinding Background}"
+                                      BorderBrush="{TemplateBinding BorderBrush}"
+                                      BorderThickness="{TemplateBinding BorderThickness}"
+                                      CornerRadius="{TemplateBinding CornerRadius}">
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="CommonStates">
+                                <VisualState x:Name="Normal"/>
+                                <VisualState x:Name="PointerOver">
+                                    <VisualState.Setters>
+                                        <Setter Target="ContentPresenter.Background" Value="{ThemeResource AccentCyanHover}"/>
+                                        <Setter Target="ContentPresenter.BorderBrush" Value="{ThemeResource AccentCyanHover}"/>
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="Pressed">
+                                    <VisualState.Setters>
+                                        <Setter Target="ContentPresenter.Background" Value="{ThemeResource AccentCyanPressed}"/>
+                                        <Setter Target="ContentPresenter.BorderBrush" Value="{ThemeResource AccentCyanPressed}"/>
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="Disabled">
+                                    <VisualState.Setters>
+                                        <Setter Target="ContentPresenter.Opacity" Value="0.42"/>
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                            <VisualStateGroup x:Name="FocusStates">
+                                <VisualState x:Name="Focused">
+                                    <VisualState.Setters>
+                                        <Setter Target="ContentPresenter.BorderBrush" Value="{ThemeResource TextOnAccent}"/>
+                                        <Setter Target="ContentPresenter.BorderThickness" Value="2"/>
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="Unfocused"/>
+                                <VisualState x:Name="PointerFocused"/>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                    </ContentPresenter>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="SubtleActionButtonStyle" TargetType="Button" BasedOn="{StaticResource ActionButtonStyle}">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{ThemeResource TextSecondary}"/>
+    </Style>
+
+    <Style x:Key="DangerActionButtonStyle" TargetType="Button" BasedOn="{StaticResource ActionButtonStyle}">
+        <Setter Property="Background" Value="{ThemeResource AccentDangerBg}"/>
+        <Setter Property="BorderBrush" Value="{ThemeResource AccentDangerBg}"/>
+        <Setter Property="Foreground" Value="{ThemeResource AccentDanger}"/>
     </Style>
 
     <!-- Compact button — for inline actions -->
     <Style x:Key="CompactButtonStyle" TargetType="Button" BasedOn="{StaticResource ActionButtonStyle}">
-        <Setter Property="MinHeight" Value="30"/>
-        <Setter Property="Padding" Value="10,5"/>
+        <Setter Property="MinHeight" Value="36"/>
+        <Setter Property="Padding" Value="10,6"/>
         <Setter Property="FontSize" Value="12"/>
-        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="CornerRadius" Value="8"/>
     </Style>
 
     <!-- ═══════════════════════════════════════════════════ -->
@@ -124,16 +197,16 @@
         <Setter Property="Background" Value="{ThemeResource PanelSurface}"/>
         <Setter Property="BorderBrush" Value="{ThemeResource BorderSubtle}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="10"/>
-        <Setter Property="Padding" Value="16,14"/>
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="Padding" Value="18,16"/>
     </Style>
 
     <Style x:Key="CardBorderStrongStyle" TargetType="Border">
         <Setter Property="Background" Value="{ThemeResource PanelSurfaceStrong}"/>
         <Setter Property="BorderBrush" Value="{ThemeResource BorderSubtle}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="10"/>
-        <Setter Property="Padding" Value="16,14"/>
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="Padding" Value="18,16"/>
     </Style>
 
     <!-- Bento metric card — for dashboard stats -->
@@ -141,25 +214,25 @@
         <Setter Property="Background" Value="{ThemeResource PanelSurfaceStrong}"/>
         <Setter Property="BorderBrush" Value="{ThemeResource BorderSubtle}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="10"/>
-        <Setter Property="Padding" Value="14,12"/>
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="Padding" Value="16,14"/>
     </Style>
 
     <Style x:Key="ListItemBorderStyle" TargetType="Border">
         <Setter Property="Background" Value="{ThemeResource PanelSurface}"/>
         <Setter Property="BorderBrush" Value="{ThemeResource BorderSubtle}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="8"/>
-        <Setter Property="Padding" Value="12,10"/>
-        <Setter Property="Margin" Value="0,0,0,6"/>
+        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="Padding" Value="14,12"/>
+        <Setter Property="Margin" Value="0,0,0,4"/>
     </Style>
 
     <Style x:Key="SectionCardStyle" TargetType="Border">
         <Setter Property="Background" Value="{ThemeResource PanelSurfaceStrong}"/>
         <Setter Property="BorderBrush" Value="{ThemeResource BorderSubtle}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="10"/>
-        <Setter Property="Padding" Value="16,14"/>
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="Padding" Value="18,16"/>
     </Style>
 
     <Style x:Key="InfoChipStyle" TargetType="Border">
@@ -189,7 +262,7 @@
     </Style>
 
     <Style x:Key="TextStyle_Body" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontSize" Value="14"/>
         <Setter Property="Foreground" Value="{ThemeResource TextMain}"/>
     </Style>
 
@@ -212,8 +285,8 @@
 
     <!-- Unified page title — 24px, all pages should use this for main page headings -->
     <Style x:Key="TextStyle_PageTitle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="24"/>
-        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="FontSize" Value="28"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="Foreground" Value="{ThemeResource TextMain}"/>
     </Style>
 
@@ -235,9 +308,9 @@
     <!-- Spacing Tokens (8-multiple system)                  -->
     <!-- ═══════════════════════════════════════════════════ -->
 
-    <Thickness x:Key="PagePadding">24,16</Thickness>
-    <Thickness x:Key="PagePaddingLarge">32,24</Thickness>
-    <Thickness x:Key="CardPadding">16,14</Thickness>
+    <Thickness x:Key="PagePadding">24,20</Thickness>
+    <Thickness x:Key="PagePaddingLarge">32,28</Thickness>
+    <Thickness x:Key="CardPadding">18,16</Thickness>
     <Thickness x:Key="SectionGap">0,32,0,0</Thickness>
     <Thickness x:Key="SectionGapSmall">0,15,0,0</Thickness>
 

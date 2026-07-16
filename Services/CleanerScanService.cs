@@ -97,16 +97,24 @@ namespace BlueSapphire.Services
                     await _scanThrottle.WaitAsync(cancellationToken);
                     try
                     {
-                        int currentProgress = Interlocked.Increment(ref localProgressValue);
                         progress?.Report(new CleanerScanProgress
                         {
                             StageTitle = scope == CleanerScanScope.Quick ? "快速扫描" : "深度扫描",
                             Detail = $"正在检查：{rule.Name}",
-                            ProgressValue = currentProgress,
+                            ProgressValue = Volatile.Read(ref localProgressValue),
                             ProgressMax = progressMax
                         });
 
-                        return await ScanRuleAsync(rule, exclusionLookup, cancellationToken);
+                        List<CleanerScanItem> ruleItems = await ScanRuleAsync(rule, exclusionLookup, cancellationToken);
+                        int completedProgress = Interlocked.Increment(ref localProgressValue);
+                        progress?.Report(new CleanerScanProgress
+                        {
+                            StageTitle = scope == CleanerScanScope.Quick ? "快速扫描" : "深度扫描",
+                            Detail = $"已检查：{rule.Name}",
+                            ProgressValue = completedProgress,
+                            ProgressMax = progressMax
+                        });
+                        return ruleItems;
                     }
                     finally
                     {
@@ -142,16 +150,24 @@ namespace BlueSapphire.Services
                     await _scanThrottle.WaitAsync(cancellationToken);
                     try
                     {
-                        int currentProgress = Interlocked.Increment(ref localDeepProgressValue);
                         progress?.Report(new CleanerScanProgress
                         {
                             StageTitle = "深度扫描",
                             Detail = $"正在检查：{rule.Name}",
-                            ProgressValue = currentProgress,
+                            ProgressValue = Volatile.Read(ref localDeepProgressValue),
                             ProgressMax = progressMax
                         });
 
-                        return await ScanRuleAsync(rule, exclusionLookup, cancellationToken);
+                        List<CleanerScanItem> ruleItems = await ScanRuleAsync(rule, exclusionLookup, cancellationToken);
+                        int completedProgress = Interlocked.Increment(ref localDeepProgressValue);
+                        progress?.Report(new CleanerScanProgress
+                        {
+                            StageTitle = "深度扫描",
+                            Detail = $"已检查：{rule.Name}",
+                            ProgressValue = completedProgress,
+                            ProgressMax = progressMax
+                        });
+                        return ruleItems;
                     }
                     finally
                     {

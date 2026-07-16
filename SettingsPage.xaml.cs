@@ -43,6 +43,8 @@ namespace BlueSapphire
 
         private readonly DispatcherTimer _apiKeySaveTimer;
         private readonly McpServerManager _mcpManager;
+        private int _versionTapCount;
+        private DateTimeOffset _lastVersionTapTime = DateTimeOffset.MinValue;
 
         public SettingsPage()
         {
@@ -78,6 +80,12 @@ namespace BlueSapphire
             }
             _mcpManager.OnServersChanged -= RefreshMcpServersList;
             Unloaded -= SettingsPage_Unloaded;
+        }
+
+        private void SettingsPage_Loaded(object sender, RoutedEventArgs e)
+        {
+            DispatcherQueue.TryEnqueue(() =>
+                SettingsScrollViewer.ChangeView(null, 0, null, disableAnimation: true));
         }
 
         private void LoadVersionInfo()
@@ -292,6 +300,29 @@ namespace BlueSapphire
             WeakReferenceMessenger.Default.Send(
                 new ToggleParticleMessage(reduceMotion ? false : ParticleSwitch.IsOn));
             WeakReferenceMessenger.Default.Send(new ToggleReducedMotionMessage(reduceMotion));
+        }
+
+        private void VersionButton_Click(object sender, RoutedEventArgs e)
+        {
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            if (now - _lastVersionTapTime > TimeSpan.FromSeconds(1.2))
+            {
+                _versionTapCount = 0;
+            }
+
+            _lastVersionTapTime = now;
+            _versionTapCount++;
+
+            if (_versionTapCount < 3)
+            {
+                return;
+            }
+
+            _versionTapCount = 0;
+            if (App.CurrentWindow is MainWindow mainWindow)
+            {
+                mainWindow.NavigateToDevLogPage();
+            }
         }
 
         // --- MCP Server Management UI ---

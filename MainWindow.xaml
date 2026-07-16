@@ -10,7 +10,7 @@
 
     <Grid x:Name="RootLayout" Background="{StaticResource BgColor}">
         <Grid.RowDefinitions>
-            <RowDefinition Height="32"/>
+            <RowDefinition Height="40"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
@@ -18,30 +18,48 @@
                               Grid.Row="0" Grid.RowSpan="2"
                               Draw="OnDraw"
                               CreateResources="OnCreateResources"
-                              PointerMoved="BackgroundCanvas_PointerMoved"
-                              IsHitTestVisible="True"
+                              IsHitTestVisible="False"
                               ClearColor="Transparent"/>
 
-        <Grid x:Name="AppTitleBar" Grid.Row="0" Background="Transparent" IsHitTestVisible="True">
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
-                <TextBlock Text="BLUE SAPPHIRE"
+        <Border x:Name="AppTitleBar"
+                Grid.Row="0"
+                Background="Transparent"
+                BorderBrush="{StaticResource BorderSubtle}"
+                BorderThickness="0,0,0,1"
+                IsHitTestVisible="True">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0,0,0" Spacing="8">
+                <Image Source="ms-appx:///BS.ico"
+                       Width="16"
+                       Height="16"
+                       Stretch="Uniform"
+                       IsHitTestVisible="False"/>
+                <TextBlock Text="蓝宝石工具箱"
                            FontSize="12"
                            FontWeight="SemiBold"
                            Foreground="{StaticResource TextMuted}"
-                           CharacterSpacing="100"
                            IsHitTestVisible="False"/>
             </StackPanel>
-        </Grid>
+        </Border>
 
         <NavigationView x:Name="NavView"
                         Grid.Row="1"
                         SelectionChanged="NavView_SelectionChanged"
-                        PaneDisplayMode="Left"
+                        PaneDisplayMode="Auto"
+                        PaneTitle=""
                         IsSettingsVisible="True"
                         IsBackButtonVisible="Collapsed"
-                        Background="{x:Null}" 
+                        Background="{x:Null}"
+                        AlwaysShowHeader="False"
                         IsPaneOpen="True"
-                        OpenPaneLength="160">
+                        OpenPaneLength="232"
+                        CompactPaneLength="56"
+                        CompactModeThresholdWidth="720"
+                        ExpandedModeThresholdWidth="1060">
+
+            <NavigationView.Resources>
+                <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="Transparent"/>
+                <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="Transparent"/>
+            </NavigationView.Resources>
 
             <NavigationView.MenuItems>
             </NavigationView.MenuItems>

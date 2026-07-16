@@ -19,6 +19,8 @@ namespace BlueSapphire.ViewModels.Cleaner
         private readonly CleanerDeepScanService _deepScanService;
         private readonly CleanerAuditService _auditService;
         private readonly CleanerStateStore _stateStore;
+        private readonly AITaskCenterService? _taskCenter;
+        private readonly AISharedContextService? _sharedContext;
 
         public CleanerDriveSelectionViewModel DriveSelection { get; }
         public CleanerCleanupViewModel Cleanup { get; }
@@ -173,7 +175,9 @@ namespace BlueSapphire.ViewModels.Cleaner
             CleanerStateStore stateStore,
             CleanerDriveSelectionViewModel driveSelection,
             CleanerCleanupViewModel cleanup,
-            CleanerSettingsViewModel settings)
+            CleanerSettingsViewModel settings,
+            AITaskCenterService? taskCenter = null,
+            AISharedContextService? sharedContext = null)
         {
             _scanService = scanService;
             _deepScanService = deepScanService;
@@ -182,6 +186,12 @@ namespace BlueSapphire.ViewModels.Cleaner
             DriveSelection = driveSelection;
             Cleanup = cleanup;
             Settings = settings;
+            _taskCenter = taskCenter;
+            _sharedContext = sharedContext;
+            if (_sharedContext != null)
+            {
+                _sharedContext.CleanerScanChanged += SharedContext_CleanerScanChanged;
+            }
 
         }
 
@@ -189,6 +199,11 @@ namespace BlueSapphire.ViewModels.Cleaner
         {
             _view = view;
             AuditSnapshot = await _auditService.LoadSnapshotAsync();
+            CleanerScanReport? sharedScan = _sharedContext?.GetCleanerScan(TimeSpan.FromMinutes(30));
+            if (!IsBusy && !HasResults && sharedScan != null)
+            {
+                ApplySharedScan(sharedScan);
+            }
         }
 
         [RelayCommand]
@@ -226,12 +241,34 @@ namespace BlueSapphire.ViewModels.Cleaner
             SetBusyState(true, scope == CleanerScanScope.Quick ? "正在快速扫描" : "正在深度扫描", "正在初始化扫描规则");
 
             CancellationTokenSource cts = CreateOperationTokenSource();
+            string driveKey = string.Join(
+                "|",
+                DriveSelection.DriveOptions
+                    .Where(drive => drive.IsSelected)
+                    .Select(drive => drive.RootPath)
+                    .OrderBy(path => path, StringComparer.OrdinalIgnoreCase));
+            using AITaskLease? task = _taskCenter?.Begin(
+                "cleaner.scan",
+                scope == CleanerScanScope.Deep ? "深度扫描" : "快速扫描",
+                $"由清理助手发起，范围：{(driveKey.Length == 0 ? "默认磁盘" : driveKey)}",
+                $"cleaner.scan:{scope}:{driveKey}");
+            if (task?.IsDuplicate == true)
+            {
+                ReleaseOperationCts(cts);
+                CurrentScanState = CleanerScanState.Idle;
+                SetBusyState(false, "扫描正在运行", "相同范围的扫描任务已经在后台执行。");
+                return false;
+            }
+            using CancellationTokenSource linkedCts = task == null
+                ? CancellationTokenSource.CreateLinkedTokenSource(cts.Token)
+                : CancellationTokenSource.CreateLinkedTokenSource(cts.Token, task.Token);
 
             var progress = new Progress<CleanerScanProgress>(e =>
             {
-                ProgressValue = e.ProgressMax > 0
+                int nextProgress = e.ProgressMax > 0
                     ? Math.Clamp((int)Math.Round(e.ProgressValue / e.ProgressMax * 100), 0, 100)
                     : 0;
+                ProgressValue = Math.Max(ProgressValue, nextProgress);
                 if (!string.IsNullOrWhiteSpace(e.StageTitle))
                 {
                     StatusMainText = e.StageTitle;
@@ -239,6 +276,14 @@ namespace BlueSapphire.ViewModels.Cleaner
                 if (!string.IsNullOrWhiteSpace(e.Detail))
                 {
                     StatusDetailText = e.Detail;
+                }
+                if (task != null)
+                {
+                    _taskCenter?.Report(
+                        task.TaskId,
+                        ProgressValue,
+                        StatusMainText,
+                        StatusDetailText);
                 }
             });
 
@@ -257,17 +302,18 @@ namespace BlueSapphire.ViewModels.Cleaner
 
                 if (scope == CleanerScanScope.Deep)
                 {
-                    var deepResult = await _deepScanService.ScanAsync(options, (IProgress<CleanerScanProgress>)progress, cts.Token);
+                    var deepResult = await _deepScanService.ScanAsync(options, (IProgress<CleanerScanProgress>)progress, linkedCts.Token);
                     finalReport = deepResult.Report;
                     spaceAnalysisResult = deepResult.SpaceAnalysis;
                     orphanResult = deepResult.OrphanResidue;
                 }
                 else
                 {
-                    finalReport = await _scanService.ScanAsync(scope, options, (IProgress<CleanerScanProgress>)progress, cts.Token);
+                    finalReport = await _scanService.ScanAsync(scope, options, (IProgress<CleanerScanProgress>)progress, linkedCts.Token);
                 }
 
                 ReplaceScanItems(finalReport.Items);
+                _sharedContext?.SetCleanerScan(finalReport);
 
                 await _auditService.RecordScanAsync(finalReport);
                 AuditSnapshot = await _auditService.LoadSnapshotAsync();
@@ -281,6 +327,12 @@ namespace BlueSapphire.ViewModels.Cleaner
                     ? $"发现 {TotalCleanableSpaceText} 可清理空间"
                     : "未发现可清理项目，当前系统状态良好";
                 CurrentScanState = CleanerScanState.Completed;
+                if (task != null)
+                {
+                    _taskCenter?.Complete(
+                        task.TaskId,
+                        $"扫描完成，发现 {TotalCleanableSpaceText} 可清理空间。");
+                }
 
                 ScanCompleted?.Invoke(this, EventArgs.Empty);
                 return true;
@@ -290,6 +342,10 @@ namespace BlueSapphire.ViewModels.Cleaner
                 StatusMainText = "已取消";
                 StatusDetailText = "扫描任务已被取消。";
                 CurrentScanState = CleanerScanState.Idle;
+                if (task != null)
+                {
+                    _taskCenter?.MarkCancelled(task.TaskId);
+                }
                 return false;
             }
             catch (Exception ex)
@@ -297,6 +353,10 @@ namespace BlueSapphire.ViewModels.Cleaner
                 StatusMainText = "扫描失败";
                 StatusDetailText = "扫描未完成，请查看错误后重试。";
                 CurrentScanState = CleanerScanState.Idle;
+                if (task != null)
+                {
+                    _taskCenter?.Fail(task.TaskId, ex.Message);
+                }
                 if (_view != null)
                 {
                     await _view.ShowTipAsync("扫描失败", ex.Message);
@@ -509,6 +569,29 @@ namespace BlueSapphire.ViewModels.Cleaner
                 _currentOperationCts = cts;
             }
             return cts;
+        }
+
+        private void SharedContext_CleanerScanChanged(object? sender, CleanerScanReport report)
+        {
+            if (IsBusy)
+            {
+                return;
+            }
+            ApplySharedScan(report);
+        }
+
+        private void ApplySharedScan(CleanerScanReport report)
+        {
+            _lastScope = report.Scope;
+            ReplaceScanItems(report.Items);
+            LastScanText = $"最近扫描：{report.CreatedAt:yyyy-MM-dd HH:mm:ss} · 共享任务结果";
+            StatusMainText = report.Scope == CleanerScanScope.Deep ? "深度扫描已完成" : "快速扫描已完成";
+            StatusDetailText = TotalCleanableSpaceBytes > 0
+                ? $"发现 {TotalCleanableSpaceText} 可清理空间"
+                : "未发现可清理项目，当前系统状态良好";
+            CurrentScanState = CleanerScanState.Completed;
+            RaiseDashboardProperties();
+            ScanCompleted?.Invoke(this, EventArgs.Empty);
         }
 
         public void ReleaseOperationTokenSource(CancellationTokenSource cts)

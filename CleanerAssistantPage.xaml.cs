@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Navigation;
 using System;
 using System.ComponentModel;
 using System.Linq;
@@ -23,6 +24,7 @@ namespace BlueSapphire
 
         public CleanerAssistantPage()
         {
+            NavigationCacheMode = NavigationCacheMode.Required;
             ViewModel = App.Current.Services.GetRequiredService<CleanerAssistantViewModel>();
             InitializeComponent();
             Loaded += CleanerAssistantPage_Loaded;
@@ -31,8 +33,12 @@ namespace BlueSapphire
 
         private async void CleanerAssistantPage_Loaded(object sender, RoutedEventArgs e)
         {
+            ViewModel.Scan.PropertyChanged -= Scan_PropertyChanged;
+            ViewModel.Scan.PropertyChanged += Scan_PropertyChanged;
+
             if (_isInitialized)
             {
+                UpdateDonutChart();
                 return;
             }
 
@@ -43,7 +49,6 @@ namespace BlueSapphire
                 {
                     CardEntrance.Begin();
                 }
-                ViewModel.Scan.PropertyChanged += Scan_PropertyChanged;
                 await ViewModel.InitializeAsync(this);
 
                 // Default to first settings section
@@ -66,8 +71,6 @@ namespace BlueSapphire
         private void CleanerAssistantPage_Unloaded(object sender, RoutedEventArgs e)
         {
             ViewModel.Scan.PropertyChanged -= Scan_PropertyChanged;
-            ViewModel.Shutdown();
-            _isInitialized = false;
         }
 
         private void Scan_PropertyChanged(object? sender, PropertyChangedEventArgs e)

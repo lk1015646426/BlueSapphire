@@ -78,7 +78,7 @@ namespace BlueSapphire
             _alphaColors = new Color[101];
             for (int i = 0; i <= 100; i++)
             {
-                _alphaColors[i] = Color.FromArgb((byte)i, 34, 211, 238);
+                _alphaColors[i] = Color.FromArgb((byte)i, 38, 175, 199);
             }
 
             if (AppTitleBar != null)
@@ -216,15 +216,14 @@ namespace BlueSapphire
         [DynamicDependency(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor, typeof(CleanerAssistantPage))]
         [DynamicDependency(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor, typeof(Views.DevLogPage))]
         [DynamicDependency(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor, typeof(Views.AICopilotPage))]
-        [DynamicDependency(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor, typeof(AboutPage))]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor, typeof(Views.AITaskCenterPage))]
         private void LoadTools()
         {
             RegisterTool(App.Current.Services.GetRequiredService<HomeTool>());
             RegisterTool(App.Current.Services.GetRequiredService<AICopilotTool>());
+            RegisterTool(App.Current.Services.GetRequiredService<AITaskCenterTool>());
             RegisterTool(App.Current.Services.GetRequiredService<MediaManagerTool>());
             RegisterTool(App.Current.Services.GetRequiredService<CleanerAssistantTool>());
-            RegisterTool(App.Current.Services.GetRequiredService<DevLogTool>());
-            RegisterTool(App.Current.Services.GetRequiredService<AboutTool>());
         }
 
         private void RegisterTool(ITool tool)
@@ -297,6 +296,15 @@ namespace BlueSapphire
             if (item != null)
             {
                 NavView.SelectedItem = item;
+            }
+        }
+
+        public void NavigateToDevLogPage()
+        {
+            ContentFrame.Navigate(typeof(Views.DevLogPage));
+            if (BackgroundCanvas != null)
+            {
+                BackgroundCanvas.Visibility = Visibility.Collapsed;
             }
         }
 
@@ -441,7 +449,7 @@ namespace BlueSapphire
 
             foreach (var p in _particles)
             {
-                session.FillCircle(p.Position, 2, Color.FromArgb(255, 34, 211, 238));
+                session.FillCircle(p.Position, 2, Color.FromArgb(230, 38, 175, 199));
             }
         }
 
