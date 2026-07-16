@@ -1,67 +1,171 @@
 <div align="center">
-  <img src="Assets/AppIcon.png" width="144" alt="BlueSapphire 蓝宝石工具箱图标">
+  <img src="Assets/AppIcon.png" width="136" alt="BlueSapphire 蓝宝石工具箱">
   <h1>BlueSapphire 蓝宝石工具箱</h1>
-  <p>面向 Windows 10/11 的现代化智能桌面工具箱</p>
-  <p><strong>WinUI 3 · .NET 8 · x64 · 当前版本 1.0.3</strong></p>
+  <p>面向 Windows 10/11 的智能桌面工具箱</p>
+  <p><strong>AI 中控 · 安全清理 · 媒体管理 · 全局任务中心</strong></p>
+  <p>WinUI 3 · .NET 8 · Windows App SDK · x64</p>
 </div>
 
-BlueSapphire 是一个面向 Windows 10/11 的 WinUI 3 工具箱，当前包含四条核心产品线：
+---
 
-- `AI Copilot`：基于大语言模型的智能助理，支持对话、工具导航，以及需要用户确认的操作调用
-- `媒体管家`：基于 dHash 的相似图片候选扫描、SHA-256 精确去重、标签与图片批处理
-- `清理助手`：空间分析、风险分层、隔离恢复、自动低风险保洁、安全隔离区与规则治理
-- `更新日志`：面向用户的版本记录展示，以及开发环境中的受控编辑
+## 项目简介
 
-项目目标不是做“堆功能的工具集合”，而是做一套风格统一、交互清晰、可长期演进的现代化智能桌面平台。
+BlueSapphire 是一款面向 Windows 的现代化桌面工具箱。
 
-## 版本信息
+项目以“本地工具负责可靠执行，AI 负责理解、编排和解释”为设计原则，将系统清理、图片管理、任务进度和智能助理整合在同一个应用中。
 
-- 当前文档版本：`1.0.3`
-- 当前发布形态：`Windows 10 1809+ / Windows 11 x64` 安装包
-- 当前发布链路：`dotnet publish -> Inno Setup -> GitHub Releases`
+当前版本：`1.0.3`
 
-### 1.0.3 核心更新
+## 核心功能
 
-- **统一品牌视觉**：应用、安装程序、快捷方式、首页和关于页统一使用新版 `BS.ico`。
-- **清理安全闭环**：完善快速/深度扫描、风险分层、隔离恢复、失败重试、取消和自动低风险保洁。
-- **媒体能力升级**：精确去重采用 SHA-256，相似图片检测采用 dHash，并补齐标签、批处理和结果反馈。
-- **AI 数据保护**：API Key、对话历史与长期记忆使用当前 Windows 账户加密保存，危险工具调用必须确认。
-- **扩展默认不信任**：MCP、Web Skill 与 Agent Skill 增加审核、命令白名单、SSRF 防护和响应大小限制。
-- **现代化主题体验**：支持系统、亮色、暗色、高对比度和减少动态效果，补齐键盘与屏幕阅读器体验。
-- **工程发布加固**：新增 CI、154 项自动化测试、发布资源门禁、可选代码签名和 SHA-256 校验文件。
+### AI 智能助手
 
-## 当前模块
+AI 助手不是单纯的聊天窗口，而是 BlueSapphire 的自然语言操作入口。
 
-- `主页`：工具导航与整体状态入口
-- `AI 智能助理`：支持自然语言多轮对话，内置 Agent 引擎，可根据指令直达界面或调用清理任务、生成日志
-- `媒体管家`：图片智能扫描、精准相似度去重、文件无感动态刷新
-- `清理助手`：快速/深度扫描、磁盘空间分析、隔离恢复与系统级权限保洁
-- `设置`：应用行为与视觉项配置、大模型 API Key 加密存储管理
-- `更新日志`：版本记录自动合并，发布环境只读、开发环境可编辑
-- `关于`：展示版本、运行环境与项目架构信息
+- 使用自然语言启动快速扫描或深度扫描
+- 分析清理结果、历史记录和失败原因
+- 打开应用内指定功能
+- 生成跨模块任务计划和只读操作预览
+- 分析图片目录、完全重复图片和空间占用
+- 生成安全的清理规则草稿
+- 调用经过审核的 MCP、Web Skill 和 Agent Skill
+- 保存带范围和有效期的长期偏好
+- 大模型不可用时提供本地降级指令
+
+所有删除、移动、写入、第三方调用等操作都必须经过用户确认。
+
+### 全局任务中心
+
+任务中心统一管理清理、媒体和 AI 工具任务。
+
+- 页面切换后任务继续运行
+- 显示实时进度、当前阶段和执行时间线
+- 支持用户主动取消
+- 使用幂等键避免相同任务重复执行
+- 应用重新启动后识别未完成任务
+- 未完成的删除或写入任务不会自动续跑
+- 清理页面与 AI 助手共享最近扫描结果
+
+### 清理助手
+
+清理助手提供从扫描、确认、执行到恢复的安全闭环。
+
+- 快速扫描常见临时文件、缓存、日志和开发工具缓存
+- 深度扫描应用缓存、系统更新缓存、诊断文件和大体积占用
+- 支持选择系统盘或多个磁盘
+- 对大文件和疑似卸载残留进行保守提示
+- 支持取消扫描，并保持连续、不会倒退的扫描进度
+- 支持排除路径、失败重试和管理员模式
+- 支持导入、刷新、停用和恢复清理规则
+- 支持定期提醒和低风险自动保洁
+
+扫描结果分为：
+
+| 风险级别 | 默认行为 | 说明 |
+|---|---|---|
+| 低风险 | 可默认勾选 | 通常为可重新生成的缓存或临时内容 |
+| 建议确认 | 默认不勾选 | 可能影响登录状态、首次启动速度或诊断信息 |
+| 仅供查看 | 不允许批量清理 | 大文件、未知目录和疑似残留等高风险对象 |
+
+多数内置规则优先使用隔离区，支持恢复最近一次清理或单独恢复某个项目。
+
+### 媒体管家
+
+媒体管家用于本地图片整理和批处理。
+
+- 扫描文件夹或导入指定图片
+- 使用 SHA-256 检测完全重复图片
+- 使用 dHash 生成相似图片候选
+- 按名称、日期和大小排序
+- 搜索文件名、路径和自定义标签
+- 批量重命名并提供执行前预览
+- 添加、修改和筛选本地标签
+- 批量转换 JPEG、PNG、BMP、GIF、TIFF
+- 调整尺寸、裁剪、亮度、对比度、饱和度和锐度
+- 删除操作优先移入系统回收站
+
+AI 还可以对媒体目录执行只读分析、生成按年月归档预览，并在用户单独确认后执行归档或完全重复图片治理。
+
+## AI 安全与隐私
+
+BlueSapphire 对 AI 工具调用采用保守授权模型。
+
+- 扫描授权不等于删除授权
+- 缓存清理授权不等于媒体处理授权
+- 清理、媒体移动和第三方工具调用分别确认
+- 最近扫描结果超过有效期后不能用于删除
+- 确认授权具有操作范围和有效期
+- AI 生成的清理规则默认高风险、仅查看、不自动启用
+- 用户名、邮箱、API Key、Token 和敏感 URL 参数会在发送模型前脱敏
+- API Key、对话历史和长期记忆使用当前 Windows 账户加密
+- 任务持久化只保存摘要，不保存待删除文件清单
+- 第三方 MCP、Web Skill 和 Agent Skill 默认不被信任
+
+详细设计参见 [AI 智能助手架构](docs/ai-assistant-architecture.md)。
+
+## 长期记忆
+
+AI 长期记忆支持：
+
+- 查看、编辑和删除
+- 全局、清理、媒体、写作等适用范围
+- 自定义有效期
+- 单条启用或停用
+- 暂停全部长期记忆
+- 旧版加密记忆自动迁移
+
+长期记忆只用于表达方式和非安全偏好，不能代替本次操作确认。
+
+## 当前页面
+
+- `主页`：应用入口和功能概览
+- `AI 智能助手`：自然语言对话与工具编排
+- `任务中心`：后台任务、进度、时间线和取消
+- `媒体管家`：图片扫描、去重、整理和批处理
+- `清理助手`：空间扫描、安全清理、恢复和规则管理
+- `设置`：主题、模型、网络、隐私和应用行为配置
 
 ## 技术栈
 
 - `.NET 8`
-- `WinUI 3 / Windows App SDK`
+- `WinUI 3`
+- `Windows App SDK`
 - `CommunityToolkit.Mvvm`
+- `Win2D`
+- `Markdig`
+- `Microsoft.Extensions.DependencyInjection`
+- `xUnit`
 
 运行目标：
 
-- `Windows 10 1809+ / Windows 11 x64`
-- 发布方式为 `win-x64 self-contained`
+- Windows 10 1809 或更高版本
+- Windows 11
+- x64
+- Self-contained 发布
 
-## 开发环境
+## 安装
 
-本地开发需要：
+正式版本通过 GitHub Releases 发布：
 
-- `Visual Studio 2022`
-- `.NET 8 SDK`
-- `Windows App SDK` 开发环境
+[下载 BlueSapphire](https://github.com/lk1015646426/BlueSapphire/releases)
 
-如果只是安装最终版本，不需要额外安装 `.NET SDK` 或 `Windows App SDK`。
+当前安装包采用 self-contained 发布，普通用户不需要额外安装 .NET SDK。
 
 ## 本地开发
+
+### 环境要求
+
+- Visual Studio 2022
+- .NET 8 SDK
+- Windows App SDK 开发环境
+- Windows 10/11 x64
+
+### 获取源码
+
+```powershell
+git clone https://github.com/lk1015646426/BlueSapphire.git
+cd BlueSapphire
+```
 
 ### 构建
 
@@ -69,10 +173,18 @@ BlueSapphire 是一个面向 Windows 10/11 的 WinUI 3 工具箱，当前包含�
 dotnet build BlueSapphire.slnx
 ```
 
-### 测试
+### 运行测试
 
 ```powershell
 dotnet test BlueSapphire.Tests\BlueSapphire.Tests.csproj
+```
+
+当前测试基线：`165` 项自动化测试。
+
+### Release 构建
+
+```powershell
+dotnet build BlueSapphire.csproj -c Release
 ```
 
 ### 发布
@@ -85,22 +197,9 @@ dotnet publish BlueSapphire.csproj `
   -p:WindowsPackageType=None
 ```
 
-## 安装包发布链
+## 安装包构建
 
-当前仓库只支持一条正式发布链：
-
-1. `dotnet publish` 生成纯净发布目录
-2. `Inno Setup` 只对发布目录打包
-3. GitHub Release 只上传安装包
-
-### 重要约束
-
-- [`installer.iss`](installer.iss) 是 `publish-only`
-- 必须通过 `/dSourcePath=<publish目录>` 显式传入发布目录
-- 不允许直接把仓库根目录传给 `installer.iss`
-- 如果 `SourcePath` 包含 `BlueSapphire.Tests`、`TestData`、`.git`、`obj`、`bin\Debug` 等内容，编译会直接失败
-
-### 本地打包
+仓库中的 `installer.iss` 只接受干净的发布目录。
 
 ```powershell
 ISCC.exe `
@@ -112,137 +211,57 @@ ISCC.exe `
   installer.iss
 ```
 
-### GitHub Release
-
-仓库已内置发布工作流：
-
-- [`.github/workflows/release.yml`](.github/workflows/release.yml)
-
-触发方式：
-
-- 推送 `v*` tag
-- 手动触发 `workflow_dispatch`
-
-工作流会自动：
-
-- 安装 `.NET 8 SDK`
-- 安装 `Inno Setup 6`
-- 执行 `dotnet publish`
-- 执行完整测试并校验发布输出
-- 用 `installer.iss` 生成安装包
-- 生成 SHA-256 校验文件；配置签名证书时自动签名安装包
-- 将安装包上传到 GitHub Release
+禁止直接使用仓库根目录打包，避免把测试、缓存和开发文件带入安装包。
 
 ## 项目结构
 
 ```text
 BlueSapphire/
-├── .github/workflows/          # GitHub Actions
-├── Assets/                     # 运行时资源、规则、图标、初始日志配置
-├── BlueSapphire.Tests/         # 单元测试与回归测试
-├── Controls/                   # 可复用 WinUI 控件
-├── Helpers/                    # 配置与通用辅助
-├── Interfaces/                 # UI/服务交互接口
-├── Models/                     # 业务模型
-├── Services/                   # 扫描、清理、图片处理及大模型调度服务
-├── Tools/                      # AI Agent 工具与导航工具定义
+├── Assets/                     # 图标、内置规则与运行时资源
+├── BlueSapphire.Tests/         # 自动化测试
+├── Controls/                   # 通用 WinUI 控件
+├── Helpers/                    # 配置、转换和辅助功能
+├── Interfaces/                 # 页面与服务交互接口
+├── Models/                     # 清理、媒体、AI 和任务模型
+├── Services/                   # 扫描、执行、AI、媒体和安全服务
+├── Themes/                     # 统一主题资源
+├── Tools/                      # 主导航工具定义
 ├── ViewModels/                 # MVVM 视图模型
-├── Views/                      # 页面与对话框
-├── TestData/                   # 测试样本
-├── Themes/                     # 主题画刷与共用样式
-├── installer.iss               # publish-only 安装脚本
+├── Views/                      # AI、任务中心和对话框页面
+├── docs/                       # 架构文档与截图
+├── installer.iss               # Inno Setup 安装脚本
 └── BlueSapphire.csproj         # 主项目
 ```
 
-## 说明
+## 截图
 
-- `Assets\CleanerRules.json`、`Assets\DevMatrixLog.json` 与根目录 `BS.ico` 属于正式运行时资源，会跟随发布
-- `BlueSapphire.Tests` 和 `TestData` 仅用于开发与验证，不进入正式发布目录
-- 如果你想一键构建安装包，配套工具仓库是 `BlueSapphire-Builder`
+### 主页
 
-## 配套仓库
-
-- `BlueSapphire-Builder`：本地一键发布工具，负责执行 `dotnet publish -> ISCC -> 安装包`
-
-## 截图展示
-
-当前仓库包含以下界面截图：
-
-- `docs/screenshots/home.png`
-- `docs/screenshots/media-manager.png`
-- `docs/screenshots/cleaner-assistant.png`
-
-代表界面如下：
-
-### 首页
-
-![BlueSapphire Home](docs/screenshots/home.png)
-
-### 媒体管家
-
-![BlueSapphire Media Manager](docs/screenshots/media-manager.png)
+![BlueSapphire 主页](docs/screenshots/home.png)
 
 ### 清理助手
 
-![BlueSapphire Cleaner Assistant](docs/screenshots/cleaner-assistant.png)
+![BlueSapphire 清理助手](docs/screenshots/cleaner-assistant.png)
 
-补充说明：
+### 媒体管家
 
-- 应用程序、快捷方式、首页与关于页统一使用根目录 `BS.ico`
-- GitHub README 使用 `Assets/AppIcon.png` 展示同款 PNG 预览图
+![BlueSapphire 媒体管家](docs/screenshots/media-manager.png)
 
-## 安装包下载说明
+## 质量状态
 
-正式安装包统一通过 GitHub Releases 分发：
+- Debug 自动化测试：165 项通过
+- Release 构建：通过
+- 编译警告：0
+- 清理、恢复、任务幂等、共享上下文、隐私脱敏和媒体规则均有测试覆盖
 
-- 下载地址：[BlueSapphire Releases](https://github.com/lk1015646426/BlueSapphire/releases)
-- 当前发布标签：`v1.0.3`
+## 使用边界
 
-下载建议：
+- 系统级清理可能需要管理员权限
+- 大文件分析属于抽样分析，不代表全盘穷举
+- 相似图片只提供候选，必须人工确认
+- AI 服务需要用户配置受支持供应商的 API Key
+- 外部 MCP 和技能的安全性由其提供方负责，BlueSapphire 会保留确认和调用边界
 
-- 普通用户直接下载 `BlueSapphire_Setup_v1.0.3.exe` 或更新版本
-- 安装目标机器不需要提前安装 `.NET SDK`
-- 安装目标机器不需要提前安装 `Windows App SDK`
+## 参与项目
 
-如果你是开发者，需要源码构建而不是安装包：
-
-```powershell
-git clone https://github.com/lk1015646426/BlueSapphire.git
-cd BlueSapphire
-dotnet build BlueSapphire.slnx
-```
-
-## 常见问题 FAQ
-
-### 1. 为什么安装包不再支持直接从仓库根目录打包？
-
-因为正式发布现在强制走 `publish-only` 链路。这样可以避免把 `BlueSapphire.Tests`、`TestData`、`.git`、`obj` 等开发内容一起误打进安装包。
-
-### 2. 安装后还需要额外安装运行环境吗？
-
-不需要。当前正式发布目标是 `win-x64 self-contained`，目标机器不需要额外安装 `.NET SDK`。
-
-### 3. 清理助手为什么有些功能会要求管理员权限？
-
-系统级临时目录、更新缓存、错误报告缓存等路径受权限限制。清理助手默认保守，只有进入管理员模式后才允许处理这些目录。
-
-### 4. 清理助手会直接永久删除所有内容吗？
-
-不会。当前设计强调风险分层、恢复和排除。中风险对象优先走隔离或保守处理，不是“全盘通杀”式删除。
-
-## 已知限制
-
-- 系统级清理涉及权限边界，部分路径必须在管理员模式下才可执行
-- AI Copilot 需要用户自行配置受支持供应商的 API Key；密钥使用当前 Windows 账户加密保存
-- MCP、远程 OpenAPI 与 Agent 技能属于第三方扩展，默认停用或待审核，启用和实际调用均保留确认边界
-
-## 后续路线
-
-- 持续扩充清理规则库与发布质量治理
-- 继续完善媒体处理链路的真实场景验证
-- 拓展 AI Copilot 的更多桌面级别 Agent 能力
-- 持续收口安装包、Release 和 Builder 的发版体验
-
-## 开发日志与版本记录
-
-详见客户端内嵌的 **开发日志** 模块，AI 智能助理可根据指令自动为您提取与生成最新开发记录！
+欢迎通过 Issues 提交问题、建议和真实场景反馈，也欢迎通过 Pull Requests 改进代码、规则和文档。
