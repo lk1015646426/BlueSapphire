@@ -46,7 +46,7 @@ namespace BlueSapphire
             }
 
             UpdateThemeToggleLabel();
-            SetWindowMinSize(960, 640);
+            SetWindowMinSize(840, 600);
 
             WeakReferenceMessenger.Default.Register<ShowTipMessage>(this, async (_, message) =>
             {

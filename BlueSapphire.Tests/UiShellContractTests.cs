@@ -49,7 +49,7 @@ public sealed class UiShellContractTests
         Assert.Contains("Closed += MainWindow_Closed", source, StringComparison.Ordinal);
         Assert.Contains("Closed -= MainWindow_Closed", source, StringComparison.Ordinal);
         Assert.Contains("WeakReferenceMessenger.Default.UnregisterAll(this)", source, StringComparison.Ordinal);
-        Assert.Contains("SetWindowMinSize(960, 640)", source, StringComparison.Ordinal);
+        Assert.Contains("SetWindowMinSize(840, 600)", source, StringComparison.Ordinal);
         Assert.DoesNotContain(".Wait(", source, StringComparison.Ordinal);
         Assert.DoesNotContain("GetAwaiter().GetResult", source, StringComparison.Ordinal);
     }
