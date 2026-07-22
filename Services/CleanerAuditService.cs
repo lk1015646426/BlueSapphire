@@ -53,6 +53,7 @@ namespace BlueSapphire.Services
             CleanerAuditSnapshot snapshot = await _stateStore.LoadAuditAsync();
             snapshot.TotalCleanupRuns++;
             snapshot.TotalReleasedBytes += batch.ReleasedBytes;
+            MergeDriveTotals(snapshot.TotalReleasedBytesByDrive, batch.ReleasedBytesByDrive);
             snapshot.TotalCleanupFailures += batch.FailedCount;
             snapshot.TotalManualDeselections += Math.Max(0, manualDeselections);
 
@@ -87,6 +88,23 @@ namespace BlueSapphire.Services
             snapshot.TotalRestoredItems += summary.RestoredCount;
             snapshot.TotalRestoredBytes += summary.RestoredBytes;
             await _stateStore.SaveAuditAsync(snapshot);
+        }
+
+        public async Task RecordQuarantinePurgeAsync(CleanerQuarantinePurgeSummary summary)
+        {
+            CleanerAuditSnapshot snapshot = await _stateStore.LoadAuditAsync();
+            snapshot.TotalReleasedBytes += Math.Max(0, summary.ReleasedBytes);
+            MergeDriveTotals(snapshot.TotalReleasedBytesByDrive, summary.ReleasedBytesByDrive);
+            await _stateStore.SaveAuditAsync(snapshot);
+        }
+
+        private static void MergeDriveTotals(Dictionary<string, long> destination, IReadOnlyDictionary<string, long> source)
+        {
+            foreach ((string drive, long bytes) in source)
+            {
+                destination.TryGetValue(drive, out long current);
+                destination[drive] = current + Math.Max(0, bytes);
+            }
         }
 
         public async Task RecordRetryAsync(int retryAttempts, int retryRecoveredItems, IEnumerable<CleanerCleanupEntry> failedEntries)

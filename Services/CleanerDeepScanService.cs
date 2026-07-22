@@ -55,6 +55,7 @@ namespace BlueSapphire.Services
 
             CleanerScanAddOnResult orphanResidue = await RunOrphanResidueAsync(
                 options,
+                coreReport.AnalysisDriveRoots,
                 exclusions,
                 combinedItems,
                 MapProgress(progress, 90, 100),
@@ -189,6 +190,7 @@ namespace BlueSapphire.Services
 
         private async Task<CleanerScanAddOnResult> RunOrphanResidueAsync(
             CleanerScanOptions options,
+            IReadOnlyCollection<string> selectedDriveRoots,
             HashSet<string> exclusions,
             List<CleanerScanItem> combinedItems,
             IProgress<CleanerScanProgress>? progress,
@@ -209,7 +211,10 @@ namespace BlueSapphire.Services
 
             try
             {
-                List<CleanerScanItem> orphanItems = await _orphanResidueService.ScanAsync(exclusions, cancellationToken);
+                List<CleanerScanItem> orphanItems = await _orphanResidueService.ScanAsync(
+                    exclusions,
+                    selectedDriveRoots,
+                    cancellationToken);
                 int addedCount = AppendDistinctItems(combinedItems, orphanItems);
                 _logger.LogInformation("[DeepScan] 疑似残留识别完成，新增 {Count} 项。", addedCount);
                 progress?.Report(new CleanerScanProgress

@@ -366,49 +366,21 @@ namespace BlueSapphire.Services
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    var classification = await _aiClassifier.ClassifyDirectoryAsync(item.Path, item.SizeBytes, cancellationToken);
-                    if (classification == null || !classification.SafeToClean) return;
+                    AIClassificationResult? classification = await _aiClassifier.ClassifyDirectoryAsync(
+                        item.Path,
+                        item.SizeBytes,
+                        cancellationToken);
+                    if (classification == null) return;
 
-                item.Category = classification.Category;
-                item.Name = classification.Name;
-                item.Description = classification.Description;
-                item.OwnerApp = classification.Category switch
-                {
-                    "dev_cache" => "开发工具缓存",
-                    "app_cache" => "应用缓存",
-                    "system_temp" => "系统临时文件",
-                    "app_logs" => "应用日志",
-                    _ => "AI 识别"
-                };
-                item.RiskLevel = classification.RiskLevel switch
-                {
-                    "Low" => CleanerRiskLevel.Low,
-                    "Medium" => CleanerRiskLevel.Medium,
-                    _ => CleanerRiskLevel.High
-                };
-                item.ExecutionMode = CleanerExecutionMode.Quarantine;
-                item.ViewOnly = false;
-                item.CanSelect = true;
-                item.DefaultSelected = item.RiskLevel == CleanerRiskLevel.Low;
-                item.WhyItConsumesSpace = classification.Description;
-                item.WhyItCanBeCleaned = classification.CleanReason;
-                item.ImpactAfterCleanup = item.RiskLevel == CleanerRiskLevel.Low
-                    ? "可安全清理，需要时会自动重建。"
-                    : "清理后相关功能可能需要重新配置。";
-                item.RegenerationHint = "相关程序在需要时会重新生成。";
-                item.RiskSummary = classification.RiskLevel switch
-                {
-                    "Low" => "低风险：AI 识别为可安全清理的开发/系统缓存",
-                    "Medium" => "中风险：AI 识别为日志或临时数据",
-                    _ => "高风险：AI 无法确认安全性"
-                };
-                item.RiskDetail = $"AI 自动分类: {classification.Description}";
-                item.CleanScore = classification.RiskLevel switch
-                {
-                    "Low" => 90,
-                    "Medium" => 60,
-                    _ => 30
-                };
+                    // AI 只补充解释，不得把启发式命中的未知大目录升级成可清理对象。
+                    // ViewOnly、RiskLevel、ExecutionMode、CanSelect 和 DefaultSelected
+                    // 必须继续由规则、系统证据与安全边界决定。
+                    item.AIAnalysisText = string.IsNullOrWhiteSpace(classification.Description)
+                        ? $"AI 建议类别：{classification.Category}"
+                        : classification.Description;
+                    item.AIRecommendationText = classification.SafeToClean
+                        ? $"AI 认为它可能属于可再生内容：{classification.CleanReason}。这只是辅助判断，当前仍仅供查看。"
+                        : $"AI 未确认该目录可安全清理：{classification.CleanReason}";
                 }
                 catch
                 {

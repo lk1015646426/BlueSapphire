@@ -81,6 +81,12 @@ namespace BlueSapphire.Services
                 return true;
             }
 
+            if (normalizedPrefix.EndsWith(Path.DirectorySeparatorChar) ||
+                normalizedPrefix.EndsWith(Path.AltDirectorySeparatorChar))
+            {
+                return normalizedPath.StartsWith(normalizedPrefix, StringComparison.OrdinalIgnoreCase);
+            }
+
             if (!normalizedPath.StartsWith(normalizedPrefix, StringComparison.OrdinalIgnoreCase) ||
                 normalizedPath.Length <= normalizedPrefix.Length)
             {

@@ -18,7 +18,14 @@ namespace BlueSapphire.Models
         None,
         Recycle,
         Quarantine,
-        Permanent
+        Permanent,
+        System
+    }
+
+    public enum CleanerSystemActionKind
+    {
+        None,
+        DeliveryOptimization
     }
 
     public enum CleanerScanKind
@@ -96,8 +103,13 @@ namespace BlueSapphire.Models
         public CleanerScanScope Scope { get; set; } = CleanerScanScope.Quick;
         public List<string> Paths { get; set; } = new();
         public List<string> IncludePatterns { get; set; } = new();
+        public List<string> ProcessNames { get; set; } = new();
         public bool IncludeSubdirectories { get; set; }
+        public int? MinAgeDays { get; set; }
+        public int? MaxAgeDays { get; set; }
+        public bool PreflightLockCheck { get; set; }
         public CleanerExecutionMode ExecutionMode { get; set; } = CleanerExecutionMode.Quarantine;
+        public CleanerSystemActionKind SystemAction { get; set; }
         public CleanerRiskLevel RiskLevel { get; set; } = CleanerRiskLevel.Low;
         public bool DefaultSelected { get; set; } = true;
         public string OwnerApp { get; set; } = string.Empty;
@@ -213,6 +225,22 @@ namespace BlueSapphire.Models
         public string Message { get; set; } = string.Empty;
     }
 
+    public sealed class CleanerQuarantinePurgeSummary
+    {
+        public int PurgedCount { get; set; }
+        public int FailedCount { get; set; }
+        public long ReleasedBytes { get; set; }
+        public Dictionary<string, long> ReleasedBytesByDrive { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        public string Message { get; set; } = string.Empty;
+    }
+
+    public sealed class CleanerSystemCleanupResult
+    {
+        public bool Succeeded { get; init; }
+        public long ReleasedBytes { get; init; }
+        public string Message { get; init; } = string.Empty;
+    }
+
     public sealed class CleanerExclusionEntry
     {
         public string Path { get; set; } = string.Empty;
@@ -227,6 +255,8 @@ namespace BlueSapphire.Models
         public bool ReminderEnabled { get; set; }
         public bool AutoLowRiskCleanupEnabled { get; set; }
         public int ReminderIntervalDays { get; set; } = 7;
+        public bool AutoPurgeQuarantineEnabled { get; set; }
+        public int QuarantineRetentionDays { get; set; } = 7;
         public DateTimeOffset? LastReminderAt { get; set; }
         public DateTimeOffset? LastAutoCleanupAt { get; set; }
         public DateTimeOffset? LastAutomationScheduleSyncAt { get; set; }
@@ -317,19 +347,140 @@ namespace BlueSapphire.Models
 
     public sealed class CleanerCleanupBatch
     {
+        public int AccountingVersion { get; set; }
         public string BatchId { get; set; } = string.Empty;
         public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
         public CleanerScanScope Scope { get; set; } = CleanerScanScope.Quick;
         public int SelectedItemCount { get; set; }
         public long EstimatedBytes { get; set; }
+        public long ProcessedBytes { get; set; }
         public long ReleasedBytes { get; set; }
+        public long RecoverableBytes { get; set; }
+        public Dictionary<string, long> ReleasedBytesByDrive { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public List<CleanerCleanupEntry> Entries { get; set; } = new();
         public string SummaryText =>
             Entries.Count == 0
                 ? "暂无清理记录"
-                : $"{CreatedAt.ToLocalTime():yyyy-MM-dd HH:mm} · 释放 {CleanerSizeFormatter.Format(ReleasedBytes)} · 成功 {CompletedCount} / 失败 {FailedCount}";
+                : $"{CreatedAt.ToLocalTime():yyyy-MM-dd HH:mm} · {OutcomeText} · 成功 {CompletedCount} / 失败 {FailedCount}";
+        public string OutcomeText
+        {
+            get
+            {
+                if (ReleasedBytes > 0 && RecoverableBytes > 0)
+                {
+                    return $"实际释放 {CleanerSizeFormatter.Format(ReleasedBytes)}{DriveReleaseSuffix}，另有 {CleanerSizeFormatter.Format(RecoverableBytes)} 已进入可恢复暂存";
+                }
+
+                if (ReleasedBytes > 0)
+                {
+                    return $"实际释放 {CleanerSizeFormatter.Format(ReleasedBytes)}{DriveReleaseSuffix}";
+                }
+
+                if (RecoverableBytes > 0)
+                {
+                    return $"已暂存 {CleanerSizeFormatter.Format(RecoverableBytes)}，清空隔离区或回收站后才会释放磁盘空间";
+                }
+
+                return $"已处理 {CleanerSizeFormatter.Format(ProcessedBytes)}";
+            }
+        }
+        public string DriveReleaseSuffix => ReleasedBytesByDrive.Count == 0
+            ? string.Empty
+            : $"（{string.Join("，", ReleasedBytesByDrive.OrderBy(pair => pair.Key).Select(pair => $"{pair.Key} {CleanerSizeFormatter.Format(pair.Value)}"))}）";
         public int CompletedCount => Entries.Count(entry => string.Equals(entry.Status, "Completed", StringComparison.OrdinalIgnoreCase));
         public int FailedCount => Entries.Count(entry => string.Equals(entry.Status, "Failed", StringComparison.OrdinalIgnoreCase));
+    }
+
+    public sealed class CleanerCleanupPlanSummary
+    {
+        public int ItemCount { get; init; }
+        public long TotalBytes { get; init; }
+        public int PermanentItemCount { get; init; }
+        public long PermanentBytes { get; init; }
+        public int QuarantineItemCount { get; init; }
+        public long QuarantineBytes { get; init; }
+        public int RecycleItemCount { get; init; }
+        public long RecycleBytes { get; init; }
+        public int SystemItemCount { get; init; }
+        public long SystemBytes { get; init; }
+        public int ReviewItemCount { get; init; }
+        public int RequiresElevationItemCount { get; init; }
+        public int LockedItemCount { get; init; }
+        public bool HasIrreversibleItems => PermanentItemCount + SystemItemCount > 0;
+        public bool HasRecoverableItems => QuarantineItemCount + RecycleItemCount > 0;
+
+        public string ConfirmationText
+        {
+            get
+            {
+                List<string> lines =
+                [
+                    $"本次计划处理 {ItemCount} 项，共 {CleanerSizeFormatter.Format(TotalBytes)}。"
+                ];
+
+                if (PermanentItemCount > 0)
+                {
+                    lines.Add($"永久删除：{PermanentItemCount} 项 · {CleanerSizeFormatter.Format(PermanentBytes)}（立即释放，不可恢复）");
+                }
+
+                if (QuarantineItemCount > 0)
+                {
+                    lines.Add($"隔离暂存：{QuarantineItemCount} 项 · {CleanerSizeFormatter.Format(QuarantineBytes)}（可恢复，清空隔离区前不会释放空间）");
+                }
+
+                if (RecycleItemCount > 0)
+                {
+                    lines.Add($"移入回收站：{RecycleItemCount} 项 · {CleanerSizeFormatter.Format(RecycleBytes)}（清空回收站后释放空间）");
+                }
+
+                if (SystemItemCount > 0)
+                {
+                    lines.Add($"Windows 专用清理：{SystemItemCount} 项 · 当前占用 {CleanerSizeFormatter.Format(SystemBytes)}（执行后按系统返回结果统计）");
+                }
+
+                if (ReviewItemCount > 0)
+                {
+                    lines.Add($"其中 {ReviewItemCount} 项属于建议确认对象。请核对来源和删除影响。");
+                }
+
+                if (RequiresElevationItemCount > 0)
+                {
+                    lines.Add($"其中 {RequiresElevationItemCount} 项需要管理员权限。");
+                }
+
+                if (LockedItemCount > 0)
+                {
+                    lines.Add($"其中 {LockedItemCount} 项已检测到占用，执行时可能失败。");
+                }
+
+                return string.Join(Environment.NewLine + Environment.NewLine, lines);
+            }
+        }
+
+        public static CleanerCleanupPlanSummary FromItems(IEnumerable<CleanerScanItem> source)
+        {
+            List<CleanerScanItem> items = source
+                .Where(item => item.IsSelectableAndEnabled && item.ExecutionMode != CleanerExecutionMode.None)
+                .DistinctBy(item => item.ObjectId)
+                .ToList();
+
+            return new CleanerCleanupPlanSummary
+            {
+                ItemCount = items.Count,
+                TotalBytes = items.Sum(item => item.SizeBytes),
+                PermanentItemCount = items.Count(item => item.ExecutionMode == CleanerExecutionMode.Permanent),
+                PermanentBytes = items.Where(item => item.ExecutionMode == CleanerExecutionMode.Permanent).Sum(item => item.SizeBytes),
+                QuarantineItemCount = items.Count(item => item.ExecutionMode == CleanerExecutionMode.Quarantine),
+                QuarantineBytes = items.Where(item => item.ExecutionMode == CleanerExecutionMode.Quarantine).Sum(item => item.SizeBytes),
+                RecycleItemCount = items.Count(item => item.ExecutionMode == CleanerExecutionMode.Recycle),
+                RecycleBytes = items.Where(item => item.ExecutionMode == CleanerExecutionMode.Recycle).Sum(item => item.SizeBytes),
+                SystemItemCount = items.Count(item => item.ExecutionMode == CleanerExecutionMode.System),
+                SystemBytes = items.Where(item => item.ExecutionMode == CleanerExecutionMode.System).Sum(item => item.SizeBytes),
+                ReviewItemCount = items.Count(item => item.RiskLevel == CleanerRiskLevel.Medium),
+                RequiresElevationItemCount = items.Count(item => item.RequiresElevation),
+                LockedItemCount = items.Count(item => item.IsLocked)
+            };
+        }
     }
 
     public sealed class CleanerCleanupEntry
@@ -343,6 +494,7 @@ namespace BlueSapphire.Models
         public string BackupPath { get; set; } = string.Empty;
         public long SizeBytes { get; set; }
         public CleanerExecutionMode ExecutionMode { get; set; } = CleanerExecutionMode.None;
+        public CleanerSystemActionKind SystemAction { get; set; }
         public CleanerRiskLevel RiskLevel { get; set; } = CleanerRiskLevel.High;
         public bool RequiresElevation { get; set; }
         public List<string> BoundaryRoots { get; set; } = new();
@@ -390,12 +542,14 @@ namespace BlueSapphire.Models
 
     public sealed class CleanerAuditSnapshot
     {
+        public int AccountingVersion { get; set; }
         public int TotalScans { get; set; }
         public long LastScanDurationMs { get; set; }
         public long TotalScanDurationMs { get; set; }
         public int LastScanItemCount { get; set; }
         public int TotalCleanupRuns { get; set; }
         public long TotalReleasedBytes { get; set; }
+        public Dictionary<string, long> TotalReleasedBytesByDrive { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public int TotalCleanupFailures { get; set; }
         public int TotalRestoredItems { get; set; }
         public long TotalRestoredBytes { get; set; }
@@ -513,11 +667,15 @@ namespace BlueSapphire.Models
         public int FileCount { get; set; }
         public DateTimeOffset ModifyTime { get; set; }
         public string OwnerApp { get; set; } = string.Empty;
+        public string SourceContextText { get; set; } = string.Empty;
         public CleanerRiskLevel RiskLevel { get; set; } = CleanerRiskLevel.High;
         public int CleanScore { get; set; }
         public CleanerExecutionMode ExecutionMode { get; set; } = CleanerExecutionMode.None;
+        public CleanerSystemActionKind SystemAction { get; set; }
         public CleanerScanKind ScanKind { get; set; } = CleanerScanKind.DirectoryContents;
         public bool IncludeSubdirectories { get; set; }
+        public int? MinAgeDays { get; set; }
+        public int? MaxAgeDays { get; set; }
         public bool IsLocked { get; set; }
         public bool ViewOnly { get; set; }
         public bool CanSelect { get; set; }
@@ -533,7 +691,31 @@ namespace BlueSapphire.Models
         public string RegenerationHint { get; set; } = string.Empty;
         public string RiskSummary { get; set; } = string.Empty;
         public string RiskDetail { get; set; } = string.Empty;
+        public string AIAnalysisText { get; set; } = string.Empty;
+        public string AIRecommendationText { get; set; } = string.Empty;
         public List<string> LockedByProcesses { get; set; } = new();
+        public bool HasAIAnalysis => !string.IsNullOrWhiteSpace(AIAnalysisText);
+        public bool HasSourceContext => !string.IsNullOrWhiteSpace(SourceContextText);
+        public bool HasAgePolicy => MinAgeDays.HasValue || MaxAgeDays.HasValue;
+        public string AgePolicyText
+        {
+            get
+            {
+                if (MinAgeDays.HasValue && MaxAgeDays.HasValue)
+                {
+                    return $"仅包含 {MinAgeDays.Value}～{MaxAgeDays.Value} 天未修改的文件";
+                }
+
+                if (MinAgeDays.HasValue)
+                {
+                    return $"仅包含至少 {MinAgeDays.Value} 天未修改的文件";
+                }
+
+                return MaxAgeDays.HasValue
+                    ? $"仅包含 {MaxAgeDays.Value} 天以内的文件"
+                    : string.Empty;
+            }
+        }
 
         public bool IsExcluded
         {
@@ -654,6 +836,7 @@ namespace BlueSapphire.Models
                 CleanerExecutionMode.Recycle => "回收站",
                 CleanerExecutionMode.Quarantine => "隔离区",
                 CleanerExecutionMode.Permanent => "永久删除",
+                CleanerExecutionMode.System => "Windows 专用清理",
                 _ => "不执行"
             };
         }
@@ -720,6 +903,11 @@ namespace BlueSapphire.Models
             if (string.Equals(status, "RestoreMissing", StringComparison.OrdinalIgnoreCase))
             {
                 return "隔离区内容缺失";
+            }
+
+            if (string.Equals(status, "Purged", StringComparison.OrdinalIgnoreCase))
+            {
+                return "隔离备份已永久删除";
             }
 
             return string.IsNullOrWhiteSpace(status) ? "未执行" : status;

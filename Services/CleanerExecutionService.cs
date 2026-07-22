@@ -11,12 +11,14 @@ namespace BlueSapphire.Services
 {
     public sealed class CleanerExecutionService
     {
+        public const int CurrentAccountingVersion = 2;
         private readonly NativeFileService _nativeFileService;
         private readonly CleanerStateStore _stateStore;
         private readonly CleanerLockService _lockService;
         private readonly CleanerPrivilegeService _privilegeService;
         private readonly CleanerBoundaryGuard _boundaryGuard;
         private readonly ILogger<CleanerExecutionService>? _logger;
+        private readonly CleanerSystemCleanupService? _systemCleanupService;
 
         public CleanerExecutionService(
             NativeFileService nativeFileService,
@@ -24,7 +26,8 @@ namespace BlueSapphire.Services
             CleanerLockService lockService,
             CleanerPrivilegeService privilegeService,
             CleanerBoundaryGuard boundaryGuard,
-            ILogger<CleanerExecutionService>? logger = null)
+            ILogger<CleanerExecutionService>? logger = null,
+            CleanerSystemCleanupService? systemCleanupService = null)
         {
             _nativeFileService = nativeFileService;
             _stateStore = stateStore;
@@ -32,6 +35,7 @@ namespace BlueSapphire.Services
             _privilegeService = privilegeService;
             _boundaryGuard = boundaryGuard;
             _logger = logger;
+            _systemCleanupService = systemCleanupService;
         }
 
         public async Task<CleanerCleanupBatch> ExecuteAsync(
@@ -42,7 +46,8 @@ namespace BlueSapphire.Services
         {
             CleanerCleanupBatch batch = new()
             {
-                BatchId = DateTimeOffset.Now.ToString("yyyyMMddHHmmss"),
+                AccountingVersion = CurrentAccountingVersion,
+                BatchId = $"{DateTimeOffset.Now:yyyyMMddHHmmssfff}-{Guid.NewGuid():N}"[..26],
                 CreatedAt = DateTimeOffset.Now,
                 Scope = scope,
                 SelectedItemCount = items.Count,
@@ -52,10 +57,12 @@ namespace BlueSapphire.Services
 
             int completedItems = 0;
             object entriesLock = new();
+            object targetClaimsLock = new();
+            List<string> claimedTargets = new();
 
             ParallelOptions options = new ParallelOptions
             {
-                MaxDegreeOfParallelism = Math.Max(2, Environment.ProcessorCount),
+                MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount / 2, 2, 4),
                 CancellationToken = cancellationToken
             };
 
@@ -71,6 +78,10 @@ namespace BlueSapphire.Services
                         foreach (string target in targets)
                         {
                             ct.ThrowIfCancellationRequested();
+                            if (!TryClaimTarget(target, claimedTargets, targetClaimsLock))
+                            {
+                                continue;
+                            }
                             CleanerCleanupEntry entry = await ExecuteTargetAsync(batch.BatchId, item, target, ct);
                             lock (entriesLock)
                             {
@@ -109,11 +120,63 @@ namespace BlueSapphire.Services
             return batch;
         }
 
-        public async Task<CleanerRestoreSummary> RestoreLatestAsync(CancellationToken cancellationToken)
+        private static bool TryClaimTarget(
+            string target,
+            List<string> claimedTargets,
+            object targetClaimsLock)
+        {
+            string normalizedTarget = CleanerPathSafety.NormalizePath(target);
+            lock (targetClaimsLock)
+            {
+                if (claimedTargets.Any(existing =>
+                    CleanerPathSafety.StartsWithPathBoundary(normalizedTarget, existing) ||
+                    CleanerPathSafety.StartsWithPathBoundary(existing, normalizedTarget)))
+                {
+                    return false;
+                }
+
+                claimedTargets.Add(normalizedTarget);
+                return true;
+            }
+        }
+
+        public Task<CleanerRestoreSummary> RestoreLatestAsync(CancellationToken cancellationToken)
+        {
+            return RestoreLatestAsync(null, cancellationToken);
+        }
+
+        public Task<CleanerRestoreSummary> RestoreLatestAsync(
+            IProgress<CleanerExecutionProgress>? progress,
+            CancellationToken cancellationToken)
+        {
+            return RestoreBatchCoreAsync(null, progress, cancellationToken);
+        }
+
+        public Task<CleanerRestoreSummary> RestoreBatchAsync(
+            string batchId,
+            IProgress<CleanerExecutionProgress>? progress,
+            CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(batchId))
+            {
+                throw new ArgumentException("清理批次编号不能为空。", nameof(batchId));
+            }
+
+            return RestoreBatchCoreAsync(batchId, progress, cancellationToken);
+        }
+
+        private async Task<CleanerRestoreSummary> RestoreBatchCoreAsync(
+            string? batchId,
+            IProgress<CleanerExecutionProgress>? progress,
+            CancellationToken cancellationToken)
         {
             List<CleanerCleanupBatch> history = (await _stateStore.LoadHistoryAsync()).ToList();
-            CleanerCleanupBatch? batch = history.FirstOrDefault(candidate =>
-                candidate.Entries.Any(entry => entry.CanRestore && !entry.Restored));
+            CleanerCleanupBatch? batch = string.IsNullOrWhiteSpace(batchId)
+                ? history.FirstOrDefault(candidate =>
+                    candidate.Entries.Any(entry => entry.CanRestore && !entry.Restored))
+                : history.FirstOrDefault(candidate =>
+                    string.Equals(candidate.BatchId, batchId, StringComparison.OrdinalIgnoreCase) &&
+                    candidate.Entries.Any(entry => entry.CanRestore && !entry.Restored));
 
             if (batch == null)
             {
@@ -124,10 +187,34 @@ namespace BlueSapphire.Services
             }
 
             CleanerRestoreSummary summary = new();
-            foreach (CleanerCleanupEntry entry in batch.Entries.Where(entry => entry.CanRestore && !entry.Restored))
+            int processed = 0;
+            try
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                await RestoreEntryCoreAsync(entry, summary, cancellationToken);
+                List<CleanerCleanupEntry> candidates = batch.Entries
+                    .Where(entry => entry.CanRestore && !entry.Restored)
+                    .ToList();
+                await Task.Run(async () =>
+                {
+                    foreach (CleanerCleanupEntry entry in candidates)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        progress?.Report(new CleanerExecutionProgress
+                        {
+                            StageTitle = "恢复隔离项",
+                            Detail = $"正在恢复：{entry.ItemName}",
+                            ProgressValue = processed,
+                            ProgressMax = Math.Max(1, candidates.Count)
+                        });
+                        cancellationToken.ThrowIfCancellationRequested();
+                        await RestoreEntryCoreAsync(entry, summary, cancellationToken);
+                        processed++;
+                    }
+                }, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                await _stateStore.SaveHistoryAsync(history);
+                throw;
             }
 
             await _stateStore.SaveHistoryAsync(history);
@@ -156,12 +243,126 @@ namespace BlueSapphire.Services
 
             CleanerRestoreSummary summary = new();
             cancellationToken.ThrowIfCancellationRequested();
-            await RestoreEntryCoreAsync(entry, summary, cancellationToken);
+            await Task.Run(
+                () => RestoreEntryCoreAsync(entry, summary, cancellationToken),
+                cancellationToken);
             await _stateStore.SaveHistoryAsync(history);
 
             summary.Message = summary.RestoredCount > 0
                 ? $"已恢复 {entry.ItemName}，回写 {CleanerSizeFormatter.Format(summary.RestoredBytes)}。"
                 : $"未能恢复 {entry.ItemName}。";
+
+            return summary;
+        }
+
+        public Task<CleanerQuarantinePurgeSummary> PurgeQuarantineAsync(CancellationToken cancellationToken)
+        {
+            return PurgeQuarantineAsync(null, cancellationToken);
+        }
+
+        public Task<CleanerQuarantinePurgeSummary> PurgeQuarantineAsync(
+            IProgress<CleanerExecutionProgress>? progress,
+            CancellationToken cancellationToken)
+        {
+            return PurgeQuarantineCoreAsync(_ => true, progress, cancellationToken);
+        }
+
+        public async Task<CleanerQuarantinePurgeSummary> PurgeExpiredQuarantineAsync(
+            int retentionDays,
+            CancellationToken cancellationToken)
+        {
+            int normalizedDays = Math.Clamp(retentionDays, 1, 365);
+            DateTimeOffset cutoff = DateTimeOffset.Now.AddDays(-normalizedDays);
+            return await PurgeQuarantineCoreAsync(batch => batch.CreatedAt <= cutoff, null, cancellationToken);
+        }
+
+        private async Task<CleanerQuarantinePurgeSummary> PurgeQuarantineCoreAsync(
+            Func<CleanerCleanupBatch, bool> batchFilter,
+            IProgress<CleanerExecutionProgress>? progress,
+            CancellationToken cancellationToken)
+        {
+            List<CleanerCleanupBatch> history = (await _stateStore.LoadHistoryAsync()).ToList();
+            List<CleanerCleanupEntry> candidates = history
+                .Where(batchFilter)
+                .SelectMany(batch => batch.Entries)
+                .Where(entry => entry.CanRestore && !entry.Restored && !string.IsNullOrWhiteSpace(entry.BackupPath))
+                .ToList();
+
+            CleanerQuarantinePurgeSummary summary = new();
+            string quarantineRoot = CleanerPathSafety.NormalizePath(_stateStore.QuarantineRootPath);
+            int processed = 0;
+
+            try
+            {
+                await Task.Run(() =>
+                {
+                    foreach (CleanerCleanupEntry entry in candidates)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        progress?.Report(new CleanerExecutionProgress
+                        {
+                            StageTitle = "清空隔离区",
+                            Detail = $"正在永久删除：{entry.ItemName}",
+                            ProgressValue = processed,
+                            ProgressMax = Math.Max(1, candidates.Count)
+                        });
+                        cancellationToken.ThrowIfCancellationRequested();
+                        string backupPath = CleanerPathSafety.NormalizePath(entry.BackupPath);
+
+                        if (!CleanerPathSafety.StartsWithPathBoundary(backupPath, quarantineRoot))
+                        {
+                            summary.FailedCount++;
+                            processed++;
+                            continue;
+                        }
+
+                        try
+                        {
+                            if (!Exists(backupPath))
+                            {
+                                entry.CanRestore = false;
+                                entry.Status = "RestoreMissing";
+                                entry.BackupPath = string.Empty;
+                                processed++;
+                                continue;
+                            }
+
+                            DeletePath(backupPath, cancellationToken);
+                            entry.CanRestore = false;
+                            entry.Status = "Purged";
+                            entry.BackupPath = string.Empty;
+                            summary.PurgedCount++;
+                            summary.ReleasedBytes += entry.SizeBytes;
+                            AddDriveBytes(summary.ReleasedBytesByDrive, Path.GetPathRoot(backupPath), entry.SizeBytes);
+                        }
+                        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                        {
+                            throw;
+                        }
+                        catch
+                        {
+                            summary.FailedCount++;
+                        }
+                        processed++;
+                    }
+
+                    RemoveEmptyQuarantineDirectories(quarantineRoot);
+                }, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                await _stateStore.SaveHistoryAsync(history);
+                throw;
+            }
+            await _stateStore.SaveHistoryAsync(history);
+
+            summary.Message = summary.PurgedCount > 0
+                ? $"已永久删除 {summary.PurgedCount} 项隔离备份，实际释放 {CleanerSizeFormatter.Format(summary.ReleasedBytes)}。"
+                : "隔离区中没有可清空的备份。";
+            if (summary.FailedCount > 0)
+            {
+                summary.Message += $" 另有 {summary.FailedCount} 项未能删除。";
+            }
 
             return summary;
         }
@@ -185,24 +386,35 @@ namespace BlueSapphire.Services
                 .ToList();
 
             int processed = 0;
-            foreach (CleanerCleanupEntry entry in retryEntries)
+            try
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                progress?.Report(new CleanerExecutionProgress
+                await Task.Run(async () =>
                 {
-                    StageTitle = "重试失败项",
-                    Detail = $"正在重试：{entry.ItemName}",
-                    ProgressValue = processed,
-                    ProgressMax = Math.Max(1, retryEntries.Count)
-                });
+                    foreach (CleanerCleanupEntry entry in retryEntries)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        progress?.Report(new CleanerExecutionProgress
+                        {
+                            StageTitle = "重试失败项",
+                            Detail = $"正在重试：{entry.ItemName}",
+                            ProgressValue = processed,
+                            ProgressMax = Math.Max(1, retryEntries.Count)
+                        });
+                        cancellationToken.ThrowIfCancellationRequested();
 
-                await RetryEntryCoreAsync(entry, cancellationToken);
-                processed++;
+                        await RetryEntryCoreAsync(entry, cancellationToken);
+                        processed++;
+                    }
+                }, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                UpdateBatchTotals(batch);
+                await _stateStore.SaveHistoryAsync(history);
+                throw;
             }
 
-            batch.ReleasedBytes = batch.Entries
-                .Where(entry => string.Equals(entry.Status, "Completed", StringComparison.OrdinalIgnoreCase))
-                .Sum(entry => entry.SizeBytes);
+            UpdateBatchTotals(batch);
 
             await _stateStore.SaveHistoryAsync(history);
             return batch;
@@ -222,8 +434,9 @@ namespace BlueSapphire.Services
                 ItemName = item.Name,
                 Category = item.Category,
                 OriginalPath = targetPath,
-                SizeBytes = File.Exists(targetPath) ? new FileInfo(targetPath).Length : item.SizeBytes,
+                SizeBytes = CalculateTargetSize(targetPath),
                 ExecutionMode = item.ExecutionMode,
+                SystemAction = item.SystemAction,
                 RiskLevel = item.RiskLevel,
                 RequiresElevation = item.RequiresElevation,
                 BoundaryRoots = item.BoundaryRoots.ToList(),
@@ -265,7 +478,7 @@ namespace BlueSapphire.Services
 
                         break;
                     case CleanerExecutionMode.Quarantine:
-                        string destination = BuildQuarantinePath(batchId, targetPath);
+                        string destination = BuildQuarantinePath(batchId, targetPath, entry.EntryId);
                         await MovePathAsync(targetPath, destination, cancellationToken);
                         entry.BackupPath = destination;
                         entry.Status = "Completed";
@@ -273,6 +486,25 @@ namespace BlueSapphire.Services
                     case CleanerExecutionMode.Permanent:
                         DeletePath(targetPath, cancellationToken);
                         entry.Status = "Completed";
+                        entry.CanRestore = false;
+                        break;
+                    case CleanerExecutionMode.System:
+                        if (_systemCleanupService == null)
+                        {
+                            entry.Status = "Failed";
+                            entry.FailureReason = CleanerFailureReason.Unknown;
+                            entry.ErrorMessage = "Windows 专用清理服务不可用。";
+                            break;
+                        }
+
+                        CleanerSystemCleanupResult systemResult = await _systemCleanupService.ExecuteAsync(
+                            item.SystemAction,
+                            targetPath,
+                            cancellationToken);
+                        entry.Status = systemResult.Succeeded ? "Completed" : "Failed";
+                        entry.FailureReason = systemResult.Succeeded ? CleanerFailureReason.None : CleanerFailureReason.Unknown;
+                        entry.ErrorMessage = systemResult.Succeeded ? string.Empty : systemResult.Message;
+                        entry.SizeBytes = systemResult.ReleasedBytes;
                         entry.CanRestore = false;
                         break;
                     default:
@@ -356,7 +588,7 @@ namespace BlueSapphire.Services
                         break;
                     case CleanerExecutionMode.Quarantine:
                         string retryBatchFolder = DateTimeOffset.Now.ToString("yyyyMMddHHmmss");
-                        string destination = BuildQuarantinePath(retryBatchFolder, entry.OriginalPath);
+                        string destination = BuildQuarantinePath(retryBatchFolder, entry.OriginalPath, entry.EntryId);
                         await MovePathAsync(entry.OriginalPath, destination, cancellationToken);
                         entry.BackupPath = destination;
                         entry.Status = "Completed";
@@ -364,6 +596,25 @@ namespace BlueSapphire.Services
                     case CleanerExecutionMode.Permanent:
                         DeletePath(entry.OriginalPath, cancellationToken);
                         entry.Status = "Completed";
+                        entry.CanRestore = false;
+                        break;
+                    case CleanerExecutionMode.System:
+                        if (_systemCleanupService == null)
+                        {
+                            entry.Status = "Failed";
+                            entry.FailureReason = CleanerFailureReason.Unknown;
+                            entry.ErrorMessage = "Windows 专用清理服务不可用。";
+                            break;
+                        }
+
+                        CleanerSystemCleanupResult systemResult = await _systemCleanupService.ExecuteAsync(
+                            entry.SystemAction,
+                            entry.OriginalPath,
+                            cancellationToken);
+                        entry.Status = systemResult.Succeeded ? "Completed" : "Failed";
+                        entry.FailureReason = systemResult.Succeeded ? CleanerFailureReason.None : CleanerFailureReason.Unknown;
+                        entry.ErrorMessage = systemResult.Succeeded ? string.Empty : systemResult.Message;
+                        entry.SizeBytes = systemResult.ReleasedBytes;
                         entry.CanRestore = false;
                         break;
                     default:
@@ -438,6 +689,13 @@ namespace BlueSapphire.Services
                 return Array.Empty<string>();
             }
 
+            if (item.ExecutionMode == CleanerExecutionMode.System)
+            {
+                return Directory.Exists(item.Path) || File.Exists(item.Path)
+                    ? new[] { item.Path }
+                    : Array.Empty<string>();
+            }
+
             if (item.TargetPaths.Count > 0)
             {
                 return item.TargetPaths
@@ -485,14 +743,17 @@ namespace BlueSapphire.Services
                 .ToList();
         }
 
-        private string BuildQuarantinePath(string batchId, string targetPath)
+        private string BuildQuarantinePath(string batchId, string targetPath, string entryId)
         {
             string batchFolder = Path.Combine(_stateStore.QuarantineRootPath, batchId);
             Directory.CreateDirectory(batchFolder);
 
             string name = Path.GetFileName(targetPath);
             string safeName = string.IsNullOrWhiteSpace(name) ? "entry" : name;
-            string destination = Path.Combine(batchFolder, safeName);
+            string uniquePrefix = string.IsNullOrWhiteSpace(entryId)
+                ? Guid.NewGuid().ToString("N")[..8]
+                : entryId[..Math.Min(8, entryId.Length)];
+            string destination = Path.Combine(batchFolder, $"{uniquePrefix}_{safeName}");
             if (!Exists(destination))
             {
                 return destination;
@@ -740,9 +1001,7 @@ namespace BlueSapphire.Services
 
         private async Task FinalizeAndSaveBatchAsync(CleanerCleanupBatch batch)
         {
-            batch.ReleasedBytes = batch.Entries
-                .Where(entry => string.Equals(entry.Status, "Completed", StringComparison.OrdinalIgnoreCase))
-                .Sum(entry => entry.SizeBytes);
+            UpdateBatchTotals(batch);
 
             List<CleanerCleanupBatch> history = (await _stateStore.LoadHistoryAsync()).ToList();
             history.Insert(0, batch);
@@ -752,6 +1011,92 @@ namespace BlueSapphire.Services
             }
 
             await _stateStore.SaveHistoryAsync(history);
+        }
+
+        private static void UpdateBatchTotals(CleanerCleanupBatch batch)
+        {
+            List<CleanerCleanupEntry> completedEntries = batch.Entries
+                .Where(entry => string.Equals(entry.Status, "Completed", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            batch.ProcessedBytes = completedEntries.Sum(entry => entry.SizeBytes);
+            batch.ReleasedBytes = completedEntries
+                .Where(entry => entry.ExecutionMode is CleanerExecutionMode.Permanent or CleanerExecutionMode.System)
+                .Sum(entry => entry.SizeBytes);
+            batch.ReleasedBytesByDrive = completedEntries
+                .Where(entry => entry.ExecutionMode is CleanerExecutionMode.Permanent or CleanerExecutionMode.System)
+                .GroupBy(entry => Path.GetPathRoot(entry.OriginalPath) ?? "未知磁盘", StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.Sum(entry => entry.SizeBytes), StringComparer.OrdinalIgnoreCase);
+            batch.RecoverableBytes = completedEntries
+                .Where(entry => entry.ExecutionMode is CleanerExecutionMode.Quarantine or CleanerExecutionMode.Recycle)
+                .Sum(entry => entry.SizeBytes);
+        }
+
+        private static void AddDriveBytes(Dictionary<string, long> totals, string? driveRoot, long bytes)
+        {
+            string key = string.IsNullOrWhiteSpace(driveRoot) ? "未知磁盘" : driveRoot;
+            totals.TryGetValue(key, out long current);
+            totals[key] = current + Math.Max(0, bytes);
+        }
+
+        private static void RemoveEmptyQuarantineDirectories(string quarantineRoot)
+        {
+            if (!Directory.Exists(quarantineRoot))
+            {
+                return;
+            }
+
+            foreach (string directory in CleanerPathSafety.SafeEnumerateDirectories(quarantineRoot))
+            {
+                try
+                {
+                    if (!Directory.EnumerateFileSystemEntries(directory).Any())
+                    {
+                        Directory.Delete(directory);
+                    }
+                }
+                catch
+                {
+                }
+            }
+        }
+
+        private static long CalculateTargetSize(string path)
+        {
+            try
+            {
+                if (File.Exists(path))
+                {
+                    return new FileInfo(path).Length;
+                }
+
+                if (!Directory.Exists(path))
+                {
+                    return 0;
+                }
+
+                long total = 0;
+                foreach (string file in CleanerPathSafety.EnumerateFilesSafely(
+                    path,
+                    ["*"],
+                    recursive: true,
+                    Array.Empty<string>()))
+                {
+                    try
+                    {
+                        total += new FileInfo(file).Length;
+                    }
+                    catch
+                    {
+                    }
+                }
+
+                return total;
+            }
+            catch
+            {
+                return 0;
+            }
         }
 
         private IReadOnlyList<string> ResolveLockingProcesses(string targetPath)

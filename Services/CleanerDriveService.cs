@@ -74,8 +74,18 @@ namespace BlueSapphire.Services
         {
             try
             {
-                return Path.GetFullPath(path)
-                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                string fullPath = Path.GetFullPath(path);
+                string rootPath = Path.GetPathRoot(fullPath) ?? string.Empty;
+
+                // 驱动器根目录必须保留尾部分隔符。把 C:\ 变成 C: 后，
+                // Path.GetFullPath("C:") 会按当前工作目录解析，深度扫描就会
+                // 错把应用目录当成整块磁盘。
+                if (string.Equals(fullPath, rootPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    return rootPath;
+                }
+
+                return fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
             }
             catch
             {

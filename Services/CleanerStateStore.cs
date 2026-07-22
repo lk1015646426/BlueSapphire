@@ -2,6 +2,7 @@ using BlueSapphire.Models;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
@@ -45,7 +46,14 @@ namespace BlueSapphire.Services
             await fileLock.WaitAsync();
             try
             {
-                return await ReadAsync(HistoryFilePath, CleanerStoreJsonContext.Default.ListCleanerCleanupBatch);
+                IReadOnlyList<CleanerCleanupBatch> loaded = await ReadAsync(HistoryFilePath, CleanerStoreJsonContext.Default.ListCleanerCleanupBatch);
+                List<CleanerCleanupBatch> history = loaded.ToList();
+                if (MigrateHistoryAccounting(history))
+                {
+                    await WriteAsync(HistoryFilePath, history, CleanerStoreJsonContext.Default.ListCleanerCleanupBatch);
+                }
+
+                return history;
             }
             finally
             {
@@ -97,23 +105,41 @@ namespace BlueSapphire.Services
 
         public async Task<CleanerAuditSnapshot> LoadAuditAsync()
         {
+            CleanerAuditSnapshot snapshot;
             SemaphoreSlim fileLock = GetLock(AuditFilePath);
             await fileLock.WaitAsync();
             try
             {
                 if (!File.Exists(AuditFilePath))
                 {
-                    return new CleanerAuditSnapshot();
+                    return new CleanerAuditSnapshot
+                    {
+                        AccountingVersion = CleanerExecutionService.CurrentAccountingVersion
+                    };
                 }
 
                 await using FileStream stream = File.OpenRead(AuditFilePath);
                 CleanerAuditSnapshot? value = await JsonSerializer.DeserializeAsync(stream, CleanerStoreJsonContext.Default.CleanerAuditSnapshot);
-                return value ?? new CleanerAuditSnapshot();
+                snapshot = value ?? new CleanerAuditSnapshot();
             }
             finally
             {
                 fileLock.Release();
             }
+
+            if (snapshot.AccountingVersion < CleanerExecutionService.CurrentAccountingVersion)
+            {
+                IReadOnlyList<CleanerCleanupBatch> history = await LoadHistoryAsync();
+                snapshot.TotalReleasedBytes = history.Sum(batch => batch.ReleasedBytes);
+                snapshot.TotalReleasedBytesByDrive = history
+                    .SelectMany(batch => batch.ReleasedBytesByDrive)
+                    .GroupBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(group => group.Key, group => group.Sum(pair => pair.Value), StringComparer.OrdinalIgnoreCase);
+                snapshot.AccountingVersion = CleanerExecutionService.CurrentAccountingVersion;
+                await SaveAuditAsync(snapshot);
+            }
+
+            return snapshot;
         }
 
         public async Task SaveAuditAsync(CleanerAuditSnapshot snapshot)
@@ -251,6 +277,40 @@ namespace BlueSapphire.Services
             }
 
             File.Move(tempFile, path, true);
+        }
+
+        private static bool MigrateHistoryAccounting(List<CleanerCleanupBatch> history)
+        {
+            bool changed = false;
+            foreach (CleanerCleanupBatch batch in history)
+            {
+                if (batch.AccountingVersion >= CleanerExecutionService.CurrentAccountingVersion)
+                {
+                    continue;
+                }
+
+                List<CleanerCleanupEntry> completedEntries = batch.Entries
+                    .Where(entry => string.Equals(entry.Status, "Completed", StringComparison.OrdinalIgnoreCase) ||
+                                    string.Equals(entry.Status, "Restored", StringComparison.OrdinalIgnoreCase) ||
+                                    string.Equals(entry.Status, "Purged", StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+                batch.ProcessedBytes = completedEntries.Sum(entry => entry.SizeBytes);
+                batch.ReleasedBytes = completedEntries
+                    .Where(entry => entry.ExecutionMode == CleanerExecutionMode.Permanent)
+                    .Sum(entry => entry.SizeBytes);
+                batch.ReleasedBytesByDrive = completedEntries
+                    .Where(entry => entry.ExecutionMode == CleanerExecutionMode.Permanent)
+                    .GroupBy(entry => Path.GetPathRoot(entry.OriginalPath) ?? "未知磁盘", StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(group => group.Key, group => group.Sum(entry => entry.SizeBytes), StringComparer.OrdinalIgnoreCase);
+                batch.RecoverableBytes = completedEntries
+                    .Where(entry => entry.ExecutionMode is CleanerExecutionMode.Quarantine or CleanerExecutionMode.Recycle)
+                    .Sum(entry => entry.SizeBytes);
+                batch.AccountingVersion = CleanerExecutionService.CurrentAccountingVersion;
+                changed = true;
+            }
+
+            return changed;
         }
 
         private async Task<CleanerPreferenceState> ReadPreferencesUnlockedAsync()

@@ -49,23 +49,40 @@ namespace BlueSapphire.Services
 
         public async Task<List<CleanerScanItem>> ScanAsync(HashSet<string> exclusions, CancellationToken cancellationToken)
         {
+            IReadOnlyList<string> allReadyDriveRoots = DriveInfo.GetDrives()
+                .Where(drive => drive.IsReady)
+                .Select(drive => drive.Name)
+                .ToList();
+            return await ScanAsync(exclusions, allReadyDriveRoots, cancellationToken);
+        }
+
+        public async Task<List<CleanerScanItem>> ScanAsync(
+            HashSet<string> exclusions,
+            IReadOnlyCollection<string> selectedDriveRoots,
+            CancellationToken cancellationToken)
+        {
             return await Task.Run(() =>
             {
+                List<string> roots = FilterRootsToSelectedDrives(
+                    [
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                        Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData)
+                    ],
+                    selectedDriveRoots).ToList();
+                if (roots.Count == 0)
+                {
+                    return new List<CleanerScanItem>();
+                }
+
                 HashSet<string> installedAliases = LoadInstalledAppAliasesSafely();
                 if (installedAliases.Count == 0)
                 {
                     return new List<CleanerScanItem>();
                 }
 
-                List<string> roots = new()
-                {
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData)
-                };
-
                 return AnalyzeOrphanedCacheDirectories(
-                    roots.Where(path => !string.IsNullOrWhiteSpace(path) && Directory.Exists(path)),
+                    roots,
                     installedAliases,
                     exclusions,
                     minimumSizeBytes: 48L * 1024L * 1024L,
@@ -73,6 +90,32 @@ namespace BlueSapphire.Services
                     minimumAge: TimeSpan.FromDays(21),
                     cancellationToken);
             }, cancellationToken);
+        }
+
+        public static IReadOnlyList<string> FilterRootsToSelectedDrives(
+            IEnumerable<string> candidateRoots,
+            IEnumerable<string> selectedDriveRoots)
+        {
+            List<string> normalizedSelectedRoots = selectedDriveRoots
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .Select(CleanerPathSafety.NormalizePath)
+                .Select(path => Path.GetPathRoot(path) ?? string.Empty)
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .Select(CleanerPathSafety.NormalizePath)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (normalizedSelectedRoots.Count == 0)
+            {
+                return Array.Empty<string>();
+            }
+
+            return candidateRoots
+                .Where(path => !string.IsNullOrWhiteSpace(path) && Directory.Exists(path))
+                .Select(CleanerPathSafety.NormalizePath)
+                .Where(path => normalizedSelectedRoots.Any(root =>
+                    CleanerPathSafety.StartsWithPathBoundary(path, root)))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
         }
 
         public List<CleanerScanItem> AnalyzeOrphanedCacheDirectories(

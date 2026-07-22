@@ -47,7 +47,9 @@ public class CleanerStateStoreTests : IDisposable
             AutoLowRiskCleanupEnabled = true,
             ReminderIntervalDays = 3,
             LastReminderAt = DateTimeOffset.Now.AddDays(-3),
-            LastAutoCleanupAt = DateTimeOffset.Now.AddDays(-1)
+            LastAutoCleanupAt = DateTimeOffset.Now.AddDays(-1),
+            AutoPurgeQuarantineEnabled = true,
+            QuarantineRetentionDays = 14
         };
 
         await store.SavePreferencesAsync(preferences);
@@ -61,6 +63,8 @@ public class CleanerStateStoreTests : IDisposable
         Assert.Equal(3, loaded.ReminderIntervalDays);
         Assert.NotNull(loaded.LastReminderAt);
         Assert.NotNull(loaded.LastAutoCleanupAt);
+        Assert.True(loaded.AutoPurgeQuarantineEnabled);
+        Assert.Equal(14, loaded.QuarantineRetentionDays);
     }
 
     [Fact]
@@ -143,6 +147,86 @@ public class CleanerStateStoreTests : IDisposable
         Assert.Equal(CleanerScanScope.Deep, loaded.RecentScans[0].Scope);
         Assert.Equal(4, loaded.RecentScans[0].ReusedItemCount);
         Assert.Contains(@"D:\", loaded.RecentScans[0].DriveRoots);
+    }
+
+    [Fact]
+    public async Task LoadHistoryAsync_MigratesLegacyReleasedBytesFromEntryModes()
+    {
+        CleanerStateStore store = new(_rootPath);
+        await store.SaveHistoryAsync(
+        [
+            new CleanerCleanupBatch
+            {
+                AccountingVersion = 0,
+                BatchId = "legacy",
+                ReleasedBytes = 300,
+                Entries =
+                [
+                    new CleanerCleanupEntry
+                    {
+                        SizeBytes = 100,
+                        ExecutionMode = CleanerExecutionMode.Permanent,
+                        Status = "Completed"
+                    },
+                    new CleanerCleanupEntry
+                    {
+                        SizeBytes = 200,
+                        ExecutionMode = CleanerExecutionMode.Quarantine,
+                        Status = "Completed"
+                    }
+                ]
+            }
+        ]);
+
+        CleanerCleanupBatch migrated = Assert.Single(await store.LoadHistoryAsync());
+
+        Assert.Equal(CleanerExecutionService.CurrentAccountingVersion, migrated.AccountingVersion);
+        Assert.Equal(300, migrated.ProcessedBytes);
+        Assert.Equal(100, migrated.ReleasedBytes);
+        Assert.Equal(200, migrated.RecoverableBytes);
+
+        CleanerCleanupBatch persisted = Assert.Single(await store.LoadHistoryAsync());
+        Assert.Equal(CleanerExecutionService.CurrentAccountingVersion, persisted.AccountingVersion);
+    }
+
+    [Fact]
+    public async Task LoadAuditAsync_RebuildsLegacyReleasedTotalFromMigratedHistory()
+    {
+        CleanerStateStore store = new(_rootPath);
+        await store.SaveHistoryAsync(
+        [
+            new CleanerCleanupBatch
+            {
+                AccountingVersion = 0,
+                ReleasedBytes = 900,
+                Entries =
+                [
+                    new CleanerCleanupEntry
+                    {
+                        SizeBytes = 150,
+                        ExecutionMode = CleanerExecutionMode.Permanent,
+                        Status = "Completed"
+                    },
+                    new CleanerCleanupEntry
+                    {
+                        SizeBytes = 750,
+                        ExecutionMode = CleanerExecutionMode.Quarantine,
+                        Status = "Completed"
+                    }
+                ]
+            }
+        ]);
+        await store.SaveAuditAsync(new CleanerAuditSnapshot
+        {
+            AccountingVersion = 0,
+            TotalCleanupRuns = 1,
+            TotalReleasedBytes = 900
+        });
+
+        CleanerAuditSnapshot migrated = await store.LoadAuditAsync();
+
+        Assert.Equal(CleanerExecutionService.CurrentAccountingVersion, migrated.AccountingVersion);
+        Assert.Equal(150, migrated.TotalReleasedBytes);
     }
 
     public void Dispose()

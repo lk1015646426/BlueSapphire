@@ -64,6 +64,27 @@ public class CleanerOrphanResidueServiceTests : IDisposable
         Assert.Empty(results);
     }
 
+    [Fact]
+    public void FilterRootsToSelectedDrives_RemovesAppDataRootsOutsideSelectedDrive()
+    {
+        string appDataRoot = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        string selectedRoot = Path.GetPathRoot(appDataRoot)!;
+        string otherRoot = selectedRoot.StartsWith("C", StringComparison.OrdinalIgnoreCase) ? @"D:\" : @"C:\";
+
+        IReadOnlyList<string> rejected = CleanerOrphanResidueService.FilterRootsToSelectedDrives(
+            [appDataRoot],
+            [otherRoot]);
+        IReadOnlyList<string> accepted = CleanerOrphanResidueService.FilterRootsToSelectedDrives(
+            [appDataRoot],
+            [selectedRoot]);
+
+        Assert.Empty(rejected);
+        Assert.Equal(
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(appDataRoot)),
+            Assert.Single(accepted),
+            ignoreCase: true);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))

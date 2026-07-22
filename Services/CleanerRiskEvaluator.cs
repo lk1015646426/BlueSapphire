@@ -23,21 +23,26 @@ namespace BlueSapphire.Services
             long sizeBytes)
         {
             List<string> reasons = new();
-            int score = 10;
+            int score = rule?.RiskLevel switch
+            {
+                CleanerRiskLevel.Low => 85,
+                CleanerRiskLevel.Medium => 65,
+                CleanerRiskLevel.High => 25,
+                _ => 10
+            };
 
             if (rule != null)
             {
-                score += 45;
-                reasons.Add("命中可信规则");
+                reasons.Add($"命中可信规则，规则基线为{ToRiskText(rule.RiskLevel)}");
 
                 if (rule.DefaultSelected)
                 {
-                    score += 5;
+                    score += 3;
                 }
 
                 if (string.Equals(rule.OwnerApp, "BlueSapphire", StringComparison.OrdinalIgnoreCase))
                 {
-                    score += 15;
+                    score += 5;
                     reasons.Add("属于自家应用产物");
                 }
             }
@@ -106,11 +111,24 @@ namespace BlueSapphire.Services
             }
 
             score = Math.Clamp(score, 0, 100);
-            CleanerRiskLevel riskLevel = score switch
+            CleanerRiskLevel evaluatedRiskLevel = score switch
             {
                 >= 80 => CleanerRiskLevel.Low,
                 >= 50 => CleanerRiskLevel.Medium,
                 _ => CleanerRiskLevel.High
+            };
+
+            // 规则声明是经过人工审核的最低谨慎级别。运行时证据可以把对象
+            // 调得更谨慎，但不能把 Medium/High 规则自动放宽成 Low。
+            CleanerRiskLevel riskLevel = rule == null
+                ? evaluatedRiskLevel
+                : (CleanerRiskLevel)Math.Max((int)rule.RiskLevel, (int)evaluatedRiskLevel);
+
+            score = riskLevel switch
+            {
+                CleanerRiskLevel.Medium when score >= 80 => 79,
+                CleanerRiskLevel.High when score >= 50 => 49,
+                _ => score
             };
 
             string summary = riskLevel switch
@@ -127,6 +145,16 @@ namespace BlueSapphire.Services
                 Summary = summary,
                 Detail = reasons.Count == 0 ? "未收集到额外风险特征" : string.Join("，", reasons),
                 CanSelect = riskLevel != CleanerRiskLevel.High && !isLocked
+            };
+        }
+
+        private static string ToRiskText(CleanerRiskLevel riskLevel)
+        {
+            return riskLevel switch
+            {
+                CleanerRiskLevel.Low => "低风险",
+                CleanerRiskLevel.Medium => "需确认",
+                _ => "高风险"
             };
         }
 

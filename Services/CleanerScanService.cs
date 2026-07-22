@@ -1,6 +1,7 @@
 using BlueSapphire.Models;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -13,7 +14,9 @@ namespace BlueSapphire.Services
     public sealed class CleanerScanService
     {
         private static readonly TimeSpan IncrementalReuseWindow = TimeSpan.FromMinutes(5);
-        private readonly SemaphoreSlim _scanThrottle = new(Math.Max(2, Environment.ProcessorCount / 2));
+        // 目录扫描是 I/O 密集型工作。并发过高会造成磁盘争用，虽然工作在线程池中，
+        // 仍可能让整个应用表现为卡顿，因此只允许少量规则同时枚举磁盘。
+        private readonly SemaphoreSlim _scanThrottle = new(Math.Clamp(Environment.ProcessorCount / 2, 2, 4));
 
         private readonly CleanerRuleService _ruleService;
         private readonly CleanerRiskEvaluator _riskEvaluator;
@@ -21,6 +24,7 @@ namespace BlueSapphire.Services
         private readonly CleanerLockService _lockService;
         private readonly CleanerPrivilegeService _privilegeService;
         private readonly ILogger<CleanerScanService>? _logger;
+        private readonly CleanerApplicationDiscoveryService? _applicationDiscoveryService;
         private CachedQuickScanSegment? _cachedQuickScan;
 
         public CleanerScanService(
@@ -29,7 +33,8 @@ namespace BlueSapphire.Services
             CleanerStateStore stateStore,
             CleanerLockService lockService,
             CleanerPrivilegeService privilegeService,
-            ILogger<CleanerScanService>? logger = null)
+            ILogger<CleanerScanService>? logger = null,
+            CleanerApplicationDiscoveryService? applicationDiscoveryService = null)
         {
             _ruleService = ruleService;
             _riskEvaluator = riskEvaluator;
@@ -37,6 +42,7 @@ namespace BlueSapphire.Services
             _lockService = lockService;
             _privilegeService = privilegeService;
             _logger = logger;
+            _applicationDiscoveryService = applicationDiscoveryService;
         }
 
         public async Task<CleanerScanReport> ScanAsync(
@@ -47,9 +53,10 @@ namespace BlueSapphire.Services
         {
             _logger?.LogInformation("[CleanerScanService] 开始执行扫描，作用域: {Scope}", scope);
             DateTimeOffset start = DateTimeOffset.Now;
-            IReadOnlyList<CleanerRuleDefinition> rules = await _ruleService.GetRulesAsync();
-            IReadOnlyList<CleanerExclusionEntry> exclusions = await _stateStore.LoadExclusionsAsync();
+            IReadOnlyList<CleanerRuleDefinition> rules = await _ruleService.GetRulesAsync().ConfigureAwait(false);
+            IReadOnlyList<CleanerExclusionEntry> exclusions = await _stateStore.LoadExclusionsAsync().ConfigureAwait(false);
             CleanerScanOptions scanOptions = options ?? new CleanerScanOptions();
+            HashSet<string> selectedDriveRoots = ResolveSelectedDriveRoots(scanOptions.AnalysisDriveRoots);
             HashSet<string> exclusionLookup = exclusions
                 .Select(entry => CleanerPathSafety.NormalizePath(entry.Path))
                 .Where(path => !string.IsNullOrWhiteSpace(path))
@@ -68,7 +75,12 @@ namespace BlueSapphire.Services
             int progressValue = 0;
 
             string quickFingerprint = scope == CleanerScanScope.Deep
-                ? BuildQuickFingerprint(quickRules, exclusionLookup, _privilegeService.IsElevated, cancellationToken)
+                ? await BuildQuickFingerprintAsync(
+                    quickRules,
+                    exclusionLookup,
+                    selectedDriveRoots,
+                    _privilegeService.IsElevated,
+                    cancellationToken).ConfigureAwait(false)
                 : string.Empty;
             List<CleanerScanItem> scannedQuickItems = new();
 
@@ -94,7 +106,7 @@ namespace BlueSapphire.Services
                 var quickTasks = quickRules.Select(async rule =>
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    await _scanThrottle.WaitAsync(cancellationToken);
+                    await _scanThrottle.WaitAsync(cancellationToken).ConfigureAwait(false);
                     try
                     {
                         progress?.Report(new CleanerScanProgress
@@ -105,7 +117,11 @@ namespace BlueSapphire.Services
                             ProgressMax = progressMax
                         });
 
-                        List<CleanerScanItem> ruleItems = await ScanRuleAsync(rule, exclusionLookup, cancellationToken);
+                        List<CleanerScanItem> ruleItems = await ScanRuleAsync(
+                            rule,
+                            exclusionLookup,
+                            selectedDriveRoots,
+                            cancellationToken).ConfigureAwait(false);
                         int completedProgress = Interlocked.Increment(ref localProgressValue);
                         progress?.Report(new CleanerScanProgress
                         {
@@ -122,21 +138,30 @@ namespace BlueSapphire.Services
                     }
                 });
 
-                var quickResults = await Task.WhenAll(quickTasks);
+                var quickResults = await Task.WhenAll(quickTasks).ConfigureAwait(false);
                 
                 foreach (var ruleItems in quickResults)
                 {
                     scannedQuickItems.AddRange(ruleItems);
                     items.AddRange(ruleItems);
                 }
-                
+
                 progressValue = localProgressValue;
 
-                string completedQuickFingerprint = BuildQuickFingerprint(
+                progress?.Report(new CleanerScanProgress
+                {
+                    StageTitle = scope == CleanerScanScope.Quick ? "快速扫描" : "深度扫描",
+                    Detail = "正在整理扫描结果，可随时取消",
+                    ProgressValue = progressValue,
+                    ProgressMax = progressMax
+                });
+
+                string completedQuickFingerprint = await BuildQuickFingerprintAsync(
                     quickRules,
                     exclusionLookup,
+                    selectedDriveRoots,
                     _privilegeService.IsElevated,
-                    cancellationToken);
+                    cancellationToken).ConfigureAwait(false);
                 StoreQuickCache(completedQuickFingerprint, scannedQuickItems);
             }
 
@@ -147,7 +172,7 @@ namespace BlueSapphire.Services
                 var deepTasks = deepOnlyRules.Select(async rule =>
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    await _scanThrottle.WaitAsync(cancellationToken);
+                    await _scanThrottle.WaitAsync(cancellationToken).ConfigureAwait(false);
                     try
                     {
                         progress?.Report(new CleanerScanProgress
@@ -158,7 +183,11 @@ namespace BlueSapphire.Services
                             ProgressMax = progressMax
                         });
 
-                        List<CleanerScanItem> ruleItems = await ScanRuleAsync(rule, exclusionLookup, cancellationToken);
+                        List<CleanerScanItem> ruleItems = await ScanRuleAsync(
+                            rule,
+                            exclusionLookup,
+                            selectedDriveRoots,
+                            cancellationToken).ConfigureAwait(false);
                         int completedProgress = Interlocked.Increment(ref localDeepProgressValue);
                         progress?.Report(new CleanerScanProgress
                         {
@@ -175,7 +204,7 @@ namespace BlueSapphire.Services
                     }
                 });
 
-                var deepResults = await Task.WhenAll(deepTasks);
+                var deepResults = await Task.WhenAll(deepTasks).ConfigureAwait(false);
                 foreach (var ruleItems in deepResults)
                 {
                     items.AddRange(ruleItems);
@@ -193,9 +222,8 @@ namespace BlueSapphire.Services
                 CreatedAt = completedAt,
                 Scope = scope,
                 Duration = completedAt - start,
-                AnalysisDriveRoots = scanOptions.AnalysisDriveRoots
-                    .Select(CleanerPathSafety.NormalizePath)
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                AnalysisDriveRoots = selectedDriveRoots
+                    .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
                     .ToList(),
                 UsedIncrementalReuse = usedIncrementalReuse,
                 ReusedItemCount = reusedItemCount,
@@ -214,6 +242,7 @@ namespace BlueSapphire.Services
         private Task<List<CleanerScanItem>> ScanRuleAsync(
             CleanerRuleDefinition rule,
             HashSet<string> exclusions,
+            HashSet<string> selectedDriveRoots,
             CancellationToken cancellationToken)
         {
             return Task.Run(() =>
@@ -222,7 +251,13 @@ namespace BlueSapphire.Services
 
             foreach (string rawPath in rule.Paths)
             {
-                foreach (string expandedPath in ExpandPaths(rawPath, cancellationToken))
+                string resolvedRulePath = CleanerKnownPathResolver.Expand(rawPath ?? string.Empty);
+                if (!IsPathOnSelectedDrive(resolvedRulePath, selectedDriveRoots))
+                {
+                    continue;
+                }
+
+                foreach (string expandedPath in ExpandPaths(rawPath ?? string.Empty, cancellationToken))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
@@ -232,6 +267,11 @@ namespace BlueSapphire.Services
                     }
 
                     string normalizedPath = CleanerPathSafety.NormalizePath(expandedPath);
+                    if (!IsPathOnSelectedDrive(normalizedPath, selectedDriveRoots))
+                    {
+                        continue;
+                    }
+
                     if (CleanerPathSafety.IsExcluded(normalizedPath, exclusions))
                     {
                         continue;
@@ -244,21 +284,24 @@ namespace BlueSapphire.Services
                         continue;
                     }
 
-                    ScanStats stats = CollectStats(rule, normalizedPath, exclusions);
+                    ScanStats stats = CollectStats(rule, normalizedPath, exclusions, cancellationToken);
 
                     if (stats.SizeBytes <= 0 || stats.FileCount <= 0)
                     {
                         continue;
                     }
 
-                    List<string> lockedBy = stats.IsLocked
+                    List<string> lockedBy = rule.PreflightLockCheck
                         ? _lockService.GetLockingProcesses(stats.LockProbePaths).ToList()
                         : new List<string>();
+                    lockedBy.AddRange(GetRunningProcesses(rule.ProcessNames));
+                    lockedBy = lockedBy.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                    bool isLocked = stats.IsLocked || lockedBy.Count > 0;
 
                     CleanerRiskAssessment risk = _riskEvaluator.Evaluate(
                         rule,
                         normalizedPath,
-                        stats.IsLocked,
+                        isLocked,
                         stats.ModifyTime,
                         stats.SizeBytes);
 
@@ -276,13 +319,18 @@ namespace BlueSapphire.Services
                         FileCount = stats.FileCount,
                         ModifyTime = stats.ModifyTime,
                         OwnerApp = rule.OwnerApp,
+                        SourceContextText = BuildSourceContext(rule, normalizedPath),
                         RiskLevel = risk.RiskLevel,
                         CleanScore = risk.Score,
                         ExecutionMode = rule.ExecutionMode,
+                        SystemAction = rule.SystemAction,
                         ScanKind = rule.ScanKind,
                         IncludePatterns = rule.IncludePatterns,
                         IncludeSubdirectories = rule.IncludeSubdirectories,
-                        IsLocked = stats.IsLocked,
+                        MinAgeDays = rule.MinAgeDays,
+                        MaxAgeDays = rule.MaxAgeDays,
+                        TargetPaths = stats.TargetPaths,
+                        IsLocked = isLocked,
                         DefaultSelected = rule.DefaultSelected,
                         RequiresElevation = rule.RequiresElevation,
                         IsElevatedMode = _privilegeService.IsElevated,
@@ -318,9 +366,11 @@ namespace BlueSapphire.Services
                 Category = rule.Category,
                 Path = normalizedPath,
                 OwnerApp = rule.OwnerApp,
+                SourceContextText = BuildSourceContext(rule, normalizedPath),
                 RiskLevel = CleanerRiskLevel.Medium,
                 CleanScore = 40,
                 ExecutionMode = rule.ExecutionMode,
+                SystemAction = rule.SystemAction,
                 ScanKind = rule.ScanKind,
                 IncludePatterns = rule.IncludePatterns,
                 IncludeSubdirectories = rule.IncludeSubdirectories,
@@ -345,16 +395,85 @@ namespace BlueSapphire.Services
         {
             IEnumerable<string> rawRoots = rule.BoundaryRoots.Count > 0 ? rule.BoundaryRoots : new[] { normalizedPath };
             return rawRoots
-                .Select(root => Environment.ExpandEnvironmentVariables(root))
+                .Select(CleanerKnownPathResolver.Expand)
                 .Select(CleanerPathSafety.NormalizePath)
                 .Where(path => !string.IsNullOrWhiteSpace(path))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }
 
+        private static IReadOnlyList<string> GetRunningProcesses(IEnumerable<string> processNames)
+        {
+            List<string> running = new();
+            foreach (string rawName in processNames.Where(name => !string.IsNullOrWhiteSpace(name)).Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                string processName = Path.GetFileNameWithoutExtension(rawName.Trim());
+                try
+                {
+                    Process[] processes = Process.GetProcessesByName(processName);
+                    if (processes.Length > 0)
+                    {
+                        running.Add(processName);
+                    }
+                    foreach (Process process in processes)
+                    {
+                        process.Dispose();
+                    }
+                }
+                catch
+                {
+                }
+            }
+
+            return running;
+        }
+
+        private string BuildSourceContext(CleanerRuleDefinition rule, string path)
+        {
+            string normalized = path.Replace('/', '\\');
+            string? profile = SegmentAfter(normalized, "\\User Data\\") ??
+                              SegmentAfter(normalized, "\\Profiles\\");
+            if (!string.IsNullOrWhiteSpace(profile))
+            {
+                return AppendInstalledContext($"{rule.OwnerApp} · 配置 {profile}", rule.OwnerApp);
+            }
+
+            if (string.Equals(rule.Id, "jetbrains_cache", StringComparison.OrdinalIgnoreCase))
+            {
+                string? version = SegmentAfter(normalized, "\\JetBrains\\");
+                if (!string.IsNullOrWhiteSpace(version))
+                {
+                    return AppendInstalledContext($"JetBrains · {version}", rule.OwnerApp);
+                }
+            }
+
+            return AppendInstalledContext(rule.OwnerApp, rule.OwnerApp);
+        }
+
+        private string AppendInstalledContext(string pathContext, string ownerApp)
+        {
+            string installed = _applicationDiscoveryService?.GetInstalledContext(ownerApp) ?? string.Empty;
+            return string.IsNullOrWhiteSpace(installed)
+                ? pathContext
+                : $"{pathContext} · {installed}";
+        }
+
+        private static string? SegmentAfter(string path, string marker)
+        {
+            int markerIndex = path.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+            if (markerIndex < 0)
+            {
+                return null;
+            }
+
+            string remainder = path[(markerIndex + marker.Length)..];
+            int separatorIndex = remainder.IndexOf('\\');
+            return separatorIndex < 0 ? remainder : remainder[..separatorIndex];
+        }
+
         private IEnumerable<string> ExpandPaths(string rawPath, CancellationToken cancellationToken)
         {
-            string expanded = Environment.ExpandEnvironmentVariables(rawPath ?? string.Empty);
+            string expanded = CleanerKnownPathResolver.Expand(rawPath ?? string.Empty);
             if (string.IsNullOrWhiteSpace(expanded))
             {
                 yield break;
@@ -419,20 +538,35 @@ namespace BlueSapphire.Services
         private static ScanStats CollectStats(
             CleanerRuleDefinition rule,
             string path,
-            HashSet<string> exclusions)
+            HashSet<string> exclusions,
+            CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (rule.MinAgeDays.HasValue || rule.MaxAgeDays.HasValue)
+            {
+                return AggregateFilesByAge(rule, path, exclusions, cancellationToken);
+            }
+
             return rule.ScanKind switch
             {
-                CleanerScanKind.DirectoryContents => AggregateDirectory(path, recursive: true, exclusions),
-                CleanerScanKind.FilesByPattern => AggregateFilesByPattern(path, rule.IncludePatterns, rule.IncludeSubdirectories, exclusions),
-                CleanerScanKind.Directory => AggregateDirectory(path, recursive: true, exclusions),
-                CleanerScanKind.File => AggregateFile(path),
+                CleanerScanKind.DirectoryContents => AggregateDirectory(path, recursive: true, exclusions, rule.PreflightLockCheck, cancellationToken, captureImmediateTargets: true),
+                CleanerScanKind.FilesByPattern => AggregateFilesByPattern(path, rule.IncludePatterns, rule.IncludeSubdirectories, exclusions, rule.PreflightLockCheck, cancellationToken),
+                CleanerScanKind.Directory => AggregateDirectory(path, recursive: true, exclusions, rule.PreflightLockCheck, cancellationToken),
+                CleanerScanKind.File => AggregateFile(path, rule.PreflightLockCheck, cancellationToken),
                 _ => new ScanStats()
             };
         }
 
-        private static ScanStats AggregateDirectory(string path, bool recursive, HashSet<string> exclusions)
+        private static ScanStats AggregateDirectory(
+            string path,
+            bool recursive,
+            HashSet<string> exclusions,
+            bool collectLockProbes,
+            CancellationToken cancellationToken,
+            bool captureImmediateTargets = false)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (!Directory.Exists(path) || CleanerPathSafety.IsReparsePoint(path))
             {
                 return new ScanStats();
@@ -443,11 +577,14 @@ namespace BlueSapphire.Services
             bool isLocked = false;
             DateTimeOffset latestWriteTime = DateTimeOffset.MinValue;
             List<string> lockProbePaths = new();
+            List<string> targetPaths = new();
+            string normalizedRoot = CleanerPathSafety.NormalizePath(path);
             Stack<string> pending = new();
             pending.Push(path);
 
             while (pending.Count > 0)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 string current = pending.Pop();
                 if (CleanerPathSafety.IsExcluded(current, exclusions))
                 {
@@ -461,6 +598,7 @@ namespace BlueSapphire.Services
                     
                     foreach (FileInfo file in dirInfo.EnumerateFiles("*", options))
                     {
+                        cancellationToken.ThrowIfCancellationRequested();
                         if (CleanerPathSafety.IsExcluded(file.FullName, exclusions))
                         {
                             continue;
@@ -468,6 +606,17 @@ namespace BlueSapphire.Services
 
                         sizeBytes += file.Length;
                         fileCount++;
+                        if (captureImmediateTargets && string.Equals(
+                            CleanerPathSafety.NormalizePath(current),
+                            normalizedRoot,
+                            StringComparison.OrdinalIgnoreCase))
+                        {
+                            targetPaths.Add(CleanerPathSafety.NormalizePath(file.FullName));
+                        }
+                        if (collectLockProbes && lockProbePaths.Count < 12)
+                        {
+                            lockProbePaths.Add(file.FullName);
+                        }
                         if (latestWriteTime < file.LastWriteTimeUtc)
                         {
                             latestWriteTime = file.LastWriteTimeUtc;
@@ -481,11 +630,25 @@ namespace BlueSapphire.Services
 
                     foreach (DirectoryInfo subDir in dirInfo.EnumerateDirectories("*", options))
                     {
+                        cancellationToken.ThrowIfCancellationRequested();
                         if (!CleanerPathSafety.IsReparsePoint(subDir.FullName))
                         {
+                            if (captureImmediateTargets &&
+                                string.Equals(
+                                    CleanerPathSafety.NormalizePath(current),
+                                    normalizedRoot,
+                                    StringComparison.OrdinalIgnoreCase) &&
+                                !CleanerPathSafety.IsExcluded(subDir.FullName, exclusions))
+                            {
+                                targetPaths.Add(CleanerPathSafety.NormalizePath(subDir.FullName));
+                            }
                             pending.Push(subDir.FullName);
                         }
                     }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
                 }
                 catch
                 {
@@ -498,7 +661,8 @@ namespace BlueSapphire.Services
                 FileCount = fileCount,
                 ModifyTime = latestWriteTime == DateTimeOffset.MinValue ? Directory.GetLastWriteTimeUtc(path) : latestWriteTime,
                 IsLocked = isLocked,
-                LockProbePaths = lockProbePaths
+                LockProbePaths = lockProbePaths,
+                TargetPaths = targetPaths
             };
         }
 
@@ -506,8 +670,11 @@ namespace BlueSapphire.Services
             string path,
             IReadOnlyList<string> patterns,
             bool recursive,
-            HashSet<string> exclusions)
+            HashSet<string> exclusions,
+            bool collectLockProbes,
+            CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (!Directory.Exists(path) || CleanerPathSafety.IsReparsePoint(path))
             {
                 return new ScanStats();
@@ -519,26 +686,29 @@ namespace BlueSapphire.Services
             bool isLocked = false;
             List<string> lockProbePaths = new();
 
-            IEnumerable<string> files = CleanerPathSafety.EnumerateFilesSafely(path, patterns, recursive, exclusions);
+            IEnumerable<string> files = CleanerPathSafety.EnumerateFilesSafely(
+                path,
+                patterns,
+                recursive,
+                exclusions,
+                cancellationToken);
             foreach (string file in files)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 try
                 {
                     FileInfo info = new(file);
                     sizeBytes += info.Length;
                     fileCount++;
+                    if (collectLockProbes && lockProbePaths.Count < 12)
+                    {
+                        lockProbePaths.Add(file);
+                    }
                     if (latestWriteTime < info.LastWriteTimeUtc)
                     {
                         latestWriteTime = info.LastWriteTimeUtc;
                     }
 
-                    // Lock checking is deferred to execution time to avoid catastrophic I/O bottlenecks.
-                    // bool locked = CleanerPathSafety.IsFileLocked(file);
-                    // isLocked |= locked;
-                    // if (lockProbePaths.Count < 12 && locked)
-                    // {
-                    //     lockProbePaths.Add(file);
-                    // }
                 }
                 catch
                 {
@@ -555,8 +725,9 @@ namespace BlueSapphire.Services
             };
         }
 
-        private static ScanStats AggregateFile(string path)
+        private static ScanStats AggregateFile(string path, bool collectLockProbes, CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (!File.Exists(path))
             {
                 return new ScanStats();
@@ -568,9 +739,117 @@ namespace BlueSapphire.Services
                 SizeBytes = info.Length,
                 FileCount = 1,
                 ModifyTime = info.LastWriteTimeUtc,
-                IsLocked = false, // Deferred to execution time
-                LockProbePaths = new List<string>()
+                IsLocked = false,
+                LockProbePaths = collectLockProbes ? new List<string> { path } : new List<string>()
             };
+        }
+
+        private static ScanStats AggregateFilesByAge(
+            CleanerRuleDefinition rule,
+            string path,
+            HashSet<string> exclusions,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!Directory.Exists(path) || CleanerPathSafety.IsReparsePoint(path))
+            {
+                return rule.ScanKind == CleanerScanKind.File
+                    ? AggregateAgedSingleFile(rule, path, cancellationToken)
+                    : new ScanStats();
+            }
+
+            IReadOnlyList<string> patterns = rule.ScanKind == CleanerScanKind.FilesByPattern
+                ? rule.IncludePatterns
+                : Array.Empty<string>();
+            bool recursive = rule.ScanKind != CleanerScanKind.FilesByPattern || rule.IncludeSubdirectories;
+            IEnumerable<string> files = CleanerPathSafety.EnumerateFilesSafely(
+                path,
+                patterns,
+                recursive,
+                exclusions,
+                cancellationToken);
+
+            long sizeBytes = 0;
+            int fileCount = 0;
+            DateTimeOffset latestWriteTime = DateTimeOffset.MinValue;
+            List<string> targets = new();
+            List<string> lockProbePaths = new();
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+
+            foreach (string file in files)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    FileInfo info = new(file);
+                    if (!MatchesAgePolicy(info.LastWriteTimeUtc, now, rule.MinAgeDays, rule.MaxAgeDays))
+                    {
+                        continue;
+                    }
+
+                    sizeBytes += info.Length;
+                    fileCount++;
+                    targets.Add(file);
+                    if (latestWriteTime < info.LastWriteTimeUtc)
+                    {
+                        latestWriteTime = info.LastWriteTimeUtc;
+                    }
+                    if (rule.PreflightLockCheck && lockProbePaths.Count < 12)
+                    {
+                        lockProbePaths.Add(file);
+                    }
+                }
+                catch
+                {
+                }
+            }
+
+            return new ScanStats
+            {
+                SizeBytes = sizeBytes,
+                FileCount = fileCount,
+                ModifyTime = latestWriteTime,
+                LockProbePaths = lockProbePaths,
+                TargetPaths = targets
+            };
+        }
+
+        private static ScanStats AggregateAgedSingleFile(
+            CleanerRuleDefinition rule,
+            string path,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!File.Exists(path))
+            {
+                return new ScanStats();
+            }
+
+            FileInfo info = new(path);
+            if (!MatchesAgePolicy(info.LastWriteTimeUtc, DateTimeOffset.UtcNow, rule.MinAgeDays, rule.MaxAgeDays))
+            {
+                return new ScanStats();
+            }
+
+            return new ScanStats
+            {
+                SizeBytes = info.Length,
+                FileCount = 1,
+                ModifyTime = info.LastWriteTimeUtc,
+                LockProbePaths = rule.PreflightLockCheck ? new List<string> { path } : new List<string>(),
+                TargetPaths = new List<string> { path }
+            };
+        }
+
+        private static bool MatchesAgePolicy(
+            DateTimeOffset lastWriteTime,
+            DateTimeOffset now,
+            int? minAgeDays,
+            int? maxAgeDays)
+        {
+            double ageDays = Math.Max(0, (now - lastWriteTime.ToUniversalTime()).TotalDays);
+            return (!minAgeDays.HasValue || ageDays >= minAgeDays.Value) &&
+                   (!maxAgeDays.HasValue || ageDays < maxAgeDays.Value);
         }
 
         private bool TryGetReusableQuickItems(string fingerprint, out List<CleanerScanItem> items)
@@ -630,11 +909,15 @@ namespace BlueSapphire.Services
                 FileCount = source.FileCount,
                 ModifyTime = source.ModifyTime,
                 OwnerApp = source.OwnerApp,
+                SourceContextText = source.SourceContextText,
                 RiskLevel = source.RiskLevel,
                 CleanScore = source.CleanScore,
                 ExecutionMode = source.ExecutionMode,
+                SystemAction = source.SystemAction,
                 ScanKind = source.ScanKind,
                 IncludeSubdirectories = source.IncludeSubdirectories,
+                MinAgeDays = source.MinAgeDays,
+                MaxAgeDays = source.MaxAgeDays,
                 IsLocked = source.IsLocked,
                 ViewOnly = source.ViewOnly,
                 CanSelect = source.CanSelect,
@@ -650,6 +933,8 @@ namespace BlueSapphire.Services
                 RegenerationHint = source.RegenerationHint,
                 RiskSummary = source.RiskSummary,
                 RiskDetail = source.RiskDetail,
+                AIAnalysisText = source.AIAnalysisText,
+                AIRecommendationText = source.AIRecommendationText,
                 LockedByProcesses = source.LockedByProcesses.ToList(),
                 IsSelected = source.IsSelected,
                 IsExcluded = source.IsExcluded
@@ -659,6 +944,7 @@ namespace BlueSapphire.Services
         private static string BuildQuickFingerprint(
             IReadOnlyList<CleanerRuleDefinition> rules,
             HashSet<string> exclusions,
+            HashSet<string> selectedDriveRoots,
             bool isElevated,
             CancellationToken cancellationToken)
         {
@@ -666,6 +952,11 @@ namespace BlueSapphire.Services
             hash.Add(isElevated);
             int fingerprintedEntries = 0;
             const int maxFingerprintEntries = 100_000;
+
+            foreach (string driveRoot in selectedDriveRoots.OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
+            {
+                hash.Add(driveRoot, StringComparer.OrdinalIgnoreCase);
+            }
 
             foreach (string exclusion in exclusions.OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
             {
@@ -680,17 +971,27 @@ namespace BlueSapphire.Services
                 hash.Add(rule.Category, StringComparer.OrdinalIgnoreCase);
                 hash.Add(rule.ScanKind);
                 hash.Add(rule.ExecutionMode);
+                hash.Add(rule.SystemAction);
                 hash.Add(rule.DefaultSelected);
                 hash.Add(rule.RequiresElevation);
                 hash.Add(rule.ViewOnly);
                 hash.Add(rule.IncludeSubdirectories);
+                hash.Add(rule.MinAgeDays);
+                hash.Add(rule.MaxAgeDays);
+                hash.Add(rule.PreflightLockCheck);
 
                 foreach (string path in rule.Paths.OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
                 {
+                    string expandedPath = CleanerKnownPathResolver.Expand(path);
+                    if (!IsPathOnSelectedDrive(expandedPath, selectedDriveRoots))
+                    {
+                        continue;
+                    }
+
                     hash.Add(path, StringComparer.OrdinalIgnoreCase);
                     AppendFilesystemFingerprint(
                         ref hash,
-                        Environment.ExpandEnvironmentVariables(path),
+                        expandedPath,
                         ref fingerprintedEntries,
                         maxFingerprintEntries,
                         cancellationToken);
@@ -701,6 +1002,11 @@ namespace BlueSapphire.Services
                     hash.Add(pattern, StringComparer.OrdinalIgnoreCase);
                 }
 
+                foreach (string processName in rule.ProcessNames.OrderBy(name => name, StringComparer.OrdinalIgnoreCase))
+                {
+                    hash.Add(processName, StringComparer.OrdinalIgnoreCase);
+                }
+
                 foreach (string root in rule.BoundaryRoots.OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
                 {
                     hash.Add(root, StringComparer.OrdinalIgnoreCase);
@@ -708,6 +1014,63 @@ namespace BlueSapphire.Services
             }
 
             return hash.ToHashCode().ToString("X8");
+        }
+
+        private static Task<string> BuildQuickFingerprintAsync(
+            IReadOnlyList<CleanerRuleDefinition> rules,
+            HashSet<string> exclusions,
+            HashSet<string> selectedDriveRoots,
+            bool isElevated,
+            CancellationToken cancellationToken)
+        {
+            // 指纹可能遍历十万级文件，必须明确离开 UI 线程，并允许用户随时取消。
+            return Task.Run(
+                () => BuildQuickFingerprint(rules, exclusions, selectedDriveRoots, isElevated, cancellationToken),
+                cancellationToken);
+        }
+
+        private static HashSet<string> ResolveSelectedDriveRoots(IEnumerable<string> requestedRoots)
+        {
+            HashSet<string> roots = requestedRoots
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .Select(CleanerKnownPathResolver.Expand)
+                .Select(path => Path.GetPathRoot(path) ?? string.Empty)
+                .Select(CleanerPathSafety.NormalizePath)
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            if (roots.Count > 0)
+            {
+                return roots;
+            }
+
+            string defaultPath = Environment.GetFolderPath(Environment.SpecialFolder.System);
+            string defaultRoot = CleanerPathSafety.NormalizePath(
+                Path.GetPathRoot(defaultPath) ?? Path.GetPathRoot(Environment.CurrentDirectory) ?? string.Empty);
+            if (!string.IsNullOrWhiteSpace(defaultRoot))
+            {
+                roots.Add(defaultRoot);
+            }
+
+            return roots;
+        }
+
+        private static bool IsPathOnSelectedDrive(string path, HashSet<string> selectedDriveRoots)
+        {
+            if (string.IsNullOrWhiteSpace(path) || selectedDriveRoots.Count == 0)
+            {
+                return false;
+            }
+
+            try
+            {
+                string pathRoot = CleanerPathSafety.NormalizePath(Path.GetPathRoot(path) ?? string.Empty);
+                return selectedDriveRoots.Contains(pathRoot);
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private static void AppendFilesystemFingerprint(
@@ -811,6 +1174,7 @@ namespace BlueSapphire.Services
             public DateTimeOffset ModifyTime { get; init; }
             public bool IsLocked { get; init; }
             public List<string> LockProbePaths { get; init; } = new();
+            public List<string> TargetPaths { get; init; } = new();
         }
 
         private sealed class CachedQuickScanSegment

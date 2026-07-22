@@ -438,6 +438,21 @@ namespace BlueSapphire.Services
                     throw new InvalidOperationException($"规则 {rule.Id} 包含无效的文件匹配模式。");
                 }
 
+                if (rule.MinAgeDays is < 0 or > 3650 ||
+                    rule.MaxAgeDays is < 1 or > 3650 ||
+                    (rule.MinAgeDays.HasValue && rule.MaxAgeDays.HasValue && rule.MinAgeDays.Value >= rule.MaxAgeDays.Value))
+                {
+                    throw new InvalidOperationException($"规则 {rule.Id} 包含无效文件年龄范围。");
+                }
+
+                if (rule.ProcessNames.Count > 16 || rule.ProcessNames.Any(name =>
+                        string.IsNullOrWhiteSpace(name) ||
+                        name.Length > 80 ||
+                        name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0))
+                {
+                    throw new InvalidOperationException($"规则 {rule.Id} 包含无效进程名称。");
+                }
+
                 // 未签名的第三方规则只能提供空间分析，不具备删除、提权或默认选中能力。
                 rule.ExecutionMode = CleanerExecutionMode.None;
                 rule.RiskLevel = CleanerRiskLevel.High;
