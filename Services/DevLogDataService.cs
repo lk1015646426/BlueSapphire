@@ -215,21 +215,6 @@ namespace BlueSapphire.Services
                 _logger.LogWarning(ex, "Failed to create local snapshot backup of dev logs.");
             }
 
-#if DEBUG
-            try
-            {
-                var projAssetPath = TryGetProjectAssetPath();
-                if (projAssetPath != null)
-                {
-                    File.Copy(DataFilePath, projAssetPath, true);
-                    _logger.LogInformation($"Dev logs auto-synced to source directory: {projAssetPath}");
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to auto-sync dev logs to source directory.");
-            }
-#endif
         }
 
         private static DevLogItem BoundLog(DevLogItem source)
@@ -253,20 +238,6 @@ namespace BlueSapphire.Services
                 Status = source.Status,
                 Timestamp = source.Timestamp
             };
-        }
-
-        private string? TryGetProjectAssetPath()
-        {
-            var dir = AppContext.BaseDirectory;
-            while (dir != null && Directory.Exists(dir))
-            {
-                if (File.Exists(Path.Combine(dir, "BlueSapphire.csproj")))
-                {
-                    return Path.Combine(dir, "Assets", FileName);
-                }
-                dir = Directory.GetParent(dir)?.FullName;
-            }
-            return null;
         }
 
         private bool IsWritableInCurrentEnvironment()
