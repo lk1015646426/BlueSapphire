@@ -452,7 +452,10 @@ namespace BlueSapphire
         /// <param name="args">Details about the launch request and process.</param>
         protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
         {
-            LaunchArguments = args.Arguments ?? string.Empty;
+            string activatedArguments = args.Arguments ?? string.Empty;
+            LaunchArguments = string.IsNullOrWhiteSpace(activatedArguments)
+                ? string.Join(" ", Environment.GetCommandLineArgs().Skip(1))
+                : activatedArguments;
             
             var logger = Services.GetRequiredService<ILogger<App>>();
             logger.LogInformation("Blue Sapphire 引擎点火成功。");

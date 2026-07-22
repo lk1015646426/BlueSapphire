@@ -59,6 +59,17 @@ public sealed class UiPageContractTests
         Assert.Contains("VerticalScrollBarVisibility=\"Auto\"", dialog, StringComparison.Ordinal);
     }
 
+
+    [Fact]
+    public void HomeWorkspace_HidesSecondaryActivityPanelAtNarrowWidths()
+    {
+        string source = File.ReadAllText(Path.Combine(FindProjectRoot(), "HomePage.xaml"));
+
+        Assert.Contains("x:Name=\"RecentActivityCard\"", source, StringComparison.Ordinal);
+        Assert.Contains("MinWindowWidth=\"1000\"", source, StringComparison.Ordinal);
+        Assert.Contains("Target=\"RecentActivityCard.Visibility\" Value=\"Collapsed\"", source, StringComparison.Ordinal);
+    }
+
     private static string FindProjectRoot()
     {
         DirectoryInfo? current = new(AppContext.BaseDirectory);

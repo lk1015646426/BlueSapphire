@@ -54,6 +54,19 @@ public sealed class UiShellContractTests
         Assert.DoesNotContain("GetAwaiter().GetResult", source, StringComparison.Ordinal);
     }
 
+
+    [Fact]
+    public void LaunchArguments_FallBackToProcessCommandLineAndSupportUtilityPages()
+    {
+        string root = FindProjectRoot();
+        string appSource = File.ReadAllText(Path.Combine(root, "App.xaml.cs"));
+        string shellSource = File.ReadAllText(Path.Combine(root, "MainWindow.xaml.cs"));
+
+        Assert.Contains("Environment.GetCommandLineArgs().Skip(1)", appSource, StringComparison.Ordinal);
+        Assert.Contains("requestedToolId, \"Settings\"", shellSource, StringComparison.Ordinal);
+        Assert.Contains("requestedToolId, \"DevLog\"", shellSource, StringComparison.Ordinal);
+    }
+
     private static string FindProjectRoot()
     {
         DirectoryInfo? current = new(AppContext.BaseDirectory);

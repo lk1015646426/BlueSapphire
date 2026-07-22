@@ -6,7 +6,32 @@
     Unloaded="Page_Unloaded"
     Background="{ThemeResource BgColor}">
 
-    <Grid Padding="{StaticResource WorkbenchPagePadding}" RowSpacing="12">
+    <Grid x:Name="LayoutRoot" Padding="{StaticResource WorkbenchPagePadding}" RowSpacing="12">
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup x:Name="WindowWidthStates">
+                <VisualState x:Name="NarrowLayout">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="0"/>
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="TaskColumn.Width" Value="*"/>
+                        <Setter Target="ActivityColumn.Width" Value="0"/>
+                        <Setter Target="RecentActivityCard.Visibility" Value="Collapsed"/>
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="WideLayout">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="1000"/>
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="TaskColumn.Width" Value="1.25*"/>
+                        <Setter Target="ActivityColumn.Width" Value="0.75*"/>
+                        <Setter Target="RecentActivityCard.Visibility" Value="Visible"/>
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+
         <Grid.RowDefinitions>
             <RowDefinition Height="*"/>
             <RowDefinition Height="*"/>
@@ -18,8 +43,8 @@
 
         <Grid Grid.Row="1" ColumnSpacing="12">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="1.25*"/>
-                <ColumnDefinition Width="0.75*" MinWidth="260"/>
+                <ColumnDefinition x:Name="TaskColumn" Width="1.25*"/>
+                <ColumnDefinition x:Name="ActivityColumn" Width="0.75*" MinWidth="260"/>
             </Grid.ColumnDefinitions>
 
             <Border Style="{StaticResource CardBorderStyle}" Padding="0">
@@ -113,7 +138,7 @@
                 </Grid>
             </Border>
 
-            <Border Grid.Column="1" Style="{StaticResource CardBorderStyle}" Padding="14,12">
+            <Border x:Name="RecentActivityCard" Grid.Column="1" Style="{StaticResource CardBorderStyle}" Padding="14,12">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>

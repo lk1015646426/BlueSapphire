@@ -241,6 +241,24 @@ namespace BlueSapphire
         private void SelectInitialTool()
         {
             string? requestedToolId = ParseRequestedToolId(App.LaunchArguments);
+            if (string.Equals(requestedToolId, "Settings", StringComparison.OrdinalIgnoreCase))
+            {
+                NavView.SelectedItem = NavView.SettingsItem;
+                return;
+            }
+
+            if (string.Equals(requestedToolId, "DevLog", StringComparison.OrdinalIgnoreCase))
+            {
+                NavigationViewItem? devLogItem = NavView.FooterMenuItems
+                    .OfType<NavigationViewItem>()
+                    .FirstOrDefault(candidate => string.Equals(candidate.Tag as string, "DevLog", StringComparison.Ordinal));
+                if (devLogItem != null)
+                {
+                    NavView.SelectedItem = devLogItem;
+                    return;
+                }
+            }
+
             NavigationViewItem? item = !string.IsNullOrWhiteSpace(requestedToolId)
                 ? _navItems.OfType<NavigationViewItem>().FirstOrDefault(candidate =>
                     string.Equals(candidate.Tag as string, requestedToolId, StringComparison.OrdinalIgnoreCase))
