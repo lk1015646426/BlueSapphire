@@ -48,7 +48,40 @@
         </Storyboard>
     </Page.Resources>
 
-    <Grid Background="{ThemeResource BgColor}">
+    <Grid x:Name="CleanerLayoutRoot" Background="{ThemeResource BgColor}">
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup x:Name="ResponsiveStates">
+                <VisualState x:Name="NarrowLayout">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="0"/>
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="SectionRailColumn.Width" Value="0"/>
+                        <Setter Target="ContentHost.Padding" Value="6"/>
+                        <Setter Target="MainTabBar.Visibility" Value="Collapsed"/>
+                        <Setter Target="ScanPrimaryColumn.Width" Value="*"/>
+                        <Setter Target="ScanDetailColumn.Width" Value="0"/>
+                        <Setter Target="ScanDetailColumn.MinWidth" Value="0"/>
+                        <Setter Target="ScanDetailPanel.Visibility" Value="Collapsed"/>
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="WideLayout">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="1000"/>
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="SectionRailColumn.Width" Value="156"/>
+                        <Setter Target="MainTabBar.Visibility" Value="Visible"/>
+                        <Setter Target="ContentHost.Padding" Value="12"/>
+                        <Setter Target="ScanPrimaryColumn.Width" Value="6*"/>
+                        <Setter Target="ScanDetailColumn.Width" Value="4*"/>
+                        <Setter Target="ScanDetailColumn.MinWidth" Value="240"/>
+                        <Setter Target="ScanDetailPanel.Visibility" Value="Visible"/>
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -82,7 +115,7 @@
         <!-- Workbench section rail: persistent task navigation, content stays in place. -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="156"/>
+                <ColumnDefinition x:Name="SectionRailColumn" Width="156"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
@@ -178,7 +211,7 @@
             </ListView>
 
             <!-- Tab Content Area — stretches to fill remaining height -->
-            <Grid Grid.Column="1" Padding="12">
+            <Grid x:Name="ContentHost" Grid.Column="1" Padding="12">
 
                 <!-- ═══════════════════════════════════════════════ -->
                 <!-- Tab 1: 扫描与清理                                -->
@@ -195,8 +228,8 @@
 
                         <Grid Grid.Row="0" ColumnSpacing="10">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="6*" MinWidth="320"/>
-                                <ColumnDefinition Width="4*" MinWidth="240"/>
+                                <ColumnDefinition x:Name="ScanPrimaryColumn" Width="6*" MinWidth="320"/>
+                                <ColumnDefinition x:Name="ScanDetailColumn" Width="4*" MinWidth="240"/>
                             </Grid.ColumnDefinitions>
 
                             <!-- ══ LEFT COLUMN ══ -->
@@ -284,6 +317,16 @@
                                                     </DataTemplate>
                                                 </ListView.ItemTemplate>
                                             </ListView>
+                                            <Button x:Name="InlineQuickScanButton"
+                                                    Style="{StaticResource PrimaryActionButtonStyle}"
+                                                    Command="{x:Bind ViewModel.Scan.StartQuickScanCommand}"
+                                                    IsEnabled="{x:Bind ViewModel.Scan.IsNotScanning, Mode=OneWay}"
+                                                    HorizontalAlignment="Stretch">
+                                                <StackPanel Orientation="Horizontal" Spacing="7" HorizontalAlignment="Center">
+                                                    <FontIcon Glyph="&#xE8A5;" FontSize="12"/>
+                                                    <TextBlock Text="开始快速扫描"/>
+                                                </StackPanel>
+                                            </Button>
                                         </StackPanel>
                                     </Border>
 
@@ -608,7 +651,7 @@
                             </ScrollViewer>
 
                             <!-- ══ RIGHT COLUMN: Detail Panel ══ -->
-                            <Border Grid.Column="1" Background="{StaticResource PanelSurfaceStrong}" BorderThickness="0" CornerRadius="8" Padding="14,12">
+                            <Border x:Name="ScanDetailPanel" Grid.Column="1" Background="{StaticResource PanelSurfaceStrong}" BorderThickness="0" CornerRadius="8" Padding="14,12">
                                 <Grid>
 
                                     <!-- Default: scan mode description -->

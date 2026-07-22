@@ -50,6 +50,9 @@ public sealed class UiShellContractTests
         Assert.Contains("Closed -= MainWindow_Closed", source, StringComparison.Ordinal);
         Assert.Contains("WeakReferenceMessenger.Default.UnregisterAll(this)", source, StringComparison.Ordinal);
         Assert.Contains("SetWindowMinSize(840, 600)", source, StringComparison.Ordinal);
+        string shellXaml = File.ReadAllText(Path.Combine(FindProjectRoot(), "MainWindow.xaml"));
+        Assert.Contains("HorizontalContentAlignment=\"Stretch\"", shellXaml, StringComparison.Ordinal);
+        Assert.Contains("VerticalContentAlignment=\"Stretch\"", shellXaml, StringComparison.Ordinal);
         Assert.DoesNotContain(".Wait(", source, StringComparison.Ordinal);
         Assert.DoesNotContain("GetAwaiter().GetResult", source, StringComparison.Ordinal);
     }
@@ -64,6 +67,7 @@ public sealed class UiShellContractTests
 
         Assert.Contains("Environment.GetCommandLineArgs().Skip(1)", appSource, StringComparison.Ordinal);
         Assert.Contains("requestedToolId, \"Settings\"", shellSource, StringComparison.Ordinal);
+        Assert.Contains("ContentFrame.Navigate(typeof(SettingsPage))", shellSource, StringComparison.Ordinal);
         Assert.Contains("requestedToolId, \"DevLog\"", shellSource, StringComparison.Ordinal);
     }
 

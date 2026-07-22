@@ -2,6 +2,7 @@ using BlueSapphire.Controls;
 using BlueSapphire.Interfaces;
 using BlueSapphire.Models;
 using BlueSapphire.ViewModels;
+using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -39,6 +40,9 @@ namespace BlueSapphire
             ViewModel.PropertyChanged -= ViewModel_PropertyChanged;
             ViewModel.PropertyChanged += ViewModel_PropertyChanged;
             _reduceMotion = BlueSapphire.Helpers.AppSettings.Get("ReduceMotion", false);
+            WeakReferenceMessenger.Default.Unregister<ToggleReducedMotionMessage>(this);
+            WeakReferenceMessenger.Default.Register<ToggleReducedMotionMessage>(this, (_, message) =>
+                DispatcherQueue.TryEnqueue(() => ApplyReducedMotion(message.Value)));
 
             if (_isInitialized)
             {
@@ -83,6 +87,31 @@ namespace BlueSapphire
         {
             ViewModel.Scan.PropertyChanged -= Scan_PropertyChanged;
             ViewModel.PropertyChanged -= ViewModel_PropertyChanged;
+            WeakReferenceMessenger.Default.Unregister<ToggleReducedMotionMessage>(this);
+        }
+
+        private void ApplyReducedMotion(bool reduceMotion)
+        {
+            _reduceMotion = reduceMotion;
+            CleanupProgressRing.IsActive = ViewModel.IsCleanupRunning && !_reduceMotion;
+            if (!_reduceMotion)
+            {
+                return;
+            }
+
+            CardEntrance.Stop();
+            CleanupEnterStoryboard.Stop();
+            CleanupOutcomeStoryboard.Stop();
+            ScanContentPanel.Opacity = 1;
+            ScanContentTranslate.Y = 0;
+            CleanupExperience.Opacity = 1;
+            CleanupCardTransform.TranslateY = 0;
+            CleanupCardTransform.ScaleX = 1;
+            CleanupCardTransform.ScaleY = 1;
+            CleanupOutcomePanel.Opacity = 1;
+            CleanupOutcomeTranslate.Y = 0;
+            CleanupOutcomeIconScale.ScaleX = 1;
+            CleanupOutcomeIconScale.ScaleY = 1;
         }
 
         private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)

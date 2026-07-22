@@ -70,6 +70,37 @@ public sealed class UiPageContractTests
         Assert.Contains("Target=\"RecentActivityCard.Visibility\" Value=\"Collapsed\"", source, StringComparison.Ordinal);
     }
 
+
+    [Fact]
+    public void CleanerWorkspace_UsesNarrowLayoutAndAppliesReducedMotionImmediately()
+    {
+        string root = FindProjectRoot();
+        string xaml = File.ReadAllText(Path.Combine(root, "CleanerAssistantPage.xaml"));
+        string code = File.ReadAllText(Path.Combine(root, "CleanerAssistantPage.xaml.cs"));
+
+        Assert.Contains("x:Name=\"ScanDetailPanel\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Target=\"ScanDetailPanel.Visibility\" Value=\"Collapsed\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Target=\"SectionRailColumn.Width\" Value=\"0\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Target=\"MainTabBar.Visibility\" Value=\"Collapsed\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"InlineQuickScanButton\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Register<ToggleReducedMotionMessage>", code, StringComparison.Ordinal);
+        Assert.Contains("Unregister<ToggleReducedMotionMessage>", code, StringComparison.Ordinal);
+    }
+
+
+    [Fact]
+    public void NarrowShell_CollapsesSecondaryCopilotToolsAndUsesTwoColumnThemeGrid()
+    {
+        string root = FindProjectRoot();
+        string copilot = File.ReadAllText(Path.Combine(root, "Views", "AICopilotPage.xaml"));
+        string settings = File.ReadAllText(Path.Combine(root, "SettingsPage.xaml"));
+
+        Assert.Contains("Target=\"HeaderTools.Visibility\" Value=\"Collapsed\"", copilot, StringComparison.Ordinal);
+        Assert.Contains("Target=\"ConnectionPill.Visibility\" Value=\"Collapsed\"", copilot, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ThemePresetGrid\"", settings, StringComparison.Ordinal);
+        Assert.Contains("<RowDefinition Height=\"Auto\"/><RowDefinition Height=\"Auto\"/><RowDefinition Height=\"Auto\"/><RowDefinition Height=\"Auto\"/><RowDefinition Height=\"Auto\"/><RowDefinition Height=\"Auto\"/><RowDefinition Height=\"Auto\"/><RowDefinition Height=\"Auto\"/>", settings, StringComparison.Ordinal);
+    }
+
     private static string FindProjectRoot()
     {
         DirectoryInfo? current = new(AppContext.BaseDirectory);

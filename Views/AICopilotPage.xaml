@@ -8,7 +8,26 @@
     <Border Style="{StaticResource CardBorderStrongStyle}"
             Padding="0"
             Background="{ThemeResource PanelSurface}">
-        <Grid>
+        <Grid x:Name="CopilotLayoutRoot">
+            <VisualStateManager.VisualStateGroups>
+                <VisualStateGroup x:Name="HeaderWidthStates">
+                    <VisualState x:Name="CompactHeader">
+                        <VisualState.StateTriggers><AdaptiveTrigger MinWindowWidth="0"/></VisualState.StateTriggers>
+                        <VisualState.Setters>
+                            <Setter Target="HeaderTools.Visibility" Value="Collapsed"/>
+                            <Setter Target="ConnectionPill.Visibility" Value="Collapsed"/>
+                        </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="FullHeader">
+                        <VisualState.StateTriggers><AdaptiveTrigger MinWindowWidth="720"/></VisualState.StateTriggers>
+                        <VisualState.Setters>
+                            <Setter Target="HeaderTools.Visibility" Value="Visible"/>
+                            <Setter Target="ConnectionPill.Visibility" Value="Visible"/>
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateManager.VisualStateGroups>
+
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
@@ -34,7 +53,7 @@
                                    TextTrimming="CharacterEllipsis"/>
                     </StackPanel>
 
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2"
+                    <StackPanel x:Name="HeaderTools" Grid.Column="1" Orientation="Horizontal" Spacing="2"
                                 VerticalAlignment="Center">
                         <Button x:Name="SuggestionsBtn" Style="{StaticResource WorkbenchIconButtonStyle}"
                                 Click="SuggestionsBtn_Click" ToolTipService.ToolTip="本地建议"
@@ -63,7 +82,7 @@
                         </Button>
                     </StackPanel>
 
-                    <Border Grid.Column="2"
+                    <Border x:Name="ConnectionPill" Grid.Column="2"
                             Background="{ThemeResource PanelSurfaceStrong}"
                             CornerRadius="10"
                             Padding="7,4"

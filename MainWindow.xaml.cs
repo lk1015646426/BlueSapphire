@@ -243,6 +243,8 @@ namespace BlueSapphire
             string? requestedToolId = ParseRequestedToolId(App.LaunchArguments);
             if (string.Equals(requestedToolId, "Settings", StringComparison.OrdinalIgnoreCase))
             {
+                _lastNavigationItem = NavView.SettingsItem;
+                ContentFrame.Navigate(typeof(SettingsPage));
                 NavView.SelectedItem = NavView.SettingsItem;
                 return;
             }

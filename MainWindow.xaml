@@ -46,7 +46,9 @@
                 </NavigationViewItem>
             </NavigationView.FooterMenuItems>
 
-            <Frame x:Name="ContentFrame"/>
+            <Frame x:Name="ContentFrame"
+                   HorizontalContentAlignment="Stretch"
+                   VerticalContentAlignment="Stretch"/>
         </NavigationView>
     </Grid>
 </Window>
