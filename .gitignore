@@ -564,3 +564,6 @@ build_*.txt
 xaml_*.txt
 check.py
 AppPackages/
+
+# Local installer build output
+/Output/
