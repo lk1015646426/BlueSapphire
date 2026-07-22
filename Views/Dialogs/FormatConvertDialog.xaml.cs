@@ -23,8 +23,8 @@ namespace BlueSapphire.Views.Dialogs
         {
             this.InitializeComponent();
             _sourceFiles = sourceFiles;
-            
-            PrimaryButtonClick += (s, e) => 
+
+            PrimaryButtonClick += (s, e) =>
             {
                 var selectedTag = (FormatComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "Jpeg";
                 Options.TargetFormat = selectedTag switch
@@ -37,7 +37,7 @@ namespace BlueSapphire.Views.Dialogs
                 };
                 Options.Quality = QualitySlider.Value / 100.0;
             };
-            
+
             this.Loaded += (s, e) => ScheduleEstimation();
             this.Closed += (s, e) =>
             {
@@ -62,10 +62,10 @@ namespace BlueSapphire.Views.Dialogs
         private void QualitySlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
         {
             if (_isUpdatingValue) return;
-            
+
             if (QualityText != null)
             {
-                QualityText.Text = $"压缩质量: {e.NewValue:F0}%";
+                QualityText.Text = $"压缩质量：{e.NewValue:F0}%";
             }
             if (QualityNumberBox != null && QualityNumberBox.Value != e.NewValue)
             {
@@ -73,7 +73,7 @@ namespace BlueSapphire.Views.Dialogs
                 QualityNumberBox.Value = e.NewValue;
                 _isUpdatingValue = false;
             }
-            
+
             ScheduleEstimation();
         }
 
@@ -82,10 +82,10 @@ namespace BlueSapphire.Views.Dialogs
             if (_isUpdatingValue || double.IsNaN(args.NewValue)) return;
 
             double val = Math.Clamp(args.NewValue, 1, 100);
-            
+
             if (QualityText != null)
             {
-                QualityText.Text = $"压缩质量: {val:F0}%";
+                QualityText.Text = $"压缩质量：{val:F0}%";
             }
             if (QualitySlider != null && QualitySlider.Value != val)
             {
@@ -93,7 +93,7 @@ namespace BlueSapphire.Views.Dialogs
                 QualitySlider.Value = val;
                 _isUpdatingValue = false;
             }
-            
+
             ScheduleEstimation();
         }
 
@@ -109,7 +109,7 @@ namespace BlueSapphire.Views.Dialogs
             }
 
             EstimatedSizeText.Text = "正在预估大小...";
-            
+
             var selectedTag = (FormatComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "Jpeg";
             var targetFormat = selectedTag switch
             {
@@ -120,13 +120,13 @@ namespace BlueSapphire.Views.Dialogs
                 _ => ImageConversionTarget.Jpeg
             };
             double quality = (QualitySlider?.Value ?? 92.0) / 100.0;
-            
+
             _ = Task.Run(async () =>
             {
                 try
                 {
                     await Task.Delay(300, cts.Token); // Debounce
-                    
+
                     var options = new FormatConvertOptions
                     {
                         TargetFormat = targetFormat,
@@ -134,7 +134,7 @@ namespace BlueSapphire.Views.Dialogs
                     };
 
                     long estimatedSize = await _imageProcessingService.EstimateSizeAsync(_sourceFiles[0], options, cts.Token);
-                    
+
                     if (!cts.IsCancellationRequested)
                     {
                         DispatcherQueue.TryEnqueue(() =>
@@ -143,9 +143,9 @@ namespace BlueSapphire.Views.Dialogs
                             if (estimatedSize > 0)
                             {
                                 string sizeStr = FormatBytes((ulong)estimatedSize);
-                                EstimatedSizeText.Text = _sourceFiles.Count > 1 
-                                    ? $"预估大小 (以第一张为准): {sizeStr}" 
-                                    : $"预估大小: {sizeStr}";
+                                EstimatedSizeText.Text = _sourceFiles.Count > 1
+                                    ? $"预估大小（以第一张为准）：{sizeStr}"
+                                    : $"预估大小：{sizeStr}";
                             }
                             else
                             {

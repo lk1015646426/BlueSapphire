@@ -14,7 +14,7 @@ namespace BlueSapphire
 
             if (skippedCount > 0)
             {
-                WarningText.Text = $"⚠ 注意：有 {skippedCount} 个文件因缺失拍摄日期信息将被跳过。";
+                WarningText.Text = $"注意：有 {skippedCount} 个文件缺少拍摄日期，将跳过这些文件。";
                 WarningText.Visibility = Visibility.Visible;
             }
         }

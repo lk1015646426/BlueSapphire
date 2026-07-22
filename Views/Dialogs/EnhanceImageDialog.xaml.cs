@@ -36,10 +36,10 @@ namespace BlueSapphire.Views.Dialogs
 
         private void Slider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
         {
-            if (BrightnessText != null) BrightnessText.Text = $"亮度: {BrightnessSlider.Value:F2}";
-            if (ContrastText != null) ContrastText.Text = $"对比度: {ContrastSlider.Value:F2}";
-            if (SaturationText != null) SaturationText.Text = $"饱和度: {SaturationSlider.Value:F2}";
-            if (SharpnessText != null) SharpnessText.Text = $"锐化: {SharpnessSlider.Value:F2}";
+            if (BrightnessText != null) BrightnessText.Text = $"{BrightnessSlider.Value:F2}";
+            if (ContrastText != null) ContrastText.Text = $"{ContrastSlider.Value:F2}";
+            if (SaturationText != null) SaturationText.Text = $"{SaturationSlider.Value:F2}";
+            if (SharpnessText != null) SharpnessText.Text = $"{SharpnessSlider.Value:F2}";
         }
     }
 }

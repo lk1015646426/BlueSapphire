@@ -3,29 +3,36 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="格式转换"
-    PrimaryButtonText="转换"
+    PrimaryButtonText="开始转换"
     CloseButtonText="取消"
+    PrimaryButtonStyle="{StaticResource PrimaryActionButtonStyle}"
+    CloseButtonStyle="{StaticResource SubtleActionButtonStyle}"
+    Style="{StaticResource WorkbenchContentDialogStyle}"
     DefaultButton="Close">
 
-    <StackPanel Spacing="16" Width="300" Margin="0,12,0,0">
-        <ComboBox Header="目标格式" x:Name="FormatComboBox" HorizontalAlignment="Stretch" SelectedIndex="0" SelectionChanged="FormatComboBox_SelectionChanged">
-            <ComboBoxItem Content="JPEG (.jpg)" Tag="Jpeg"/>
-            <ComboBoxItem Content="PNG (.png)" Tag="Png"/>
-            <ComboBoxItem Content="BMP (.bmp)" Tag="Bmp"/>
-            <ComboBoxItem Content="TIFF (.tiff)" Tag="Tiff"/>
+    <Grid Width="380" MaxWidth="520" RowSpacing="12">
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <TextBlock Text="选择输出格式。原文件不会被覆盖。" Style="{StaticResource DialogHelperTextStyle}"/>
+        <ComboBox Grid.Row="1" Header="目标格式" x:Name="FormatComboBox"
+                  HorizontalAlignment="Stretch" SelectedIndex="0"
+                  SelectionChanged="FormatComboBox_SelectionChanged">
+            <ComboBoxItem Content="JPEG（.jpg）" Tag="Jpeg"/>
+            <ComboBoxItem Content="PNG（.png）" Tag="Png"/>
+            <ComboBoxItem Content="BMP（.bmp）" Tag="Bmp"/>
+            <ComboBoxItem Content="TIFF（.tiff）" Tag="Tiff"/>
         </ComboBox>
-
-        <StackPanel x:Name="QualityPanel" Spacing="8">
-            <TextBlock x:Name="QualityText" Text="压缩质量: 92%" />
-            <Grid ColumnSpacing="8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <Slider x:Name="QualitySlider" Minimum="1" Maximum="100" Value="92" ValueChanged="QualitySlider_ValueChanged" Grid.Column="0" VerticalAlignment="Center" />
-                <NumberBox x:Name="QualityNumberBox" Minimum="1" Maximum="100" Value="92" ValueChanged="QualityNumberBox_ValueChanged" Grid.Column="1" Width="70" SpinButtonPlacementMode="Compact" />
-            </Grid>
-            <TextBlock x:Name="EstimatedSizeText" Text="" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap" />
-        </StackPanel>
-    </StackPanel>
+        <Border Grid.Row="2" x:Name="QualityPanel" Style="{StaticResource DialogSectionStyle}">
+            <StackPanel Spacing="8">
+                <TextBlock x:Name="QualityText" Text="压缩质量：92%" Style="{StaticResource DialogHeadingStyle}"/>
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="72"/></Grid.ColumnDefinitions>
+                    <Slider x:Name="QualitySlider" Minimum="1" Maximum="100" Value="92"
+                            ValueChanged="QualitySlider_ValueChanged" VerticalAlignment="Center"/>
+                    <NumberBox x:Name="QualityNumberBox" Grid.Column="1" Minimum="1" Maximum="100" Value="92"
+                               ValueChanged="QualityNumberBox_ValueChanged" SpinButtonPlacementMode="Compact"/>
+                </Grid>
+                <TextBlock x:Name="EstimatedSizeText" Style="{StaticResource DialogHelperTextStyle}"/>
+            </StackPanel>
+        </Border>
+    </Grid>
 </ContentDialog>

@@ -2,57 +2,47 @@
     x:Class="BlueSapphire.Views.SkillProxyConfigDialog"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    mc:Ignorable="d"
-    CornerRadius="12">
+    Title="选择连接方式"
+    Style="{StaticResource WorkbenchContentDialogStyle}">
 
-    <Grid Margin="0,10,0,0" Width="420">
+    <Grid Width="440" MaxWidth="560" RowSpacing="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        
-        <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,0,0,24">
-            <Border Background="{StaticResource AccentSafeBg}" CornerRadius="12" Width="56" Height="56" VerticalAlignment="Center">
-                <FontIcon Glyph="&#xE774;" Foreground="{StaticResource AccentSafe}" FontSize="28"/>
-            </Border>
-            <StackPanel VerticalAlignment="Center">
-                <TextBlock Text="为新技能配置网络" FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource TextMain}" Margin="0,0,0,4"/>
-                <TextBlock x:Name="SubtitleText" Text="选择该在线技能的连接方式" FontSize="14" Foreground="{StaticResource TextSecondary}"/>
-            </StackPanel>
-        </StackPanel>
-        
-        <StackPanel Grid.Row="1" Spacing="12">
-            <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0" CornerRadius="8" Background="{StaticResource PanelSurface}" BorderBrush="{StaticResource AccentSafe}" BorderThickness="1" Click="Domestic_Click">
-                <Grid Padding="16">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-                    <FontIcon Glyph="&#xE909;" Foreground="{StaticResource AccentSafe}" FontSize="18" VerticalAlignment="Top" Margin="0,2,12,0"/>
-                    <StackPanel Grid.Column="1">
-                        <TextBlock Text="国内直连 (推荐)" FontWeight="SemiBold" Foreground="{StaticResource AccentSafe}" Margin="0,0,0,6"/>
-                        <TextBlock Text="绕过全局代理。如果您添加的是国内服务器（如 aihot），使用此项可防止被代理拦截导致加载失败。" Foreground="{StaticResource TextSecondary}" FontSize="13" TextWrapping="Wrap" LineHeight="20"/>
-                    </StackPanel>
-                </Grid>
-            </Button>
+        <TextBlock x:Name="SubtitleText" Text="选择该在线技能的连接方式"
+                   Style="{StaticResource DialogHelperTextStyle}"/>
 
-            <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0" CornerRadius="8" Background="{StaticResource PanelSurface}" BorderBrush="{StaticResource BorderSubtle}" BorderThickness="1" Click="SystemProxy_Click">
-                <Grid Padding="16">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-                    <FontIcon Glyph="&#xE72E;" Foreground="{StaticResource TextSecondary}" FontSize="18" VerticalAlignment="Top" Margin="0,2,12,0"/>
-                    <StackPanel Grid.Column="1">
-                        <TextBlock Text="跟随系统" FontWeight="SemiBold" Foreground="{StaticResource TextMain}" Margin="0,0,0,6"/>
-                        <TextBlock Text="使用电脑默认网络设置。如果不确定，或者需要代理才能访问该网址，请选择此项。" Foreground="{StaticResource TextSecondary}" FontSize="13" TextWrapping="Wrap" LineHeight="20"/>
-                    </StackPanel>
-                </Grid>
-            </Button>
-            
-            <Button Content="取消" HorizontalAlignment="Center" Margin="0,12,0,0" Style="{StaticResource SubtleActionButtonStyle}" Click="Cancel_Click"/>
-        </StackPanel>
+        <Button Grid.Row="1" Style="{StaticResource DialogChoiceButtonStyle}"
+                BorderBrush="{ThemeResource AccentSafe}" Click="Domestic_Click"
+                AutomationProperties.Name="使用国内直连">
+            <Grid Padding="14,12" ColumnSpacing="10">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                <FontIcon Glyph="&#xE909;" Foreground="{ThemeResource AccentSafe}" FontSize="16" VerticalAlignment="Top"/>
+                <StackPanel Grid.Column="1" Spacing="3">
+                    <TextBlock Text="国内直连（推荐）" FontWeight="SemiBold" Foreground="{ThemeResource AccentSafe}"/>
+                    <TextBlock Text="绕过全局代理，适用于国内服务器，可避免代理拦截。"
+                               Style="{StaticResource DialogHelperTextStyle}"/>
+                </StackPanel>
+            </Grid>
+        </Button>
+
+        <Button Grid.Row="2" Style="{StaticResource DialogChoiceButtonStyle}"
+                Click="SystemProxy_Click" AutomationProperties.Name="跟随系统网络设置">
+            <Grid Padding="14,12" ColumnSpacing="10">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                <FontIcon Glyph="&#xE72E;" Foreground="{ThemeResource TextSecondary}" FontSize="16" VerticalAlignment="Top"/>
+                <StackPanel Grid.Column="1" Spacing="3">
+                    <TextBlock Text="跟随系统" FontWeight="SemiBold"/>
+                    <TextBlock Text="使用 Windows 当前网络和代理设置。无法确定时选择此项。"
+                               Style="{StaticResource DialogHelperTextStyle}"/>
+                </StackPanel>
+            </Grid>
+        </Button>
+
+        <Button Grid.Row="3" Content="取消" HorizontalAlignment="Right"
+                Style="{StaticResource SubtleActionButtonStyle}" Click="Cancel_Click"/>
     </Grid>
 </ContentDialog>
