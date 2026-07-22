@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Text.Json.Serialization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.UI.Xaml;
@@ -105,17 +105,17 @@ namespace BlueSapphire.Models
         [JsonIgnore]
         public SolidColorBrush VersionGlowBrush => IsMajorRelease
             ? GetThemeBrush("AccentReview", Color.FromArgb(255, 251, 191, 36))
-            : GetThemeBrush("AccentCyan", Color.FromArgb(255, 34, 211, 238));
+            : GetThemeBrush("AccentPrimary", Color.FromArgb(255, 229, 150, 91));
 
         [JsonIgnore]
         public SolidColorBrush CardBackgroundBrush => IsMajorRelease
             ? GetThemeBrush("AccentReviewBg", Color.FromArgb(20, 251, 191, 36))
-            : GetThemeBrush("AccentCyanBg", Color.FromArgb(20, 34, 211, 238));
+            : GetThemeBrush("AccentPrimaryBg", Color.FromArgb(28, 184, 79, 43));
 
         [JsonIgnore]
         public SolidColorBrush CardBorderBrush => IsMajorRelease
             ? GetThemeBrush("AccentReview", Color.FromArgb(255, 251, 191, 36))
-            : GetThemeBrush("AccentCyan", Color.FromArgb(255, 34, 211, 238));
+            : GetThemeBrush("AccentPrimary", Color.FromArgb(255, 229, 150, 91));
 
         private static SolidColorBrush GetThemeBrush(string key, Color fallback)
         {

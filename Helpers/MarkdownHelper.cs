@@ -170,7 +170,7 @@ namespace BlueSapphire.Helpers
             {
                 var border = new Border
                 {
-                    Background = GetBrush("AccentCyanBg"),
+                    Background = GetBrush("AccentPrimaryBg"),
                     CornerRadius = new CornerRadius(4),
                     Padding = new Thickness(4, 0, 4, 0),
                     Margin = new Thickness(2, 0, 2, 0),
