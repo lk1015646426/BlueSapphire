@@ -1,6 +1,6 @@
 # UI Theme and Shell Consolidation Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 将剩余 WinUI 主题、应用外壳、设置、媒体、更新日志和对话框重构整理为依赖闭合、可独立构建和可视觉验证的提交。
 
@@ -79,7 +79,7 @@
 **Files:**
 - Create: `scripts/verify-ui-slice.ps1`
 
-- [ ] **Step 1: Create verifier from the proven AI verifier**
+- [x] **Step 1: Create verifier from the proven AI verifier**
 
 ```powershell
 Copy-Item scripts\verify-ai-slice.ps1 scripts\verify-ui-slice.ps1
@@ -93,7 +93,7 @@ Change the default filter to an empty string so every UI slice runs the full sui
 
 The script must retain short `C:\bsw` paths, staged-patch application, restore, tests, no-incremental build and cleanup failure detection.
 
-- [ ] **Step 2: Verify empty-index rejection and syntax**
+- [x] **Step 2: Verify empty-index rejection and syntax**
 
 ```powershell
 $caught = $null
@@ -108,7 +108,7 @@ $errors = $null
 if ($errors.Count -gt 0) { $errors; throw 'UI 验证脚本语法失败' }
 ```
 
-- [ ] **Step 3: Commit verifier**
+- [x] **Step 3: Commit verifier**
 
 ```powershell
 git add -- scripts/verify-ui-slice.ps1
@@ -124,7 +124,7 @@ git commit -m "test: 添加 UI 切片隔离验证"
 
 **Interfaces:** Produces shared semantic resources, theme presets, font sizing and material fallback used by every page.
 
-- [ ] **Step 1: Verify theme resource uniqueness**
+- [x] **Step 1: Verify theme resource uniqueness**
 
 Run a Python check that extracts every `x:Key` from `Themes/SharedTheme.xaml`, fails on duplicate keys, and confirms these required keys exist:
 
@@ -135,7 +135,7 @@ AccentSafe, AccentReview, AccentInspect, AccentDanger,
 PrimaryActionButtonStyle, CompactButtonStyle, TextStyle_MetricLarge
 ```
 
-- [ ] **Step 2: Verify App theme presets**
+- [x] **Step 2: Verify App theme presets**
 
 Confirm `App.xaml.cs` contains exact preset branches for:
 
@@ -149,14 +149,14 @@ and exact UI font size values:
 small, standard, medium, large
 ```
 
-- [ ] **Step 3: Stage Slice A**
+- [x] **Step 3: Stage Slice A**
 
 ```powershell
 git add -- Themes/SharedTheme.xaml App.xaml.cs Helpers/AcrylicHelper.cs
 git diff --cached --check
 ```
 
-- [ ] **Step 4: Isolate and commit**
+- [x] **Step 4: Isolate and commit**
 
 ```powershell
 .\scripts\verify-ui-slice.ps1 -Name theme-foundation
@@ -173,7 +173,7 @@ If XAML compilation proves `SettingsPage` or `MainWindow` directly references a 
 
 **Interfaces:** Consumes Slice A theme API; produces navigation shell, theme settings, reduced motion and particle-free lifecycle.
 
-- [ ] **Step 1: Verify particle removal candidate**
+- [x] **Step 1: Verify particle removal candidate**
 
 After staging, this source search must return no results:
 
@@ -181,7 +181,7 @@ After staging, this source search must return no results:
 git grep --cached -n -E "Particle|ToggleParticleMessage|IsParticleEffectEnabled" -- '*.cs' '*.xaml'
 ```
 
-- [ ] **Step 2: Stage Slice B**
+- [x] **Step 2: Stage Slice B**
 
 ```powershell
 git add -- MainWindow.xaml MainWindow.xaml.cs SettingsPage.xaml SettingsPage.xaml.cs Models/AppMessages.cs
@@ -189,7 +189,7 @@ git add -u -- Particle.cs
 git diff --cached --check
 ```
 
-- [ ] **Step 3: Verify shell safety properties**
+- [x] **Step 3: Verify shell safety properties**
 
 Confirm the staged source contains:
 
@@ -200,7 +200,7 @@ Confirm the staged source contains:
 - `ReduceMotion` save and immediate state update;
 - theme preset and font size event handlers.
 
-- [ ] **Step 4: Isolate and commit**
+- [x] **Step 4: Isolate and commit**
 
 ```powershell
 .\scripts\verify-ui-slice.ps1 -Name shell-settings
@@ -215,17 +215,17 @@ git commit -m "feat: 重建应用外壳与外观设置"
 
 **Interfaces:** Produces themed, responsive page layouts without changing media or dev-log business behavior.
 
-- [ ] **Step 1: Run nearest service/ViewModel tests**
+- [x] **Step 1: Run nearest service/ViewModel tests**
 
 ```powershell
 dotnet test BlueSapphire.Tests\BlueSapphire.Tests.csproj --no-restore -v:minimal --filter "FullyQualifiedName~Media|FullyQualifiedName~DevLog|FullyQualifiedName~Markdown"
 ```
 
-- [ ] **Step 2: Verify page resource closure**
+- [x] **Step 2: Verify page resource closure**
 
 Extract every `StaticResource` / `ThemeResource` from the Slice C XAML files and confirm each key is defined in the page, `App.xaml` or committed `SharedTheme.xaml`.
 
-- [ ] **Step 3: Stage, isolate and commit**
+- [x] **Step 3: Stage, isolate and commit**
 
 ```powershell
 git add -- MediaManagerPage.xaml Views/DevLogPage.xaml Views/DevLogInputDialog.xaml Models/DevLogItem.cs Helpers/MarkdownHelper.cs
@@ -242,17 +242,17 @@ git commit -m "feat: 统一媒体与更新日志界面"
 
 **Interfaces:** Produces one visual/interaction vocabulary for all transient workflows while preserving input/output behavior.
 
-- [ ] **Step 1: Run relevant media tests**
+- [x] **Step 1: Run relevant media tests**
 
 ```powershell
 dotnet test BlueSapphire.Tests\BlueSapphire.Tests.csproj --no-restore -v:minimal --filter "FullyQualifiedName~MediaRename|FullyQualifiedName~MediaDeduplication|FullyQualifiedName~Media"
 ```
 
-- [ ] **Step 2: Verify dialog accessibility**
+- [x] **Step 2: Verify dialog accessibility**
 
 For each icon-only button, require `AutomationProperties.Name` or visible text. Verify primary/cancel actions are present and dangerous actions include explanatory text.
 
-- [ ] **Step 3: Stage, isolate and commit**
+- [x] **Step 3: Stage, isolate and commit**
 
 ```powershell
 $dialogs = @(
@@ -276,19 +276,19 @@ git commit -m "feat: 统一工作台对话框体验"
 
 ### Task 6: Perform code and design review
 
-- [ ] **Step 1: Review resource ownership**
+- [x] **Step 1: Review resource ownership**
 
 Confirm pages use shared semantic resources, no duplicate local palette, no missing theme keys and no circular aliases.
 
-- [ ] **Step 2: Review responsive behavior**
+- [x] **Step 2: Review responsive behavior**
 
 Confirm navigation and multi-column pages have explicit width behavior. Add RED source/XAML tests for concrete missing breakpoints or inaccessible controls before fixing them.
 
-- [ ] **Step 3: Review accessibility and motion**
+- [x] **Step 3: Review accessibility and motion**
 
 Check keyboard focus, automation names, visible disabled states, non-color status cues and reduced-motion paths. Add focused regression tests for concrete defects.
 
-- [ ] **Step 4: Commit review fixes separately**
+- [x] **Step 4: Commit review fixes separately**
 
 ```powershell
 git commit -m "fix: 加固 WinUI 响应式与可访问性"
@@ -302,11 +302,11 @@ Skip only when no production defect is found.
 
 **Outputs:** ignored files under `artifacts/ui-verification/`.
 
-- [ ] **Step 1: Build Debug and launch target pages**
+- [x] **Step 1: Build Debug and launch target pages**
 
 Use `--tool=Home`, `--tool=MediaManager`, `--tool=CleanerAssistant` and normal Settings/DevLog navigation where supported.
 
-- [ ] **Step 2: Resize the real window**
+- [x] **Step 2: Resize the real window**
 
 Use Win32 `SetWindowPos` for:
 
@@ -316,11 +316,11 @@ Use Win32 `SetWindowPos` for:
 900×700 narrow
 ```
 
-- [ ] **Step 3: Capture screenshots**
+- [x] **Step 3: Capture screenshots**
 
 Use `GetWindowRect` and `System.Drawing.Graphics.CopyFromScreen` to save PNGs for Home, Media, Cleaner, Settings and DevLog. Capture at least one light theme, one dark theme, one alternate preset and one large-font state.
 
-- [ ] **Step 4: Inspect screenshots**
+- [x] **Step 4: Inspect screenshots**
 
 Use visual inspection to verify:
 
@@ -339,7 +339,7 @@ If a screenshot reveals a defect, reproduce it with exact size/theme settings, a
 
 **Files:** Slice E.
 
-- [ ] **Step 1: Run full tests with history guard**
+- [x] **Step 1: Run full tests with history guard**
 
 ```powershell
 $hashBefore = (Get-FileHash -Algorithm SHA256 Assets\DevMatrixLog.json).Hash
@@ -348,11 +348,11 @@ $hashAfter = (Get-FileHash -Algorithm SHA256 Assets\DevMatrixLog.json).Hash
 if ($hashBefore -ne $hashAfter) { throw '测试修改了 DevMatrixLog.json' }
 ```
 
-- [ ] **Step 2: Verify clean committed HEAD independently**
+- [x] **Step 2: Verify clean committed HEAD independently**
 
 Create `$finalPath = 'C:\bsw\ui_final_' + [Guid]::NewGuid().ToString('N').Substring(0, 8)` at `HEAD`, run restore, full test and Debug no-incremental build, then remove it normally.
 
-- [ ] **Step 3: Run current Debug and Release builds**
+- [x] **Step 3: Run current Debug and Release builds**
 
 ```powershell
 dotnet build BlueSapphire.slnx --no-incremental --no-restore -v:minimal
@@ -361,7 +361,7 @@ dotnet build BlueSapphire.slnx -c Release --no-incremental --no-restore -v:minim
 
 Expected: both 0 warnings, 0 errors.
 
-- [ ] **Step 4: Update and commit UI documentation**
+- [x] **Step 4: Update and commit UI documentation**
 
 ```powershell
 git add -- UI_REDESIGN_SPEC.md UI_REDESIGN_AUDIT.md UI_REDESIGN_CHANGELOG.md DESIGN.md DESIGN_LANGUAGE.md README.md docs/superpowers/plans/2026-07-22-ui-theme-shell-consolidation.md
@@ -371,7 +371,7 @@ git commit -m "docs: 记录全局 UI 重构验收结果"
 
 Only mark sizes, themes and dialogs verified when screenshots or real-window checks exist.
 
-- [ ] **Step 5: Final process and boundary audit**
+- [x] **Step 5: Final process and boundary audit**
 
 Leave one final verified x64 instance running. Then verify:
 
@@ -390,3 +390,18 @@ Expected:
 - all UI design documents tracked;
 - local collaboration configuration remains explicitly untracked or separately classified;
 - final app has nonzero handle and `Responding=True`.
+
+
+---
+
+## 2026-07-22 Actual Results
+
+- Slice verifier: `ce29251`; empty-index rejection and PowerShell syntax verified.
+- Theme foundation: `533f410`, isolated 220/220 tests, Debug no-incremental build 0 warnings/0 errors.
+- Shell/settings: `b310a03`, isolated 223/223 tests, particle source search empty, Debug no-incremental build 0 warnings/0 errors.
+- Primary pages: `ba7ce98`, isolated 226/226 tests, resource closure test passed.
+- Dialogs: `75a61d8`, isolated 229/229 tests, dialog resource/accessibility contract passed.
+- Responsive/accessibility review: `e6806fb`, `fea2550`, `2e361a0`; final isolated review 233/233 tests and 0-warning build.
+- Final current-worktree verification: 233/233 tests; x64 Debug and Release no-incremental builds both 0 warnings/0 errors.
+- Visual evidence: 1600×900, 1280×800, 900×700; Dark/Light, Default/Sky/Ochre/Sepia, standard/large font and reduced-motion states.
+- History guard: `Assets/DevMatrixLog.json` remained `A9460CC2C03CFED65B36BE74E91D5CD2FBACD978D4243F8E6EFB9C81EBB64FEC`.
