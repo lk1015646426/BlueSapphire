@@ -42,7 +42,7 @@
 | 遥测状态 | 保存后显示服务实际端点和上传状态 | 状态同步 | 通过 |
 | 关闭窗口 | 运行中取消后台任务，窗口可关闭 | 真实窗口 | 通过 |
 | 构建质量 | `--no-incremental` 0 警告、0 错误 | 构建 | 通过 |
-| 全量回归 | 不少于 131 项，100% 通过 | 测试 | 完整工作树 216/216；Cleaner 独立提交 205/205 通过 |
+| 全量回归 | 不少于 131 项，100% 通过 | 测试 | 完整工作树 217/217；Cleaner 独立提交 206/206 通过 |
 
 ## 发布门禁
 
@@ -53,13 +53,13 @@
 - 矩阵存在“待最终验证”或“失败”时，不得宣称清理助手全部完成。
 ## 2026-07-22 收口证据
 
-- Cleaner 聚焦回归：101/101 通过，0 失败。
-- 完整工作树全量回归：216/216 通过，0 失败。
-- 仅包含已提交 Cleaner 安全闭包的临时工作树：205/205 通过，0 失败；无增量构建 0 警告、0 错误。
+- Cleaner 聚焦回归：102/102 通过，0 失败。
+- 完整工作树全量回归：217/217 通过，0 失败。
+- 仅包含已提交 Cleaner 安全闭包的临时工作树：206/206 通过，0 失败；无增量构建 0 警告、0 错误。
 - 扫描/执行初始切片在隔离工作树中暴露 `CleanerStateStore` 对 `CleanerExecutionService.CurrentAccountingVersion` 的直接依赖，因此按编译证据合并为同一安全闭包，不把偶然可编译当作独立提交。
 - 协调/ViewModel 初始切片在隔离工作树中暴露 `ICleanerAssistantViewInteraction` 与页面实现的直接依赖；加入 Cleaner 页面后又暴露 `DonutChart` 统计签名依赖，最终作为同一工作流/UI 闭包验证通过。
 - 当前完整工作树的无增量构建：0 警告、0 错误。
-- 真实 x64 Release Cleaner 窗口：句柄 `2363504`，`Responding=True`，正常关闭成功，退出码 0。
+- 真实 x64 Release Cleaner 窗口：Release 句柄 `2363504`，`Responding=True`，正常关闭成功，退出码 0；最终 Debug 验证实例句柄 `3673690`、`Responding=True`，按项目约定保持运行。
 - `Assets/DevMatrixLog.json` 在 Cleaner 聚焦测试和全量测试前后 SHA-256 均为 `A9460CC2C03CFED65B36BE74E91D5CD2FBACD978D4243F8E6EFB9C81EBB64FEC`。
 
 ## AI Provider 提交边界
@@ -71,3 +71,7 @@ Cleaner AI 动作 Provider 已在完整工作树通过 2/2 专项测试，但其
 - 未实际删除 Windows Update、Delivery Optimization 或其他系统目录内容；只验证固定、隐藏、非交互的系统命令构造和执行边界。
 - 未在真实跨卷硬盘环境执行大规模隔离、恢复或永久删除；跨卷行为仍以受控临时文件系统测试为证据。
 - 未对用户真实缓存目录执行清理；文件系统验收仅使用测试临时目录。
+
+### 最终代码审查修复
+
+代码审查发现 CleanerOperationCoordinator.StateChanged 订阅者异常会从 TryAcquire 逸出，使已获得的租约无法交还调用方并可能长期保持忙碌。新增 RED 测试 ThrowingStateChangedSubscriber_DoesNotLeakOperationLease 后，将状态通知改为逐订阅者隔离；聚焦测试 3/3、最近工作流测试 24/24、隔离工作树测试和构建均通过。

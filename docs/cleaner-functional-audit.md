@@ -199,12 +199,16 @@ P0～P3 表示功能范围已经实现，不再等同于“真实用户流程已
 
 ### 当前验证
 
-- Cleaner 聚焦测试：101/101 通过。
-- 完整工作树全量测试：216/216 通过。
-- 已提交 Cleaner 独立快照全量测试：205/205 通过。
-- 真实 x64 Release Cleaner 窗口可响应并正常关闭，句柄 `2363504`，退出码 0。
+- Cleaner 聚焦测试：102/102 通过。
+- 完整工作树全量测试：217/217 通过。
+- 已提交 Cleaner 独立快照全量测试：206/206 通过。
+- 真实 x64 Release Cleaner 窗口可响应并正常关闭，句柄 `2363504`，退出码 0；最终 Debug 验证实例句柄 `3673690`、`Responding=True`，保持运行。
 - 开发日志源码哈希保持不变。
 
 ### 延后范围
 
 `CleanerAIToolActionProvider` 在完整工作树中通过专项测试，但依赖通用 AI action 接口、处理器注册表和 App 注册，按产品边界延后到 AI 架构收口阶段，不复制 Cleaner 私有版通用接口。
+
+### 最终代码审查修复
+
+代码审查发现 CleanerOperationCoordinator.StateChanged 订阅者异常会从 TryAcquire 逸出，使已获得的租约无法交还调用方并可能长期保持忙碌。新增 RED 测试 ThrowingStateChangedSubscriber_DoesNotLeakOperationLease 后，将状态通知改为逐订阅者隔离；聚焦测试 3/3、最近工作流测试 24/24、隔离工作树测试和构建均通过。

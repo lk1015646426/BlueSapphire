@@ -113,11 +113,11 @@
 
 | 原任务 | 当前状态 | 直接证据 |
 |---|---|---|
-| 自动保洁只执行可恢复动作 | 完成 | `AutomaticCleanup_LeavesLowRiskPermanentItemsForManualReview` 已存在；Cleaner 聚焦测试 101/101 通过 |
+| 自动保洁只执行可恢复动作 | 完成 | `AutomaticCleanup_LeavesLowRiskPermanentItemsForManualReview` 已存在；Cleaner 聚焦测试 102/102 通过 |
 | 统一操作协调器 | Cleaner 核心完成；AI Provider 提交延后 | 协调器/ViewModel 测试 23 项通过；同名协调器互斥测试通过；Provider 在完整工作树 2/2 通过 |
 | 取消后保存部分恢复、清空和重试结果 | 完成 | 三个部分完成后取消的真实文件系统测试均通过 |
 | 禁止 Debug 运行数据覆盖源码 | 完成 | 开发日志历史保护提交已完成；全量测试前后源码 SHA-256 不变 |
-| 全量验证与事实文档 | 完成 | Cleaner 101/101；完整工作树 216/216；Cleaner 独立快照 205/205；Debug 与 Release 构建均 0 警告、0 错误；Release 窗口正常启动和关闭 |
+| 全量验证与事实文档 | 完成 | Cleaner 102/102；完整工作树 217/217；Cleaner 独立快照 206/206；Debug 与 Release 构建均 0 警告、0 错误；Release 窗口正常启动和关闭 |
 
 ### 未重新制造的 RED 证据
 
@@ -135,3 +135,7 @@
 3. 页面切片缺少新版 `DonutChart` 统计签名。
 
 这些依赖按编译证据合并，最终候选闭包均独立测试和构建通过。
+
+### 最终代码审查修复
+
+代码审查发现 CleanerOperationCoordinator.StateChanged 订阅者异常会从 TryAcquire 逸出，使已获得的租约无法交还调用方并可能长期保持忙碌。新增 RED 测试 ThrowingStateChangedSubscriber_DoesNotLeakOperationLease 后，将状态通知改为逐订阅者隔离；聚焦测试 3/3、最近工作流测试 24/24、隔离工作树测试和构建均通过。
