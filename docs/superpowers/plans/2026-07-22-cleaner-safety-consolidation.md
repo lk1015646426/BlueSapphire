@@ -1,6 +1,6 @@
 # Cleaner Safety Consolidation Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 将当前 Cleaner 安全重构整理为依赖闭合、可独立构建、可回滚的提交，并重新验证扫描、清理、恢复、取消、共享互斥和空间统计。
 
@@ -94,7 +94,7 @@
 - Consumes: 当前 Git 暂存区中的完整候选切片。
 - Produces: 只有补丁可应用、restore 成功、指定测试通过且无增量构建成功时才返回 0。
 
-- [ ] **Step 1: Create the verifier**
+- [x] **Step 1: Create the verifier**
 
 Create `scripts/verify-cleaner-slice.ps1`:
 
@@ -156,7 +156,7 @@ finally {
 }
 ```
 
-- [ ] **Step 2: Prove empty-index rejection**
+- [x] **Step 2: Prove empty-index rejection**
 
 ```powershell
 .\scripts\verify-cleaner-slice.ps1 -Name empty-index-check
@@ -164,7 +164,7 @@ finally {
 
 Expected: FAIL with `Git 暂存区为空，无法验证候选切片。`
 
-- [ ] **Step 3: Syntax-check and commit**
+- [x] **Step 3: Syntax-check and commit**
 
 ```powershell
 $tokens = $null
@@ -191,7 +191,7 @@ Expected staged file exactly `scripts/verify-cleaner-slice.ps1`.
 
 **Interfaces:** Produces selected-drive snapshot behavior, stable risk baseline, application context, state migration and accounting fields used by later slices.
 
-- [ ] **Step 1: Run focused baseline tests**
+- [x] **Step 1: Run focused baseline tests**
 
 ```powershell
 $devLogHash = (Get-FileHash -Algorithm SHA256 Assets\DevMatrixLog.json).Hash
@@ -204,7 +204,7 @@ dotnet test BlueSapphire.Tests\BlueSapphire.Tests.csproj --no-restore -v:minimal
 
 Expected: all selected tests pass.
 
-- [ ] **Step 2: Stage exact Slice A candidate**
+- [x] **Step 2: Stage exact Slice A candidate**
 
 ```powershell
 $sliceA = @(
@@ -234,7 +234,7 @@ git diff --cached --name-only
 git diff --cached --check
 ```
 
-- [ ] **Step 3: Verify dependency closure**
+- [x] **Step 3: Verify dependency closure**
 
 ```powershell
 .\scripts\verify-cleaner-slice.ps1 -Name scan-rules -TestFilter "FullyQualifiedName~CleanerScanServiceTests|FullyQualifiedName~CleanerRiskEvaluatorTests|FullyQualifiedName~CleanerStateStoreTests|FullyQualifiedName~CleanerDriveOptionTests|FullyQualifiedName~CleanerApplicationDiscoveryServiceTests|FullyQualifiedName~CleanerRuleServiceTests|FullyQualifiedName~CleanerOrphanResidueServiceTests|FullyQualifiedName~CleanerModelBehaviorTests"
@@ -250,7 +250,7 @@ rg -n "(class|record|enum)" Models Services ViewModels
 
 Add only that declaring file and its direct tests. If it belongs to Slice B or C and changes behavior, merge only the adjacent dependent slice and record the exact compiler error in the execution result. Do not add AI, media or theme files.
 
-- [ ] **Step 4: Commit and re-test**
+- [x] **Step 4: Commit and re-test**
 
 ```powershell
 git diff --cached --check
@@ -267,7 +267,7 @@ Run the Step 1 filter again. Expected: all pass and `DevMatrixLog.json` hash rem
 
 **Interfaces:** Consumes Slice A models/state/path safety; produces permanent, quarantine and system execution paths with separated released/recoverable accounting.
 
-- [ ] **Step 1: Verify required regression scenarios exist**
+- [x] **Step 1: Verify required regression scenarios exist**
 
 ```powershell
 $required = @(
@@ -285,7 +285,7 @@ foreach ($name in $required) {
 }
 ```
 
-- [ ] **Step 2: Run execution tests**
+- [x] **Step 2: Run execution tests**
 
 ```powershell
 dotnet test BlueSapphire.Tests\BlueSapphire.Tests.csproj --no-restore -v:minimal --filter "FullyQualifiedName~CleanerExecutionServiceTests|FullyQualifiedName~CleanerSystemCleanupServiceTests|FullyQualifiedName~CleanerP0AcceptanceTests"
@@ -293,7 +293,7 @@ dotnet test BlueSapphire.Tests\BlueSapphire.Tests.csproj --no-restore -v:minimal
 
 Expected: all selected tests pass. Existing user fixes are regression capture; do not revert them merely to manufacture RED.
 
-- [ ] **Step 3: Stage, isolate and commit**
+- [x] **Step 3: Stage, isolate and commit**
 
 ```powershell
 $sliceB = @(
@@ -318,7 +318,7 @@ git commit -m "fix: 收口 Cleaner 执行恢复与空间统计"
 
 **Interfaces:** Consumes Slice A/B services; produces one shared operation owner and accurate command availability.
 
-- [ ] **Step 1: Run coordinator and ViewModel tests**
+- [x] **Step 1: Run coordinator and ViewModel tests**
 
 ```powershell
 dotnet test BlueSapphire.Tests\BlueSapphire.Tests.csproj --no-restore -v:minimal --filter "FullyQualifiedName~CleanerOperationCoordinatorTests|FullyQualifiedName~CleanerAssistantViewModelTests|FullyQualifiedName~CleanerCleanupViewModelTests"
@@ -326,7 +326,7 @@ dotnet test BlueSapphire.Tests\BlueSapphire.Tests.csproj --no-restore -v:minimal
 
 Expected: all pass, including automatic cleanup leaving low-risk permanent items for manual review.
 
-- [ ] **Step 2: Stage a Cleaner-only `App.xaml.cs` blob**
+- [x] **Step 2: Stage a Cleaner-only `App.xaml.cs` blob**
 
 ```powershell
 $tempApp = Join-Path $env:TEMP ('BlueSapphire_App_Cleaner_' + [Guid]::NewGuid().ToString('N') + '.cs')
@@ -349,7 +349,7 @@ $appBlob = (& git hash-object -w $tempApp).Trim()
 Remove-Item -LiteralPath $tempApp -Force
 ```
 
-- [ ] **Step 3: Stage Slice C and isolate**
+- [x] **Step 3: Stage Slice C and isolate**
 
 ```powershell
 $sliceC = @(
@@ -374,7 +374,7 @@ git diff --cached --check
 
 Expected: staged files are `App.xaml.cs` plus Slice C; isolated tests/build pass.
 
-- [ ] **Step 4: Commit and preserve unrelated App changes**
+- [x] **Step 4: Commit and preserve unrelated App changes**
 
 ```powershell
 git commit -m "fix: 统一 Cleaner 操作协调和工作流状态"
@@ -392,13 +392,13 @@ Expected: current broad AI/theme App modifications remain visible and uncommitte
 
 **Interfaces:** Consumes Slice C command availability and view interaction contract; produces compiled controls whose enabled state matches the operation gate.
 
-- [ ] **Step 1: Stage Cleaner page files**
+- [x] **Step 1: Stage Cleaner page files**
 
 ```powershell
 git add -- CleanerAssistantPage.xaml CleanerAssistantPage.xaml.cs
 ```
 
-- [ ] **Step 2: Stage a minimal theme blob from HEAD**
+- [x] **Step 2: Stage a minimal theme blob from HEAD**
 
 Current Cleaner XAML requires three resources absent from `HEAD`: `AccentPrimary`, `AccentPrimaryBg`, `TextStyle_MetricLarge`.
 
@@ -427,7 +427,7 @@ $themeBlob = (& git hash-object -w $tempTheme).Trim()
 Remove-Item -LiteralPath $tempTheme -Force
 ```
 
-- [ ] **Step 3: Isolate and commit UI**
+- [x] **Step 3: Isolate and commit UI**
 
 ```powershell
 git diff --cached --check
@@ -435,7 +435,7 @@ git diff --cached --check
 git commit -m "fix: 完成 Cleaner 安全界面接线"
 ```
 
-- [ ] **Step 4: Preserve the broad theme redesign**
+- [x] **Step 4: Preserve the broad theme redesign**
 
 ```powershell
 git status --short -- Themes/SharedTheme.xaml
@@ -450,13 +450,13 @@ Expected: unrelated global theme changes remain uncommitted.
 
 **Files:** Inspect only unless isolated build proves a direct dependency.
 
-- [ ] **Step 1: Search direct references**
+- [x] **Step 1: Search direct references**
 
 ```powershell
 rg -n "CleanerAIToolActionProvider|IAIToolActionProvider|AIToolActionHandlerRegistry" App.xaml.cs CleanerAssistantPage.xaml.cs Models Services ViewModels --glob '*.cs'
 ```
 
-- [ ] **Step 2: Run provider tests in the complete worktree**
+- [x] **Step 2: Run provider tests in the complete worktree**
 
 ```powershell
 dotnet test BlueSapphire.Tests\BlueSapphire.Tests.csproj --no-restore -v:minimal --filter "FullyQualifiedName~CleanerAIToolActionProviderTests"
@@ -464,7 +464,7 @@ dotnet test BlueSapphire.Tests\BlueSapphire.Tests.csproj --no-restore -v:minimal
 
 Expected: provider tests pass, while core Cleaner commits remain independent of the uncommitted provider.
 
-- [ ] **Step 3: Record the deferral**
+- [x] **Step 3: Record the deferral**
 
 Add this factual statement to `docs/cleaner-workflow-acceptance.md`:
 
@@ -480,7 +480,7 @@ If isolated build proves a direct dependency, create a separate dependency-close
 
 **Files:** Cleaner facts, acceptance and P0 execution plan documents.
 
-- [ ] **Step 1: Run Cleaner-focused tests**
+- [x] **Step 1: Run Cleaner-focused tests**
 
 ```powershell
 $sourceHashBefore = (Get-FileHash -Algorithm SHA256 Assets\DevMatrixLog.json).Hash
@@ -489,7 +489,7 @@ dotnet test BlueSapphire.Tests\BlueSapphire.Tests.csproj --no-restore -v:minimal
 
 Expected: at least 101 passed, 0 failed.
 
-- [ ] **Step 2: Run full tests and verify history hash**
+- [x] **Step 2: Run full tests and verify history hash**
 
 ```powershell
 dotnet test BlueSapphire.Tests\BlueSapphire.Tests.csproj --no-restore -v:minimal
@@ -499,7 +499,7 @@ if ($sourceHashBefore -ne $sourceHashAfter) { throw '测试修改了 DevMatrixLo
 
 Expected: at least 216 passed, 0 failed, hash unchanged.
 
-- [ ] **Step 3: Run no-incremental build**
+- [x] **Step 3: Run no-incremental build**
 
 ```powershell
 dotnet build BlueSapphire.slnx --no-incremental --no-restore -v:minimal
@@ -507,7 +507,7 @@ dotnet build BlueSapphire.slnx --no-incremental --no-restore -v:minimal
 
 Expected: 0 warnings, 0 errors.
 
-- [ ] **Step 4: Launch and normally close Cleaner**
+- [x] **Step 4: Launch and normally close Cleaner**
 
 ```powershell
 $exe = Resolve-Path 'bin\x64\Debug\net8.0-windows10.0.19041.0\win-x64\BlueSapphire.exe'
@@ -532,11 +532,11 @@ finally {
 }
 ```
 
-- [ ] **Step 5: Update documents with exact evidence**
+- [x] **Step 5: Update documents with exact evidence**
 
 Replace stale `201/201` and unchecked P0 steps with actual current counts and commands. Do not mark real system-directory deletion or unavailable cross-volume hardware paths as executed.
 
-- [ ] **Step 6: Commit evidence documents**
+- [x] **Step 6: Commit evidence documents**
 
 ```powershell
 git add -- docs/cleaner-functional-audit.md docs/cleaner-workflow-acceptance.md docs/superpowers/plans/2026-07-19-cleaner-p0-safety.md
@@ -544,7 +544,7 @@ git diff --cached --check
 git commit -m "docs: 更新 Cleaner 真实验收记录"
 ```
 
-- [ ] **Step 7: Final boundary audit**
+- [x] **Step 7: Final boundary audit**
 
 ```powershell
 git log --oneline --decorate origin/master..HEAD
@@ -560,3 +560,33 @@ Expected:
 - Cleaner AI provider is explicitly deferred or has its own dependency-closed commit;
 - Media and broad theme/UI changes remain outside Cleaner commits;
 - no staged files remain.
+---
+
+## Execution Result (2026-07-22)
+
+### Dependency closure decisions
+
+- Slice A initially failed in isolation because `CleanerStateStore` directly referenced `CleanerExecutionService.CurrentAccountingVersion`; Slice A and B were therefore merged by compiler evidence into commit `93efc13`.
+- Slice C initially failed because the old page did not implement the expanded `ICleanerAssistantViewInteraction` contract.
+- After adding the Cleaner page, isolation exposed a direct dependency on the new `DonutChart` update signature; coordinator, ViewModel, Cleaner UI and DonutChart were merged into commit `0440804`.
+- `App.xaml.cs` committed only 3 Cleaner DI registrations. `Themes/SharedTheme.xaml` committed only `AccentPrimary`, `AccentPrimaryBg` and `TextStyle_MetricLarge`; broader user changes remain in the worktree.
+
+### Verification tool correction
+
+The first long `%TEMP%` worktree validated tests/build but Windows path length prevented directory cleanup. The verifier now uses `C:\bsw\<short-name>_<8-char-id>` and fails explicitly on cleanup errors. The corrected verifier completed focused tests, zero-warning build and cleanup successfully.
+
+### Code-review fix
+
+Inline review found that an exception thrown by a `CleanerOperationCoordinator.StateChanged` subscriber escaped `TryAcquire` after the lease had already been created, which could leak the operation gate. The new RED test `ThrowingStateChangedSubscriber_DoesNotLeakOperationLease` reproduced the failure. `NotifyStateChanged` now isolates each observer callback; coordinator tests 3/3 and nearest workflow tests 24/24 pass. The fix is commit `8f0f36f`.
+
+### Final evidence
+
+- Cleaner focused suite: 102/102 passed, 0 failed.
+- Complete user worktree suite: 217/217 passed, 0 failed.
+- Clean committed HEAD in a short isolated worktree: 206/206 passed, 0 failed; build 0 warnings and 0 errors.
+- Main worktree no-incremental Debug build: 0 warnings and 0 errors.
+- Main worktree Release build: 0 warnings and 0 errors.
+- Release Cleaner window: handle `2363504`, `Responding=True`, normal close, exit code 0.
+- Final Debug Cleaner verification instance: PID `36908`, handle `3673690`, `Responding=True`, intentionally left running.
+- `Assets/DevMatrixLog.json` SHA-256 remained `A9460CC2C03CFED65B36BE74E91D5CD2FBACD978D4243F8E6EFB9C81EBB64FEC`.
+- Cleaner AI action provider tests pass 2/2 in the complete worktree; provider/common AI dependency closure is deferred to the AI consolidation phase.
