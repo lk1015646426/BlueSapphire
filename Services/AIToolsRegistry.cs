@@ -349,6 +349,10 @@ namespace BlueSapphire.Services
                 }
                 return "未找到对应的指令。";
             }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 return $"执行指令失败: {ex.Message}";
