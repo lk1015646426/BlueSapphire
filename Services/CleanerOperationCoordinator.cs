@@ -85,10 +85,30 @@ public sealed class CleanerOperationCoordinator
             lease = new CleanerOperationLease(this, leaseId, operation);
         }
 
-        StateChanged?.Invoke(this, EventArgs.Empty);
+        NotifyStateChanged();
         return true;
     }
 
+    private void NotifyStateChanged()
+    {
+        EventHandler? handlers = StateChanged;
+        if (handlers == null)
+        {
+            return;
+        }
+
+        foreach (EventHandler handler in handlers.GetInvocationList())
+        {
+            try
+            {
+                handler(this, EventArgs.Empty);
+            }
+            catch
+            {
+                // 状态通知是观察性回调，订阅者故障不能泄漏操作租约。
+            }
+        }
+    }
     internal bool Owns(CleanerOperationLease lease)
     {
         lock (_sync)
@@ -117,7 +137,7 @@ public sealed class CleanerOperationCoordinator
 
         if (released)
         {
-            StateChanged?.Invoke(this, EventArgs.Empty);
+            NotifyStateChanged();
         }
     }
 }

@@ -39,4 +39,25 @@ public sealed class CleanerOperationCoordinatorTests
 
         Assert.Equal([true, false], states);
     }
-}
+
+    [Fact]
+    public void ThrowingStateChangedSubscriber_DoesNotLeakOperationLease()
+    {
+        string gateName = $"Local\\BlueSapphire.Tests.Cleaner.{Guid.NewGuid():N}";
+        var coordinator = new CleanerOperationCoordinator(gateName);
+        coordinator.StateChanged += (_, _) => throw new InvalidOperationException("subscriber failure");
+
+        bool acquired = coordinator.TryAcquire(
+            CleanerOperationKind.Scan,
+            out CleanerOperationLease? firstLease);
+
+        Assert.True(acquired);
+        Assert.NotNull(firstLease);
+        firstLease.Dispose();
+        Assert.False(coordinator.IsBusy);
+
+        Assert.True(coordinator.TryAcquire(
+            CleanerOperationKind.Cleanup,
+            out CleanerOperationLease? secondLease));
+        secondLease!.Dispose();
+    }}
