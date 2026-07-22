@@ -55,6 +55,57 @@ public sealed class AITaskCenterServiceTests : IDisposable
         Assert.Contains("不会自动续跑", restored.Summary);
     }
 
+    [Fact]
+    public void FlushAndDispose_FromUiLikeContext_DoesNotDeadlock()
+    {
+        using ManualResetEventSlim completed = new(false);
+        Exception? failure = null;
+        Thread thread = new(() =>
+        {
+            SynchronizationContext.SetSynchronizationContext(new NonPumpingSynchronizationContext());
+            try
+            {
+                var service = new AITaskCenterService(_root);
+                for (int index = 0; index < 40; index++)
+                {
+                    using AITaskLease task = service.Begin(
+                        "shutdown-test",
+                        $"任务 {index}",
+                        new string('x', 800),
+                        $"shutdown-{index}");
+                    service.Report(task.TaskId, 50, "处理中", new string('y', 800));
+                }
+
+                // 模拟 WinUI Closed 事件中的同步退出路径：即使当前上下文不再泵消息，也必须完成。
+                service.FlushAsync().GetAwaiter().GetResult();
+                service.Dispose();
+            }
+            catch (Exception ex)
+            {
+                failure = ex;
+            }
+            finally
+            {
+                completed.Set();
+            }
+        })
+        {
+            IsBackground = true
+        };
+
+        thread.Start();
+        Assert.True(completed.Wait(TimeSpan.FromSeconds(5)), "退出保存不应等待 UI SynchronizationContext。");
+        Assert.Null(failure);
+    }
+
+    private sealed class NonPumpingSynchronizationContext : SynchronizationContext
+    {
+        public override void Post(SendOrPostCallback d, object? state)
+        {
+            // 模拟窗口已进入关闭阶段、不再处理派发消息的 UI 上下文。
+        }
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))

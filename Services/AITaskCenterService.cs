@@ -246,7 +246,7 @@ namespace BlueSapphire.Services
                 };
             }
 
-            await _saveGate.WaitAsync();
+            await _saveGate.WaitAsync().ConfigureAwait(false);
             try
             {
                 string tempPath = _statePath + ".tmp";
@@ -255,7 +255,7 @@ namespace BlueSapphire.Services
                 {
                     return;
                 }
-                await File.WriteAllBytesAsync(tempPath, data);
+                await File.WriteAllBytesAsync(tempPath, data).ConfigureAwait(false);
                 File.Move(tempPath, _statePath, true);
             }
             catch
@@ -386,7 +386,9 @@ namespace BlueSapphire.Services
             {
                 return;
             }
-            try { SaveAsync().GetAwaiter().GetResult(); } catch { }
+
+            // 先阻止延迟保存任务继续进入，再完成最后一次落盘。
+            // SaveAsync 内部不捕获 UI SynchronizationContext，避免窗口关闭线程同步等待时死锁。
             _disposed = true;
             foreach (CancellationTokenSource cts in _cancellations.Values)
             {
@@ -394,6 +396,7 @@ namespace BlueSapphire.Services
                 cts.Dispose();
             }
             _cancellations.Clear();
+            try { SaveAsync().ConfigureAwait(false).GetAwaiter().GetResult(); } catch { }
             _saveGate.Dispose();
         }
     }

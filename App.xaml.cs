@@ -238,10 +238,10 @@ namespace BlueSapphire
 
             // 注册工具
             services.AddTransient<HomeTool>();
-            services.AddTransient<MediaManagerTool>();
-            services.AddTransient<CleanerAssistantTool>();
-            services.AddTransient<BlueSapphire.Tools.AICopilotTool>();
-            services.AddTransient<BlueSapphire.Tools.AITaskCenterTool>();
+            services.AddSingleton<MediaManagerTool>();
+            services.AddSingleton<CleanerAssistantTool>();
+            services.AddSingleton<BlueSapphire.Interfaces.IAIToolCapabilityProvider>(sp => sp.GetRequiredService<MediaManagerTool>());
+            services.AddSingleton<BlueSapphire.Interfaces.IAIToolCapabilityProvider>(sp => sp.GetRequiredService<CleanerAssistantTool>());
             // ✅ 新增：注册我们的重命名业务服务 (使用 Singleton 单例即可，因为它是无状态的工具类)
             services.AddSingleton<BlueSapphire.Services.MediaRenameService>();
 
@@ -250,6 +250,7 @@ namespace BlueSapphire
 
             // 注册 AI 服务
             services.AddSingleton<BlueSapphire.Services.DeepSeekAIService>();
+            services.AddSingleton<BlueSapphire.Services.AIToolCapabilityCatalog>();
             services.AddSingleton<BlueSapphire.Services.AIToolsRegistry>();
             services.AddSingleton<BlueSapphire.Services.AIClassifierService>();
             services.AddSingleton<BlueSapphire.Services.AIChatHistoryService>();
@@ -258,6 +259,9 @@ namespace BlueSapphire
             services.AddSingleton<BlueSapphire.Services.AIPrivacyService>();
             services.AddSingleton<BlueSapphire.Services.AIOfflineIntentService>();
             services.AddSingleton<BlueSapphire.Services.AIMediaToolService>();
+            services.AddSingleton<BlueSapphire.Services.MediaAIToolActionProvider>();
+            services.AddSingleton<BlueSapphire.Interfaces.IAIToolActionProvider>(sp =>
+                sp.GetRequiredService<BlueSapphire.Services.MediaAIToolActionProvider>());
             services.AddSingleton<BlueSapphire.Services.AIDiagnosticsService>();
             services.AddSingleton<BlueSapphire.Services.AICleanerRuleDraftService>();
             services.AddSingleton<BlueSapphire.Services.AIInsightService>();
@@ -273,6 +277,9 @@ namespace BlueSapphire
             services.AddSingleton<BlueSapphire.Services.WebSkillManager>();
             services.AddSingleton<BlueSapphire.Services.AgentSkillManager>();
             services.AddSingleton<BlueSapphire.Services.CleanerRuleService>();
+            services.AddSingleton<BlueSapphire.Services.CleanerAIToolActionProvider>();
+            services.AddSingleton<BlueSapphire.Interfaces.IAIToolActionProvider>(sp =>
+                sp.GetRequiredService<BlueSapphire.Services.CleanerAIToolActionProvider>());
             services.AddSingleton<BlueSapphire.Services.CleanerStateStore>();
             services.AddSingleton<BlueSapphire.Services.CleanerRiskEvaluator>();
             services.AddSingleton<BlueSapphire.Services.CleanerLockService>();
