@@ -39,7 +39,7 @@ namespace BlueSapphire.Services
             if (ContainsAny(text, "打开清理", "清理助手"))
             {
                 Navigate("CleanerAssistant");
-                return Task.FromResult((true, "已打开清理助手。"));
+                return Task.FromResult((true, "已打开清理工具。"));
             }
 
             if (ContainsAny(text, "打开媒体", "媒体管家", "图片管理"))

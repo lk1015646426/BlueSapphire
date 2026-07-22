@@ -13,70 +13,65 @@ using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using BlueSapphire.Models;
 using BlueSapphire.Helpers;
+using BlueSapphire.Interfaces;
 
 namespace BlueSapphire.Services
 {
     public class AIToolsRegistry
     {
         private readonly DeepSeekAIService _aiService;
-        private readonly CleanerScanService _scanService;
-        private readonly CleanerDeepScanService _deepScanService;
-        private readonly CleanerExecutionService _executionService;
-        private readonly CleanerAuditService _auditService;
         private readonly DevLogDataService _devLogDataService;
         private readonly AIMemoryService _memoryService;
         private readonly McpServerManager _mcpServerManager;
         private readonly WebSkillManager _webSkillManager;
         private readonly AgentSkillManager _agentSkillManager;
-        private readonly AITaskCenterService _taskCenter;
         private readonly AISharedContextService _sharedContext;
         private readonly AIPrivacyService _privacyService;
-        private readonly AIMediaToolService _mediaToolService;
         private readonly AIDiagnosticsService _diagnosticsService;
-        private readonly AICleanerRuleDraftService _ruleDraftService;
         private readonly AIInsightService _insightService;
         private readonly AIOperationPolicyService _operationPolicy;
+        private readonly AIToolCapabilityCatalog _capabilityCatalog;
+        private readonly AIToolActionHandlerRegistry _actionHandlers = new();
         private readonly ConcurrentDictionary<string, (string ServerId, string ToolName)> _mcpToolRoutes =
             new(StringComparer.Ordinal);
 
         public AIToolsRegistry(
             DeepSeekAIService aiService, 
-            CleanerScanService scanService, 
-            CleanerDeepScanService deepScanService,
-            CleanerExecutionService executionService, 
-            CleanerAuditService auditService,
             DevLogDataService devLogDataService,
             AIMemoryService memoryService,
             McpServerManager mcpServerManager,
             WebSkillManager webSkillManager,
             AgentSkillManager agentSkillManager,
-            AITaskCenterService taskCenter,
             AISharedContextService sharedContext,
             AIPrivacyService privacyService,
-            AIMediaToolService mediaToolService,
             AIDiagnosticsService diagnosticsService,
-            AICleanerRuleDraftService ruleDraftService,
             AIInsightService insightService,
-            AIOperationPolicyService operationPolicy)
+            AIOperationPolicyService operationPolicy,
+            AIToolCapabilityCatalog capabilityCatalog,
+            IEnumerable<IAIToolCapabilityProvider> capabilityProviders,
+            IEnumerable<IAIToolActionProvider> actionProviders)
         {
             _aiService = aiService;
-            _scanService = scanService;
-            _deepScanService = deepScanService;
-            _executionService = executionService;
-            _auditService = auditService;
             _devLogDataService = devLogDataService;
             _memoryService = memoryService;
             _mcpServerManager = mcpServerManager;
             _webSkillManager = webSkillManager;
             _agentSkillManager = agentSkillManager;
-            _taskCenter = taskCenter;
             _sharedContext = sharedContext;
             _privacyService = privacyService;
-            _mediaToolService = mediaToolService;
             _diagnosticsService = diagnosticsService;
-            _ruleDraftService = ruleDraftService;
             _insightService = insightService;
             _operationPolicy = operationPolicy;
+            _capabilityCatalog = capabilityCatalog;
+            foreach (IAIToolCapabilityProvider provider in capabilityProviders)
+            {
+                _capabilityCatalog.RegisterProvider(provider);
+            }
+            RegisterBuiltInActionHandlers();
+            foreach (IAIToolActionProvider provider in actionProviders)
+            {
+                provider.RegisterHandlers(_actionHandlers);
+            }
         }
 
         private static readonly System.Net.Http.HttpClient _directClient = CreateHttpClient(false);
@@ -270,19 +265,23 @@ namespace BlueSapphire.Services
                         return "安全拦截：工具参数超过 128 KB 限制。";
                     }
 
-                    if (name == "start_smart_cleanup")
+                    if (name != null)
                     {
-                        return await StartSmartCleanupAsync(args, cancellationToken);
+                        string? handledResult = await _actionHandlers.TryExecuteAsync(
+                            name,
+                            args,
+                            new AIToolExecutionContext
+                            {
+                                RequestConfirmation = requestConfirmation,
+                                CancellationToken = cancellationToken
+                            });
+                        if (handledResult != null)
+                        {
+                            return handledResult;
+                        }
                     }
-                    else if (name == "analyze_latest_cleanup_log")
-                    {
-                        return await AnalyzeLatestCleanupLogAsync();
-                    }
-                    else if (name == "execute_cleanup")
-                    {
-                        return await ExecuteCleanupAsync(args, requestConfirmation, cancellationToken);
-                    }
-                    else if (name == "navigate_to_feature")
+
+                    if (name == "navigate_to_feature")
                     {
                         return await NavigateToFeatureAsync(args);
                     }
@@ -356,313 +355,52 @@ namespace BlueSapphire.Services
             }
         }
 
-        private async Task<string> StartSmartCleanupAsync(string args, CancellationToken cancellationToken = default)
+        private void RegisterBuiltInActionHandlers()
         {
-            AITaskLease? task = null;
-            try
-            {
-                CleanerScanScope scope = CleanerScanScope.Quick;
-                CleanerScanOptions options = new CleanerScanOptions();
-
-                if (!string.IsNullOrWhiteSpace(args))
-                {
-                    try
-                    {
-                        var json = System.Text.Json.JsonDocument.Parse(args);
-                        if (json.RootElement.TryGetProperty("scan_mode", out var modeProp))
-                        {
-                            if (modeProp.GetString()?.Equals("Deep", StringComparison.OrdinalIgnoreCase) == true)
-                                scope = CleanerScanScope.Deep;
-                        }
-
-                        if (json.RootElement.TryGetProperty("drives_to_scan", out var drivesProp) && drivesProp.ValueKind == System.Text.Json.JsonValueKind.Array)
-                        {
-                            var drives = drivesProp.EnumerateArray().Select(x => x.GetString()).Where(x => !string.IsNullOrEmpty(x)).ToList();
-                            if (drives.Contains("All", StringComparer.OrdinalIgnoreCase) || drives.Count == 0)
-                            {
-                                var allDrives = System.IO.DriveInfo.GetDrives().Where(d => d.IsReady).Select(d => d.Name).ToList();
-                                options.AnalysisDriveRoots.AddRange(allDrives);
-                            }
-                            else
-                            {
-                                options.AnalysisDriveRoots.AddRange(drives!);
-                            }
-                        }
-                    }
-                    catch { }
-                }
-                if (options.AnalysisDriveRoots.Count > 0)
-                {
-                    IReadOnlyList<string> validatedRoots =
-                        _operationPolicy.ValidateDriveRoots(options.AnalysisDriveRoots);
-                    options.AnalysisDriveRoots.Clear();
-                    options.AnalysisDriveRoots.AddRange(validatedRoots);
-                }
-
-                string driveSummary = options.AnalysisDriveRoots.Count == 0
-                    ? "默认磁盘范围"
-                    : string.Join("、", options.AnalysisDriveRoots.Select(_privacyService.DescribePathWithoutIdentity));
-                task = _taskCenter.Begin(
-                    "cleaner.scan",
-                    scope == CleanerScanScope.Deep ? "AI 深度扫描" : "AI 快速扫描",
-                    $"扫描范围：{driveSummary}",
-                    $"cleaner.scan:{scope}:{string.Join("|", options.AnalysisDriveRoots.OrderBy(path => path, StringComparer.OrdinalIgnoreCase))}");
-                if (task.IsDuplicate)
-                {
-                    AITaskRecord? existing = _taskCenter.Get(task.TaskId);
-                    return existing?.IsActive == true
-                        ? $"相同的扫描任务正在执行中，任务编号：{task.TaskId}。"
-                        : $"相同扫描刚刚完成，可直接使用最近扫描结果。任务编号：{task.TaskId}。";
-                }
-
-                using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
-                    cancellationToken,
-                    task.Token);
-                var progress = new Progress<CleanerScanProgress>(value =>
-                {
-                    double percent = value.ProgressMax > 0
-                        ? value.ProgressValue / value.ProgressMax * 100
-                        : 0;
-                    _taskCenter.Report(
-                        task.TaskId,
-                        percent,
-                        value.StageTitle,
-                        value.Detail);
-                });
-
-                CleanerScanReport report;
-                if (scope == CleanerScanScope.Deep)
-                {
-                    CleanerDeepScanResult deepResult = await _deepScanService.ScanAsync(
-                        options,
-                        progress,
-                        linkedCts.Token);
-                    report = deepResult.Report;
-                }
-                else
-                {
-                    report = await _scanService.ScanAsync(
-                        scope,
-                        options,
-                        progress,
-                        linkedCts.Token);
-                }
-
-                _sharedContext.SetCleanerScan(report);
-                List<CleanerScanItem> scanResults = report.Items.ToList();
-
-                var safeItems = scanResults.Where(x => x.RiskLevel == CleanerRiskLevel.Low).ToList();
-                var reviewItems = scanResults.Where(x => x.RiskLevel == CleanerRiskLevel.Medium).ToList();
-
-                var result = new
-                {
-                    SafeItemsCount = safeItems.Count,
-                    SafeItemsSize = CleanerSizeFormatter.Format(safeItems.Sum(x => x.SizeBytes)),
-                    ReviewItemsCount = reviewItems.Count,
-                    ReviewItemsSize = CleanerSizeFormatter.Format(reviewItems.Sum(x => x.SizeBytes)),
-                    Details = new
-                    {
-                        SafeCategories = safeItems.GroupBy(x => x.Category).Select(g => new { Category = CleanerPresentation.ToCategoryText(g.Key), Count = g.Count(), Size = CleanerSizeFormatter.Format(g.Sum(x => x.SizeBytes)) }),
-                        ReviewCategories = reviewItems.GroupBy(x => x.Category).Select(g => new { Category = CleanerPresentation.ToCategoryText(g.Key), Count = g.Count(), Size = CleanerSizeFormatter.Format(g.Sum(x => x.SizeBytes)) })
-                    }
-                };
-
-                _taskCenter.Complete(
-                    task.TaskId,
-                    $"扫描完成：低风险 {safeItems.Count} 项，建议确认 {reviewItems.Count} 项。");
-                return JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
-            }
-            catch (OperationCanceledException)
-            {
-                if (task is { IsDuplicate: false })
-                {
-                    _taskCenter.MarkCancelled(task.TaskId);
-                }
-                if (cancellationToken.IsCancellationRequested)
-                {
-                    throw;
-                }
-                return "扫描已由用户从任务中心取消。";
-            }
-            catch (Exception ex)
-            {
-                if (task is { IsDuplicate: false })
-                {
-                    _taskCenter.Fail(task.TaskId, _privacyService.RedactForRemoteModel(ex.Message));
-                }
-                return $"扫描失败: {ex.Message}";
-            }
-            finally
-            {
-                task?.Dispose();
-            }
+            _actionHandlers.Register(
+                "navigate_to_feature",
+                (args, _) => NavigateToFeatureAsync(args));
+            _actionHandlers.Register(
+                "add_dev_log_record",
+                (args, context) => AddDevLogRecordAsync(args, context.RequestConfirmation));
+            _actionHandlers.Register(
+                "remember_user_preference",
+                (args, context) => RememberUserPreferenceAsync(args, context.RequestConfirmation));
+            _actionHandlers.Register(
+                "add_mcp_server",
+                (args, context) => AddMcpServerAsync(
+                    args,
+                    context.RequestConfirmation,
+                    context.CancellationToken));
+            _actionHandlers.Register(
+                "handle_github_url",
+                (args, context) => HandleGithubUrlAsync(
+                    args,
+                    context.RequestConfirmation,
+                    context.CancellationToken));
+            _actionHandlers.Register(
+                "add_skill",
+                (args, context) => AddSkillAsync(
+                    args,
+                    context.RequestConfirmation,
+                    context.CancellationToken));
+            _actionHandlers.Register(
+                "http_request",
+                (args, context) => HttpRequestAsync(
+                    args,
+                    context.RequestConfirmation,
+                    context.CancellationToken));
+            _actionHandlers.Register(
+                "diagnose_application",
+                (_, _) => DiagnoseApplicationAsync());
+            _actionHandlers.Register(
+                "build_cross_module_plan",
+                (args, _) => Task.FromResult(BuildCrossModulePlan(args)));
+            _actionHandlers.Register(
+                "get_proactive_suggestions",
+                (_, _) => GetProactiveSuggestionsAsync());
         }
 
-        private async Task<string> ExecuteCleanupAsync(
-            string args,
-            Func<string, Task<bool>>? requestConfirmation,
-            CancellationToken cancellationToken = default)
-        {
-            CleanerScanReport? latestScan = _sharedContext.GetCleanerScan(TimeSpan.FromMinutes(30));
-            if (latestScan == null || latestScan.Items.Count == 0)
-            {
-                return "错误：没有找到 30 分钟内的有效扫描结果，请重新执行扫描。过期结果不能用于删除操作。";
-            }
-
-            AITaskLease? task = null;
-            try
-            {
-                var doc = JsonDocument.Parse(args);
-                var targets = new List<string>();
-                if (doc.RootElement.TryGetProperty("categories_to_clean", out var categoriesProp))
-                {
-                    foreach (var cat in categoriesProp.EnumerateArray())
-                    {
-                        targets.Add(cat.GetString()!);
-                    }
-                }
-
-                var itemsToClean = new List<CleanerScanItem>();
-                
-                foreach (var item in latestScan.Items)
-                {
-                    if (targets.Contains("Safe") && item.RiskLevel == CleanerRiskLevel.Low)
-                    {
-                        itemsToClean.Add(item);
-                    }
-                    else if (targets.Contains("Review") && item.RiskLevel == CleanerRiskLevel.Medium)
-                    {
-                        itemsToClean.Add(item);
-                    }
-                    else if (targets.Contains("All") && (item.RiskLevel == CleanerRiskLevel.Low || item.RiskLevel == CleanerRiskLevel.Medium))
-                    {
-                        itemsToClean.Add(item);
-                    }
-                    else if (targets.Contains(item.Category) || targets.Contains(CleanerPresentation.ToCategoryText(item.Category)))
-                    {
-                        itemsToClean.Add(item);
-                    }
-                }
-                itemsToClean = itemsToClean
-                    .Where(item => item.IsSelectableAndEnabled && item.ExecutionMode != CleanerExecutionMode.None)
-                    .DistinctBy(item => item.ObjectId)
-                    .ToList();
-
-                if (itemsToClean.Count == 0)
-                {
-                    return "未匹配到需要清理的项目。传入的 categories_to_clean 参数未命中任何扫描结果。可用参数：'Safe', 'Review', 'All' 或具体的类别名称。";
-                }
-
-                string idempotencyInput =
-                    $"{latestScan.CreatedAt:O}|{string.Join("|", itemsToClean.Select(item => item.ObjectId).OrderBy(id => id, StringComparer.Ordinal))}";
-                string idempotencyKey = $"cleaner.execute:{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(idempotencyInput)))}";
-                task = _taskCenter.Begin(
-                    "cleaner.execute",
-                    "AI 清理任务",
-                    $"等待确认：{itemsToClean.Count} 项，预计释放 {CleanerSizeFormatter.Format(itemsToClean.Sum(item => item.SizeBytes))}",
-                    idempotencyKey);
-                if (task.IsDuplicate)
-                {
-                    AITaskRecord? existing = _taskCenter.Get(task.TaskId);
-                    return existing?.IsActive == true
-                        ? $"相同清理任务已经在执行或等待确认，任务编号：{task.TaskId}。"
-                        : $"相同清理任务刚刚完成，为避免重复执行，本次未再次清理。任务编号：{task.TaskId}。";
-                }
-
-                _taskCenter.Report(
-                    task.TaskId,
-                    5,
-                    "等待用户确认",
-                    $"将处理 {itemsToClean.Count} 个项目",
-                    AITaskStatus.AwaitingConfirmation);
-                if (!await _operationPolicy.ConfirmAsync(
-                        requestConfirmation,
-                        "cleaner.execute",
-                        idempotencyKey,
-                        $"即将清理 {itemsToClean.Count} 个项目（预计释放 {CleanerSizeFormatter.Format(itemsToClean.Sum(x => x.SizeBytes))}），是否继续？"))
-                {
-                    _taskCenter.MarkCancelled(task.TaskId, "用户拒绝了清理确认");
-                    return "用户在安全确认弹窗中拒绝了本次清理操作。请告知用户清理已取消。";
-                }
-
-                using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
-                    cancellationToken,
-                    task.Token);
-                var progress = new Progress<CleanerExecutionProgress>(value =>
-                {
-                    double percent = value.ProgressMax > 0
-                        ? 10 + (value.ProgressValue / value.ProgressMax * 90)
-                        : 10;
-                    _taskCenter.Report(task.TaskId, percent, value.StageTitle, value.Detail);
-                });
-                var batch = await _executionService.ExecuteAsync(
-                    itemsToClean,
-                    latestScan.Scope,
-                    progress,
-                    linkedCts.Token);
-                await _auditService.RecordCleanupAsync(batch, 0);
-
-                var failedEntries = batch.Entries.Where(e => !string.Equals(e.Status, "Completed", StringComparison.OrdinalIgnoreCase)).ToList();
-                var result = new
-                {
-                    TotalProcessed = batch.Entries.Count,
-                    CleanedCount = batch.CompletedCount,
-                    FailedCount = batch.FailedCount,
-                    ReleasedSize = CleanerSizeFormatter.Format(batch.ReleasedBytes),
-                    FailedDetails = failedEntries.Select(e => new { Name = e.ItemName, Error = e.ErrorMessage, Reason = CleanerPresentation.ToFailureReasonText(e.FailureReason) }).Take(5).ToList()
-                };
-
-                _taskCenter.Complete(
-                    task.TaskId,
-                    $"清理完成：成功 {batch.CompletedCount} 项，失败 {batch.FailedCount} 项，释放 {CleanerSizeFormatter.Format(batch.ReleasedBytes)}。");
-                return $"清理完成。结果：\n{JsonSerializer.Serialize(result, new JsonSerializerOptions { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping })}";
-            }
-            catch (OperationCanceledException)
-            {
-                if (task is { IsDuplicate: false })
-                {
-                    _taskCenter.MarkCancelled(task.TaskId);
-                }
-                if (cancellationToken.IsCancellationRequested)
-                {
-                    throw;
-                }
-                return "清理任务已由用户从任务中心取消。";
-            }
-            catch (Exception ex)
-            {
-                if (task is { IsDuplicate: false })
-                {
-                    _taskCenter.Fail(task.TaskId, _privacyService.RedactForRemoteModel(ex.Message));
-                }
-                return $"清理执行失败: {ex.Message}";
-            }
-            finally
-            {
-                task?.Dispose();
-            }
-        }
-
-        private async Task<string> AnalyzeLatestCleanupLogAsync()
-        {
-            try
-            {
-                var auditDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BlueSapphire", "Audits");
-                if (!Directory.Exists(auditDir)) return "尚未发现任何清理记录。";
-
-                var files = Directory.GetFiles(auditDir, "cleanup-*.json");
-                if (files.Length == 0) return "尚未发现任何清理记录。";
-
-                var latestFile = files.OrderByDescending(f => f).First();
-                var json = await File.ReadAllTextAsync(latestFile);
-                
-                return $"[LOG_DATA] {json}";
-            }
-            catch (Exception ex)
-            {
-                return $"读取日志失败: {ex.Message}";
-            }
-        }
 
         private async Task<string> AddDevLogRecordAsync(string args, Func<string, Task<bool>>? requestConfirmation)
         {
@@ -1290,153 +1028,6 @@ namespace BlueSapphire.Services
             }
         }
 
-        private async Task<string> AnalyzeMediaFolderAsync(
-            string args,
-            CancellationToken cancellationToken)
-        {
-            try
-            {
-                using JsonDocument document = JsonDocument.Parse(args);
-                JsonElement root = document.RootElement;
-                string folderPath = root.GetProperty("folder_path").GetString() ?? string.Empty;
-                bool recursive = !root.TryGetProperty("recursive", out JsonElement recursiveProperty) ||
-                                 recursiveProperty.GetBoolean();
-                AIMediaAnalysisContext result = await _mediaToolService.AnalyzeFolderAsync(
-                    folderPath,
-                    recursive,
-                    cancellationToken);
-
-                return JsonSerializer.Serialize(new
-                {
-                    Folder = _privacyService.DescribePathWithoutIdentity(result.FolderPath),
-                    result.FileCount,
-                    TotalSize = CleanerSizeFormatter.Format(result.TotalBytes),
-                    result.ExactDuplicateGroupCount,
-                    result.SimilarCandidateGroupCount,
-                    result.LargeFileCount,
-                    result.LowResolutionCount,
-                    result.FormatCounts,
-                    Safety = "当前只完成分析，没有移动、重命名或删除文件。"
-                }, new JsonSerializerOptions
-                {
-                    WriteIndented = true,
-                    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-                });
-            }
-            catch (Exception ex)
-            {
-                return $"媒体分析失败：{_privacyService.RedactForRemoteModel(ex.Message)}";
-            }
-        }
-
-        private string PreviewMediaOrganization(string args)
-        {
-            try
-            {
-                using JsonDocument document = JsonDocument.Parse(args);
-                JsonElement root = document.RootElement;
-                string folderPath = root.GetProperty("folder_path").GetString() ?? string.Empty;
-                bool recursive = !root.TryGetProperty("recursive", out JsonElement recursiveProperty) ||
-                                 recursiveProperty.GetBoolean();
-                AIMediaOrganizationPreview preview = _mediaToolService.BuildOrganizationPreview(
-                    folderPath,
-                    recursive);
-                return JsonSerializer.Serialize(new
-                {
-                    Folder = _privacyService.DescribePathWithoutIdentity(preview.FolderPath),
-                    MoveCount = preview.Moves.Count,
-                    Examples = preview.Moves.Take(12).Select(move => new
-                    {
-                        Source = _privacyService.DescribePathWithoutIdentity(move.SourcePath),
-                        Destination = _privacyService.DescribePathWithoutIdentity(move.DestinationPath),
-                        move.Reason
-                    }),
-                    Safety = "这只是预览，没有移动或重命名文件。"
-                }, new JsonSerializerOptions
-                {
-                    WriteIndented = true,
-                    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-                });
-            }
-            catch (Exception ex)
-            {
-                return $"媒体整理预览失败：{_privacyService.RedactForRemoteModel(ex.Message)}";
-            }
-        }
-
-        private async Task<string> ExecuteExactDuplicateCleanupAsync(
-            string args,
-            Func<string, Task<bool>>? requestConfirmation,
-            CancellationToken cancellationToken)
-        {
-            try
-            {
-                using JsonDocument document = JsonDocument.Parse(args);
-                string strategy = document.RootElement.TryGetProperty("keep_strategy", out JsonElement strategyProperty)
-                    ? strategyProperty.GetString() ?? "newest"
-                    : "newest";
-                IReadOnlyList<string> targets = _mediaToolService.BuildExactDuplicateDeletionPreview(strategy);
-                if (targets.Count == 0)
-                {
-                    return "没有 30 分钟内的完全重复图片候选，请先执行媒体目录分析。";
-                }
-
-                string fingerprint = Convert.ToHexString(SHA256.HashData(
-                    Encoding.UTF8.GetBytes(string.Join(
-                        "|",
-                        targets.OrderBy(path => path, StringComparer.OrdinalIgnoreCase)))));
-                if (!await _operationPolicy.ConfirmAsync(
-                    requestConfirmation,
-                    "media.exact-duplicate-cleanup",
-                    fingerprint,
-                    $"将把 {targets.Count} 张完全重复图片移入系统回收站。\n保留策略：{(strategy == "oldest" ? "保留最早文件" : "保留最新文件")}\n\n相似但不完全相同的图片不会删除。是否继续？"))
-                {
-                    return "用户已取消重复图片清理。";
-                }
-
-                (int success, int failed) = await _mediaToolService.DeleteExactDuplicateCandidatesAsync(
-                    targets,
-                    cancellationToken);
-                return $"重复图片处理完成：成功移入回收站 {success} 张，失败 {failed} 张。";
-            }
-            catch (Exception ex)
-            {
-                return $"重复图片清理失败：{_privacyService.RedactForRemoteModel(ex.Message)}";
-            }
-        }
-
-        private async Task<string> ExecuteMediaOrganizationAsync(
-            Func<string, Task<bool>>? requestConfirmation,
-            CancellationToken cancellationToken)
-        {
-            AIMediaOrganizationPreview? preview =
-                _sharedContext.GetMediaOrganizationPreview(TimeSpan.FromMinutes(30));
-            if (preview == null || preview.Moves.Count == 0)
-            {
-                return "没有 30 分钟内的有效媒体整理预览，请先生成预览。";
-            }
-
-            if (!await _operationPolicy.ConfirmAsync(
-                requestConfirmation,
-                "media.organize",
-                preview.CreatedAt.ToString("O"),
-                $"将按年月移动 {preview.Moves.Count} 张图片。\n不会覆盖同名文件，冲突项将跳过；标签会跟随移动。\n\n是否继续？"))
-            {
-                return "用户已取消媒体整理。";
-            }
-
-            try
-            {
-                (int success, int failed, int skipped) =
-                    await _mediaToolService.ExecuteOrganizationPreviewAsync(cancellationToken);
-                return $"媒体整理完成：成功 {success} 张，失败 {failed} 张，跳过 {skipped} 张。";
-            }
-            catch (Exception ex)
-            {
-                return $"媒体整理失败：{_privacyService.RedactForRemoteModel(ex.Message)}";
-            }
-        }
-
         private async Task<string> DiagnoseApplicationAsync()
         {
             return await _diagnosticsService.BuildDiagnosticSummaryAsync();
@@ -1467,59 +1058,6 @@ namespace BlueSapphire.Services
             IReadOnlyList<string> suggestions = await _insightService.BuildNonIntrusiveSuggestionsAsync();
             return string.Join(Environment.NewLine, suggestions.Select(item => $"- {item}"));
         }
-
-        private async Task<string> CreateCleanerRuleDraftAsync(
-            string args,
-            Func<string, Task<bool>>? requestConfirmation)
-        {
-            try
-            {
-                using JsonDocument document = JsonDocument.Parse(args);
-                JsonElement root = document.RootElement;
-                string name = root.GetProperty("name").GetString() ?? "AI 清理规则草稿";
-                string path = root.GetProperty("path").GetString() ?? string.Empty;
-                bool includeSubdirectories =
-                    !root.TryGetProperty("include_subdirectories", out JsonElement recursiveProperty) ||
-                    recursiveProperty.GetBoolean();
-                List<string> patterns = root.TryGetProperty("include_patterns", out JsonElement patternsProperty) &&
-                                        patternsProperty.ValueKind == JsonValueKind.Array
-                    ? patternsProperty.EnumerateArray()
-                        .Select(item => item.GetString() ?? string.Empty)
-                        .ToList()
-                    : new List<string>();
-                CleanerRuleDefinition draft = _ruleDraftService.BuildDraft(
-                    name,
-                    path,
-                    patterns,
-                    includeSubdirectories);
-
-                string preview = $"""
-                    规则名称：{draft.Name}
-                    路径：{draft.Paths[0]}
-                    匹配：{(draft.IncludePatterns.Count == 0 ? "目录内容" : string.Join("、", draft.IncludePatterns))}
-                    风险：高风险、仅供查看
-                    执行方式：不会删除
-
-                    是否把这份草稿保存到本地规则草稿目录？
-                    """;
-                if (!await _operationPolicy.ConfirmAsync(
-                    requestConfirmation,
-                    "cleaner.rule-draft.save",
-                    draft.Id,
-                    preview))
-                {
-                    return "用户已取消保存规则草稿。";
-                }
-
-                string savedPath = await _ruleDraftService.SaveDraftAsync(draft);
-                return $"规则草稿已保存：{_privacyService.DescribePathWithoutIdentity(savedPath)}。它不会自动生效，请在规则库中人工审核后再导入。";
-            }
-            catch (Exception ex)
-            {
-                return $"生成规则草稿失败：{_privacyService.RedactForRemoteModel(ex.Message)}";
-            }
-        }
-
 
         public async Task<List<ChatTool>> BuildCleanerToolsAsync(IEnumerable<string> features)
         {
@@ -1940,7 +1478,9 @@ namespace BlueSapphire.Services
             }
             catch { }
 
-            return baseTools;
+            // 统一由能力目录向 AI 模型提供工具定义，同时保留现有执行分发逻辑以确保兼容。
+            _capabilityCatalog.Replace(baseTools);
+            return _capabilityCatalog.BuildChatTools().ToList();
         }
 
         private static string BuildMcpFunctionName(string serverId, string toolName, int index)
@@ -2062,41 +1602,19 @@ namespace BlueSapphire.Services
                     cancellationToken.ThrowIfCancellationRequested();
                     onMessageGenerated("tool_progress", $"执行中: {acc.FunctionName}...", false);
 
+                    string? handledResult = await _actionHandlers.TryExecuteAsync(
+                        acc.FunctionName!,
+                        acc.FunctionArguments,
+                        new AIToolExecutionContext
+                        {
+                            RequestConfirmation = requestConfirmation,
+                            CancellationToken = cancellationToken
+                        });
                     string result;
-                    if (acc.FunctionName == "start_smart_cleanup") result = await StartSmartCleanupAsync(acc.FunctionArguments, cancellationToken);
-                    else if (acc.FunctionName == "execute_cleanup") result = await ExecuteCleanupAsync(acc.FunctionArguments, requestConfirmation, cancellationToken);
-                    else if (acc.FunctionName == "analyze_latest_cleanup_log") result = await AnalyzeLatestCleanupLogAsync();
-                    else if (acc.FunctionName == "analyze_media_folder") result = await AnalyzeMediaFolderAsync(acc.FunctionArguments, cancellationToken);
-                    else if (acc.FunctionName == "preview_media_organization") result = PreviewMediaOrganization(acc.FunctionArguments);
-                    else if (acc.FunctionName == "execute_exact_duplicate_cleanup") result = await ExecuteExactDuplicateCleanupAsync(acc.FunctionArguments, requestConfirmation, cancellationToken);
-                    else if (acc.FunctionName == "execute_media_organization") result = await ExecuteMediaOrganizationAsync(requestConfirmation, cancellationToken);
-                    else if (acc.FunctionName == "diagnose_application") result = await DiagnoseApplicationAsync();
-                    else if (acc.FunctionName == "build_cross_module_plan") result = BuildCrossModulePlan(acc.FunctionArguments);
-                    else if (acc.FunctionName == "get_proactive_suggestions") result = await GetProactiveSuggestionsAsync();
-                    else if (acc.FunctionName == "create_cleaner_rule_draft") result = await CreateCleanerRuleDraftAsync(acc.FunctionArguments, requestConfirmation);
-                    else if (acc.FunctionName == "navigate_to_feature") result = await NavigateToFeatureAsync(acc.FunctionArguments);
-                    else if (acc.FunctionName == "add_dev_log_record") result = await AddDevLogRecordAsync(acc.FunctionArguments, requestConfirmation);
-                    else if (acc.FunctionName == "remember_user_preference") result = await RememberUserPreferenceAsync(acc.FunctionArguments, requestConfirmation);
-                    else if (acc.FunctionName == "add_mcp_server")
-                        result = await AddMcpServerAsync(
-                            acc.FunctionArguments,
-                            requestConfirmation,
-                            cancellationToken);
-                    else if (acc.FunctionName == "handle_github_url")
-                        result = await HandleGithubUrlAsync(
-                            acc.FunctionArguments,
-                            requestConfirmation,
-                            cancellationToken);
-                    else if (acc.FunctionName == "add_skill")
-                        result = await AddSkillAsync(
-                            acc.FunctionArguments,
-                            requestConfirmation,
-                            cancellationToken);
-                    else if (acc.FunctionName == "http_request")
-                        result = await HttpRequestAsync(
-                            acc.FunctionArguments,
-                            requestConfirmation,
-                            cancellationToken);
+                    if (handledResult != null)
+                    {
+                        result = handledResult;
+                    }
                     else if (acc.FunctionName != null &&
                              _mcpToolRoutes.TryGetValue(acc.FunctionName, out var route))
                     {

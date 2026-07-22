@@ -10,12 +10,14 @@ namespace BlueSapphire.Services
     public sealed class AIClassifierService
     {
         private readonly DeepSeekAIService _aiService;
+        private readonly AIPrivacyService _privacyService;
         private readonly Dictionary<string, AIClassificationResult> _cache = new(StringComparer.OrdinalIgnoreCase);
         private readonly SemaphoreSlim _semaphore = new(3, 3); // 限制并发数为 3
 
-        public AIClassifierService(DeepSeekAIService aiService)
+        public AIClassifierService(DeepSeekAIService aiService, AIPrivacyService? privacyService = null)
         {
             _aiService = aiService;
+            _privacyService = privacyService ?? new AIPrivacyService();
         }
 
         public async Task<AIClassificationResult?> ClassifyDirectoryAsync(string path, long sizeBytes, CancellationToken cancellationToken = default)
@@ -28,6 +30,8 @@ namespace BlueSapphire.Services
 
             string sizeText = CleanerSizeFormatter.Format(sizeBytes);
             string folderName = System.IO.Path.GetFileName(path);
+            string pathForModel = BuildPathForRemoteModel(normalized);
+            string folderNameForModel = IsPersonalUserPath(normalized) ? "<用户目录名称已隐藏>" : folderName;
 
             var messages = new List<ChatMessage>
             {
@@ -61,7 +65,7 @@ namespace BlueSapphire.Services
                 new()
                 {
                     Role = "user",
-                    Content = $"路径: {normalized}\n文件夹名: {folderName}\n占用空间: {sizeText}\n\n请分类这个目录。"
+                    Content = $"路径: {pathForModel}\n文件夹名: {folderNameForModel}\n占用空间: {sizeText}\n\n请提供辅助分类。分类结果只用于解释，不会直接授权删除。"
                 }
             };
 
@@ -104,6 +108,31 @@ namespace BlueSapphire.Services
             }
 
             return null;
+        }
+
+        private string BuildPathForRemoteModel(string normalizedPath)
+        {
+            if (IsPersonalUserPath(normalizedPath))
+            {
+                string root = System.IO.Path.GetPathRoot(normalizedPath) ?? string.Empty;
+                return $"{root}Users\\<用户>\\<个人内容路径已隐藏>";
+            }
+
+            return _privacyService.RedactForRemoteModel(normalizedPath);
+        }
+
+        private static bool IsPersonalUserPath(string normalizedPath)
+        {
+            string userProfile = CleanerPathSafety.NormalizePath(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+            string localAppData = CleanerPathSafety.NormalizePath(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
+            string roamingAppData = CleanerPathSafety.NormalizePath(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData));
+
+            return CleanerPathSafety.StartsWithPathBoundary(normalizedPath, userProfile) &&
+                   !CleanerPathSafety.StartsWithPathBoundary(normalizedPath, localAppData) &&
+                   !CleanerPathSafety.StartsWithPathBoundary(normalizedPath, roamingAppData);
         }
 
         public void ClearCache()
