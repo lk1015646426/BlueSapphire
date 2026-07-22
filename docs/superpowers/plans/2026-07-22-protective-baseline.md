@@ -470,3 +470,5 @@ Expected:
 - 无增量构建：0 警告、0 错误。
 - 真实窗口：非零句柄 `397254`、`Responding=True`，正常关闭成功，退出码 0。
 - Git 卫生：`Output/` 已由根目录精确规则忽略；核心未跟踪源码、测试和 `.agents/AGENTS.md` 仍保持可见。
+- 当前开发机运行时副本：发现并备份后移除残留的 seed-101，正式节点恢复为源种子的原始 Id；再次启动应用后源码和运行时哈希均未变化。
+- 运行时备份：C:\Users\10156\AppData\Local\BlueSapphire\LogBackups\DevMatrixLog_pre_protective_baseline_20260722_171622.json。
