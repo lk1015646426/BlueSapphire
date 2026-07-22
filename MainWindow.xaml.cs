@@ -216,12 +216,9 @@ namespace BlueSapphire
         [DynamicDependency(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor, typeof(CleanerAssistantPage))]
         [DynamicDependency(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor, typeof(Views.DevLogPage))]
         [DynamicDependency(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor, typeof(Views.AICopilotPage))]
-        [DynamicDependency(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor, typeof(Views.AITaskCenterPage))]
         private void LoadTools()
         {
             RegisterTool(App.Current.Services.GetRequiredService<HomeTool>());
-            RegisterTool(App.Current.Services.GetRequiredService<AICopilotTool>());
-            RegisterTool(App.Current.Services.GetRequiredService<AITaskCenterTool>());
             RegisterTool(App.Current.Services.GetRequiredService<MediaManagerTool>());
             RegisterTool(App.Current.Services.GetRequiredService<CleanerAssistantTool>());
         }

@@ -69,13 +69,15 @@ namespace BlueSapphire.Views
                 
                 string providerName = provider == "SiliconFlow" ? "硅基流动" : "官方直连";
                 ConnectionStatusIndicator.Fill = Application.Current.Resources["AccentSafe"] as Brush;
-                ConnectionStatusText.Text = $"已连接至 {providerName} - {modelName}";
+                ConnectionStatusText.Text = $"{modelName} · {providerName}";
+                ToolTipService.SetToolTip(ConnectionStatusText, $"当前模型：{modelName}（{providerName}）");
             }
             else
             {
                 _isConnected = false;
                 ConnectionStatusIndicator.Fill = Application.Current.Resources["TextMuted"] as Brush;
-                ConnectionStatusText.Text = "未连接 (请前往设置检查 API Key 或刷新模型列表)";
+                ConnectionStatusText.Text = "未连接 · 前往设置";
+                ToolTipService.SetToolTip(ConnectionStatusText, "请前往设置检查 API 密钥或刷新模型列表");
             }
         }
 

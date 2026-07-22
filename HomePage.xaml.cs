@@ -1,72 +1,93 @@
+using BlueSapphire.Models;
+using BlueSapphire.Services;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Navigation;
 using System;
-using BlueSapphire.Helpers;
-using BlueSapphire.Models;
-using CommunityToolkit.Mvvm.Messaging;
+using System.Collections.ObjectModel;
+using System.Linq;
 
 namespace BlueSapphire
 {
     public sealed partial class HomePage : Page
     {
-        private bool _isLoaded;
+        private readonly AITaskCenterService _taskCenter;
+        private bool _subscribed;
+
+        public ObservableCollection<AITaskRecord> TaskPreview { get; } = new();
+        public ObservableCollection<AITaskRecord> ActivityPreview { get; } = new();
+        public string TotalTaskCountText { get; private set; } = "0";
+        public string ActiveTaskCountText { get; private set; } = "0";
+        public Visibility EmptyVisibility { get; private set; } = Visibility.Visible;
+        public Visibility TaskListVisibility { get; private set; } = Visibility.Collapsed;
+
         public HomePage()
         {
+            NavigationCacheMode = NavigationCacheMode.Required;
             InitializeComponent();
-            WeakReferenceMessenger.Default.Register<ToggleReducedMotionMessage>(
-                this,
-                (_, message) => DispatcherQueue.TryEnqueue(() =>
-                    ApplyReducedMotion(message.Value)));
+            DataContext = this;
+            _taskCenter = App.Current.Services.GetRequiredService<AITaskCenterService>();
         }
 
         private void Page_Loaded(object sender, RoutedEventArgs e)
         {
-            _isLoaded = true;
-            UpdateHourlyGreeting();
-            ApplyReducedMotion(AppSettings.Get("ReduceMotion", false));
+            if (AiFrame.Content == null)
+            {
+                AiFrame.Navigate(typeof(Views.AICopilotPage));
+            }
+
+            if (!_subscribed)
+            {
+                _taskCenter.TasksChanged += TaskCenter_TasksChanged;
+                _subscribed = true;
+            }
+            RefreshTaskData();
         }
 
         private void Page_Unloaded(object sender, RoutedEventArgs e)
         {
-            _isLoaded = false;
-            CoreIdleAnimation.Stop();
-            EntranceStoryboard.Stop();
-        }
-
-        private void ApplyReducedMotion(bool reduceMotion)
-        {
-            if (!_isLoaded) return;
-            if (reduceMotion)
+            if (_subscribed)
             {
-                CoreIdleAnimation.Stop();
-                EntranceStoryboard.Stop();
-                ContentStack.Opacity = 1;
-                ContentTranslate.Y = 0;
-                CoreScale.ScaleX = 1;
-                CoreScale.ScaleY = 1;
-                CoreTranslate.Y = 0;
-                OuterRing.Opacity = 0.12;
-                RingScale.ScaleX = 1;
-                RingScale.ScaleY = 1;
-                return;
+                _taskCenter.TasksChanged -= TaskCenter_TasksChanged;
+                _subscribed = false;
             }
-
-            CoreIdleAnimation.Begin();
-            EntranceStoryboard.Begin();
         }
 
-        private void UpdateHourlyGreeting()
+        private void TaskCenter_TasksChanged(object? sender, EventArgs e) =>
+            DispatcherQueue.TryEnqueue(RefreshTaskData);
+
+        private void RefreshTaskData()
         {
-            int hour = DateTime.Now.Hour;
-            GreetingText.Text = hour switch
-            {
-                >= 5 and < 9 => "早上好，今天想先处理什么？",
-                >= 9 and < 12 => "上午好，从最重要的一项开始。",
-                >= 12 and < 14 => "中午好，可以先做一次轻量整理。",
-                >= 14 and < 18 => "下午好，继续处理手头的任务。",
-                >= 18 and < 23 => "晚上好，看看还有哪些事项需要收尾。",
-                _ => "夜深了，只处理最重要的事情就好。"
-            };
+            var snapshot = _taskCenter.GetSnapshot();
+            var ordered = snapshot.OrderByDescending(task => task.IsActive)
+                                  .ThenByDescending(task => task.UpdatedAt)
+                                  .ToList();
+
+            TaskPreview.Clear();
+            foreach (AITaskRecord task in ordered.Take(3)) TaskPreview.Add(task);
+            ActivityPreview.Clear();
+            foreach (AITaskRecord task in snapshot.OrderByDescending(task => task.UpdatedAt).Take(3))
+                ActivityPreview.Add(task);
+
+            TotalTaskCountText = snapshot.Count.ToString();
+            ActiveTaskCountText = snapshot.Count(task => task.IsActive).ToString();
+            bool isEmpty = snapshot.Count == 0;
+            EmptyVisibility = isEmpty ? Visibility.Visible : Visibility.Collapsed;
+            TaskListVisibility = isEmpty ? Visibility.Collapsed : Visibility.Visible;
+            DataContext = null;
+            DataContext = this;
+        }
+
+        private static MainWindow? Shell => App.CurrentWindow as MainWindow;
+        private void Media_Click(object sender, RoutedEventArgs e) => Shell?.NavigateToTool("MediaManager");
+        private void Cleaner_Click(object sender, RoutedEventArgs e) => Shell?.NavigateToTool("CleanerAssistant");
+
+        private void TaskOpen_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button { Tag: string kind }) return;
+            if (kind.Contains("media", StringComparison.OrdinalIgnoreCase)) Shell?.NavigateToTool("MediaManager");
+            else if (kind.Contains("clean", StringComparison.OrdinalIgnoreCase)) Shell?.NavigateToTool("CleanerAssistant");
         }
     }
 }
