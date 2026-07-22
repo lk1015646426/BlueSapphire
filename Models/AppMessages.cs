@@ -8,11 +8,6 @@ namespace BlueSapphire.Models
         public DevLogCompletedMessage(string logTitle) : base(logTitle) { }
     }
 
-    public class ToggleParticleMessage : ValueChangedMessage<bool>
-    {
-        public ToggleParticleMessage(bool isEnabled) : base(isEnabled) { }
-    }
-
     public class ToggleReducedMotionMessage : ValueChangedMessage<bool>
     {
         public ToggleReducedMotionMessage(bool reduceMotion) : base(reduceMotion) { }

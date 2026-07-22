@@ -43,6 +43,7 @@ namespace BlueSapphire
 
         private readonly DispatcherTimer _apiKeySaveTimer;
         private readonly McpServerManager _mcpManager;
+        private bool _initializingAppearance;
         private int _versionTapCount;
         private DateTimeOffset _lastVersionTapTime = DateTimeOffset.MinValue;
 
@@ -115,26 +116,39 @@ namespace BlueSapphire
 
         private void InitializeSettingsSafe()
         {
-            ParticleSwitch.Toggled -= ParticleSwitch_Toggled;
-
-            bool targetState = AppSettings.Get("IsParticleEffectEnabled", true);
-            if (App.CurrentWindow is MainWindow window && AppSettings.Get<bool?>("IsParticleEffectEnabled", null) == null)
-            {
-                targetState = window.IsParticleEffectEnabled;
-            }
-
-            ParticleSwitch.IsOn = targetState;
-            ParticleSwitch.Toggled += ParticleSwitch_Toggled;
-
+            _initializingAppearance = true;
             string theme = AppSettings.Get("AppTheme", "System") ?? "System";
             ThemeComboBox.SelectionChanged -= ThemeComboBox_SelectionChanged;
             ThemeComboBox.SelectedIndex = theme switch { "Light" => 1, "Dark" => 2, _ => 0 };
             ThemeComboBox.SelectionChanged += ThemeComboBox_SelectionChanged;
 
+            string preset = AppSettings.Get("ThemePreset", "default") ?? "default";
+            RadioButton selectedPreset = preset switch
+            {
+                "sky" or "azure" => PresetAzure,
+                "cobalt" => PresetCobalt,
+                "graphite" => PresetGraphite,
+                "lagoon" => PresetLagoon,
+                "ink" => PresetInk,
+                "ochre" => PresetOchre,
+                "sepia" => PresetSepia,
+                _ => PresetDefault
+            };
+            selectedPreset.IsChecked = true;
+
+            string fontSize = AppSettings.Get("UiFontSize", "standard") ?? "standard";
+            RadioButton selectedFontSize = fontSize switch
+            {
+                "small" => FontSmall,
+                "medium" => FontMedium,
+                "large" => FontLarge,
+                _ => FontStandard
+            };
+            selectedFontSize.IsChecked = true;
+
             ReduceMotionSwitch.Toggled -= ReduceMotionSwitch_Toggled;
             ReduceMotionSwitch.IsOn = AppSettings.Get("ReduceMotion", false);
             ReduceMotionSwitch.Toggled += ReduceMotionSwitch_Toggled;
-            ParticleSwitch.IsEnabled = !ReduceMotionSwitch.IsOn;
 
             ApiProviderComboBox.SelectionChanged -= ApiProviderComboBox_SelectionChanged;
             string provider = AppSettings.Get("DeepSeekApiProvider", "Official") ?? "Official";
@@ -153,6 +167,27 @@ namespace BlueSapphire
                 ApiModelComboBox.SelectedIndex = 0;
             }
             ApiModelComboBox.SelectionChanged += ApiModelComboBox_SelectionChanged;
+            _initializingAppearance = false;
+        }
+
+        private void ThemePreset_Checked(object sender, RoutedEventArgs e)
+        {
+            if (_initializingAppearance || sender is not RadioButton { Tag: string preset })
+            {
+                return;
+            }
+
+            App.ApplyThemePreset(preset);
+        }
+
+        private void UiFontSize_Checked(object sender, RoutedEventArgs e)
+        {
+            if (_initializingAppearance || sender is not RadioButton { Tag: string size })
+            {
+                return;
+            }
+
+            App.ApplyUiFontSize(size);
         }
 
         private void DeepSeekApiKeyBox_PasswordChanged(object sender, RoutedEventArgs e)
@@ -274,13 +309,6 @@ namespace BlueSapphire
             }
         }
 
-        private void ParticleSwitch_Toggled(object sender, RoutedEventArgs e)
-        {
-            bool isEnabled = ParticleSwitch.IsOn;
-            WeakReferenceMessenger.Default.Send(new ToggleParticleMessage(isEnabled));
-            AppSettings.Save("IsParticleEffectEnabled", isEnabled);
-        }
-
         private void ThemeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (ThemeComboBox.SelectedItem is not ComboBoxItem { Tag: string theme })
@@ -296,9 +324,6 @@ namespace BlueSapphire
         {
             bool reduceMotion = ReduceMotionSwitch.IsOn;
             AppSettings.Save("ReduceMotion", reduceMotion);
-            ParticleSwitch.IsEnabled = !reduceMotion;
-            WeakReferenceMessenger.Default.Send(
-                new ToggleParticleMessage(reduceMotion ? false : ParticleSwitch.IsOn));
             WeakReferenceMessenger.Default.Send(new ToggleReducedMotionMessage(reduceMotion));
         }
 

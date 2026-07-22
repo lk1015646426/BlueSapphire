@@ -5,38 +5,103 @@
     xmlns:local="using:BlueSapphire"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    Background="{StaticResource BgColor}"
+    Background="{ThemeResource BgColor}"
     Loaded="SettingsPage_Loaded"
     mc:Ignorable="d">
 
-    <Grid Padding="{StaticResource PagePaddingLarge}">
+    <Grid Padding="20" MaxWidth="1180" HorizontalAlignment="Center">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Page header -->
-        <StackPanel Grid.Row="0"
-                    MaxWidth="1240"
-                    HorizontalAlignment="Stretch"
-                    Margin="0,0,0,18"
-                    Spacing="4">
+        <StackPanel Grid.Row="0" Visibility="Collapsed">
+            <TextBlock Text="工作台配置" Style="{StaticResource TextStyle_Caption}" Foreground="{ThemeResource AccentPrimary}"/>
             <TextBlock Text="设置" Style="{StaticResource TextStyle_PageTitle}"/>
             <TextBlock Text="管理外观、AI 服务和第三方扩展。高风险扩展默认保持停用。"
-                       Foreground="{StaticResource TextMuted}"
-                       FontSize="13"/>
+                       Foreground="{ThemeResource TextSecondary}" FontSize="13" TextWrapping="Wrap"/>
         </StackPanel>
 
         <ScrollViewer x:Name="SettingsScrollViewer"
-                      Grid.Row="1"
+                      Grid.Row="0"
+                      Grid.RowSpan="2"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollMode="Disabled">
-            <StackPanel MaxWidth="1240"
-                        HorizontalAlignment="Stretch"
-                        Spacing="18">
+            <StackPanel HorizontalAlignment="Stretch" Spacing="18">
 
                 <TextBlock Text="常规" Style="{StaticResource TextStyle_Title}" Margin="4,0,0,0"/>
+
+                <Border Style="{StaticResource CardBorderStyle}" Padding="18,16">
+                    <Grid RowSpacing="12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="主题配色" FontSize="14" FontWeight="SemiBold"/>
+                                <TextBlock Text="同时改变背景、面板、边框、文字和信号色。"
+                                           Style="{StaticResource TextStyle_Caption}"/>
+                            </StackPanel>
+                            <TextBlock Grid.Column="1" Text="8 套" Style="{StaticResource TextStyle_Caption}"
+                                       VerticalAlignment="Center"/>
+                        </Grid>
+
+                        <Grid Grid.Row="1" ColumnSpacing="8" RowSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/><ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/><ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <RadioButton x:Name="PresetDefault" GroupName="ThemePreset" Tag="default"
+                                         Checked="ThemePreset_Checked" AutomationProperties.Name="默认暖陶">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Grid Width="30" Height="24">
+                                        <Rectangle Fill="#F8F8F6"/><Rectangle Width="10" HorizontalAlignment="Center" Fill="#FAF9F5"/><Rectangle Width="10" HorizontalAlignment="Right" Fill="#C96442"/>
+                                    </Grid><TextBlock Text="默认暖陶"/>
+                                </StackPanel>
+                            </RadioButton>
+                            <RadioButton x:Name="PresetAzure" Grid.Column="1" GroupName="ThemePreset" Tag="sky"
+                                         Checked="ThemePreset_Checked" AutomationProperties.Name="天蓝">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Grid Width="30" Height="24"><Rectangle Fill="#FFFFFF"/><Rectangle Width="10" HorizontalAlignment="Center" Fill="#F7F8F8"/><Rectangle Width="10" HorizontalAlignment="Right" Fill="#1E9DF1"/></Grid><TextBlock Text="天蓝"/>
+                                </StackPanel>
+                            </RadioButton>
+                            <RadioButton x:Name="PresetCobalt" Grid.Column="2" GroupName="ThemePreset" Tag="cobalt"
+                                         Checked="ThemePreset_Checked" AutomationProperties.Name="钴蓝">
+                                <StackPanel Orientation="Horizontal" Spacing="8"><Grid Width="30" Height="24"><Rectangle Fill="#FFFFFF"/><Rectangle Width="10" HorizontalAlignment="Center" Fill="#F3F5F7"/><Rectangle Width="10" HorizontalAlignment="Right" Fill="#1166D4"/></Grid><TextBlock Text="钴蓝"/></StackPanel>
+                            </RadioButton>
+                            <RadioButton x:Name="PresetGraphite" Grid.Column="3" GroupName="ThemePreset" Tag="graphite"
+                                         Checked="ThemePreset_Checked" AutomationProperties.Name="石墨">
+                                <StackPanel Orientation="Horizontal" Spacing="8"><Grid Width="30" Height="24"><Rectangle Fill="#FCFCFC"/><Rectangle Width="10" HorizontalAlignment="Center" Fill="#EBEBEB"/><Rectangle Width="10" HorizontalAlignment="Right" Fill="#000000"/></Grid><TextBlock Text="石墨"/></StackPanel>
+                            </RadioButton>
+                            <RadioButton x:Name="PresetLagoon" Grid.Row="1" GroupName="ThemePreset" Tag="lagoon"
+                                         Checked="ThemePreset_Checked" AutomationProperties.Name="泻湖">
+                                <StackPanel Orientation="Horizontal" Spacing="8"><Grid Width="30" Height="24"><Rectangle Fill="#F8FCFB"/><Rectangle Width="10" HorizontalAlignment="Center" Fill="#E3FAFC"/><Rectangle Width="10" HorizontalAlignment="Right" Fill="#00B298"/></Grid><TextBlock Text="泻湖"/></StackPanel>
+                            </RadioButton>
+                            <RadioButton x:Name="PresetInk" Grid.Row="1" Grid.Column="1" GroupName="ThemePreset" Tag="ink"
+                                         Checked="ThemePreset_Checked" AutomationProperties.Name="墨色">
+                                <StackPanel Orientation="Horizontal" Spacing="8"><Grid Width="30" Height="24"><Rectangle Fill="#F3F9FF"/><Rectangle Width="10" HorizontalAlignment="Center" Fill="#F8FCFF"/><Rectangle Width="10" HorizontalAlignment="Right" Fill="#000102"/></Grid><TextBlock Text="墨色"/></StackPanel>
+                            </RadioButton>
+                            <RadioButton x:Name="PresetOchre" Grid.Row="1" Grid.Column="2" GroupName="ThemePreset" Tag="ochre"
+                                         Checked="ThemePreset_Checked" AutomationProperties.Name="赭橙">
+                                <StackPanel Orientation="Horizontal" Spacing="8"><Grid Width="30" Height="24"><Rectangle Fill="#FCF8F3"/><Rectangle Width="10" HorizontalAlignment="Center" Fill="#F3EADE"/><Rectangle Width="10" HorizontalAlignment="Right" Fill="#F97015"/></Grid><TextBlock Text="赭橙"/></StackPanel>
+                            </RadioButton>
+                            <RadioButton x:Name="PresetSepia" Grid.Row="1" Grid.Column="3" GroupName="ThemePreset" Tag="sepia"
+                                         Checked="ThemePreset_Checked" AutomationProperties.Name="棕褐">
+                                <StackPanel Orientation="Horizontal" Spacing="8"><Grid Width="30" Height="24"><Rectangle Fill="#F9F9F9"/><Rectangle Width="10" HorizontalAlignment="Center" Fill="#FFDFB5"/><Rectangle Width="10" HorizontalAlignment="Right" Fill="#644A40"/></Grid><TextBlock Text="棕褐"/></StackPanel>
+                            </RadioButton>
+                        </Grid>
+                    </Grid>
+                </Border>
 
                 <!-- General settings: two balanced columns -->
                 <Grid ColumnSpacing="16">
@@ -49,36 +114,16 @@
                     <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}" Padding="20">
                         <StackPanel Spacing="16">
                             <StackPanel Orientation="Horizontal" Spacing="10">
-                                <Border Width="36" Height="36" CornerRadius="9" Background="{StaticResource AccentCyanBg}">
-                                    <FontIcon Glyph="&#xE790;" FontSize="17" Foreground="{StaticResource AccentCyan}"/>
+                                <Border Width="36" Height="36" CornerRadius="9" Background="{StaticResource AccentPrimaryBg}">
+                                    <FontIcon Glyph="&#xE790;" FontSize="17" Foreground="{StaticResource AccentPrimary}"/>
                                 </Border>
                                 <StackPanel VerticalAlignment="Center" Spacing="2">
                                     <TextBlock Text="外观与体验" FontSize="17" FontWeight="SemiBold" Foreground="{StaticResource TextMain}"/>
-                                    <TextBlock Text="调整首页氛围、主题和动态效果。" FontSize="12" Foreground="{StaticResource TextMuted}"/>
+                                    <TextBlock Text="调整工作台的主题、密度和动效偏好。" FontSize="12" Foreground="{StaticResource TextMuted}"/>
                                 </StackPanel>
                             </StackPanel>
 
                             <Rectangle Height="1" Fill="{StaticResource BorderSubtle}"/>
-
-                            <Grid ColumnSpacing="16">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Spacing="3" VerticalAlignment="Center">
-                                    <TextBlock Text="首页粒子效果" FontWeight="SemiBold" Foreground="{StaticResource TextMain}"/>
-                                    <TextBlock Text="在首页和透明导航区域显示动态连线。"
-                                               FontSize="12"
-                                               Foreground="{StaticResource TextMuted}"
-                                               TextWrapping="Wrap"/>
-                                </StackPanel>
-                                <ToggleSwitch x:Name="ParticleSwitch"
-                                              Grid.Column="1"
-                                              IsOn="True"
-                                              OnContent="开"
-                                              OffContent="关"
-                                              VerticalAlignment="Center"/>
-                            </Grid>
 
                             <Grid ColumnSpacing="16">
                                 <Grid.ColumnDefinitions>
@@ -108,8 +153,25 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="界面字号" FontWeight="SemiBold" Foreground="{StaticResource TextMain}"/>
+                                    <TextBlock Text="调整默认控件与正文的阅读尺寸。" FontSize="12" Foreground="{StaticResource TextMuted}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
+                                    <RadioButton x:Name="FontSmall" GroupName="UiFontSize" Tag="small" Content="小" Checked="UiFontSize_Checked"/>
+                                    <RadioButton x:Name="FontStandard" GroupName="UiFontSize" Tag="standard" Content="标准" Checked="UiFontSize_Checked"/>
+                                    <RadioButton x:Name="FontMedium" GroupName="UiFontSize" Tag="medium" Content="中" Checked="UiFontSize_Checked"/>
+                                    <RadioButton x:Name="FontLarge" GroupName="UiFontSize" Tag="large" Content="大" Checked="UiFontSize_Checked"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Spacing="3" VerticalAlignment="Center">
                                     <TextBlock Text="减少动态效果" FontWeight="SemiBold" Foreground="{StaticResource TextMain}"/>
-                                    <TextBlock Text="停用粒子、呼吸和持续动画。"
+                                    <TextBlock Text="停用页面入场和持续动画，适合对动效敏感的用户。"
                                                FontSize="12"
                                                Foreground="{StaticResource TextMuted}"/>
                                 </StackPanel>
@@ -428,7 +490,7 @@
                     <TextBlock Text="{x:Bind AppDisplayVersion, Mode=OneWay}"
                                FontSize="12"
                                FontWeight="SemiBold"
-                               Foreground="{StaticResource AccentCyan}"/>
+                               Foreground="{StaticResource AccentPrimary}"/>
                 </Button>
                 <TextBlock Text="·" Foreground="{StaticResource TextFaint}" FontSize="12" VerticalAlignment="Center"/>
                 <TextBlock Text="{x:Bind AppBuildDate, Mode=OneWay}"
