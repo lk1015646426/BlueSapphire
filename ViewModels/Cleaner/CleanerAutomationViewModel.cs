@@ -51,7 +51,7 @@ namespace BlueSapphire.ViewModels.Cleaner
                 {
                     if (_automationStatus.IsAutoCleanupDue)
                     {
-                        return "自动保洁：当前已到期，下次进入清理助手时会执行。";
+                        return "自动保洁：当前已到期，下次进入清理工具时会执行。";
                     }
 
                     return _automationStatus.NextAutoCleanupAt == null
@@ -124,7 +124,7 @@ namespace BlueSapphire.ViewModels.Cleaner
 
                 if (!schedule.IsConfigured)
                 {
-                    return "当前未启用系统级计划触发；提醒和自动保洁仍会在你打开清理助手时按周期检查。";
+                    return "当前未启用系统级计划触发；提醒和自动保洁仍会在你打开清理工具时按周期检查。";
                 }
 
                 string syncText = schedule.LastSynchronizedAt == null
@@ -145,6 +145,7 @@ namespace BlueSapphire.ViewModels.Cleaner
         {
             _automationService = automationService;
             Settings = settings;
+            Settings.AutomationStatusSaved += ApplyAutomationStatus;
 
             Settings.PropertyChanged += (s, e) => 
             {
@@ -216,13 +217,6 @@ namespace BlueSapphire.ViewModels.Cleaner
         [RelayCommand]
         private async Task RunAutomaticLowRiskCleanupNow()
         {
-            // This needs to trigger the scan/cleanup logic in the main VM.
-            // For now, we will send a message or let the main VM handle the actual cleanup logic, 
-            // since automation VM shouldn't directly manage execution/progress bars if ScanVM/CleanupVM does it.
-            // But wait, in the original code, this called RunCleanup with specific params?
-            // Actually, we can just use WeakReferenceMessenger or an event.
-            // We'll leave the implementation of RunAutomaticLowRiskCleanupNow to send a message or we just expose an event.
-            // For now, let's keep it here but we'll wire it up.
             WeakReferenceMessenger.Default.Send(new BlueSapphire.Models.RunAutomaticLowRiskCleanupMessage());
             await Task.CompletedTask;
         }

@@ -5,45 +5,32 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    mc:Ignorable="d">
+    mc:Ignorable="d"
+    AutomationProperties.Name="清理空间摘要">
 
-    <StackPanel Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center">
-        <Grid Width="76" Height="76">
-            <Ellipse Width="68" Height="68" Stroke="{StaticResource BorderSubtle}" StrokeThickness="8" Fill="Transparent" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-            <Ellipse x:Name="SafeRing" Width="68" Height="68" Stroke="{StaticResource AccentSafe}" StrokeThickness="8" Fill="Transparent" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-            <Ellipse x:Name="ReviewRing" Width="68" Height="68" Stroke="{StaticResource AccentReview}" StrokeThickness="8" Fill="Transparent" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-            <Ellipse x:Name="ViewOnlyRing" Width="68" Height="68" Stroke="{StaticResource AccentInspect}" StrokeThickness="8" Fill="Transparent" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+    <StackPanel Spacing="10" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <Grid Width="96" Height="96">
+            <Ellipse Width="86" Height="86" Stroke="{ThemeResource BorderSubtle}" StrokeThickness="10" Fill="Transparent" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            <Ellipse x:Name="SafeRing" Width="86" Height="86" Stroke="{ThemeResource AccentSafe}" StrokeThickness="10" Fill="Transparent" HorizontalAlignment="Center" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5"><Ellipse.RenderTransform><RotateTransform Angle="-90"/></Ellipse.RenderTransform></Ellipse>
+            <Ellipse x:Name="ReviewRing" Width="86" Height="86" Stroke="{ThemeResource AccentReview}" StrokeThickness="10" Fill="Transparent" HorizontalAlignment="Center" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5"><Ellipse.RenderTransform><RotateTransform Angle="-90"/></Ellipse.RenderTransform></Ellipse>
+            <Ellipse x:Name="SystemRing" Width="86" Height="86" Stroke="{ThemeResource AccentPrimary}" StrokeThickness="10" Fill="Transparent" HorizontalAlignment="Center" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5"><Ellipse.RenderTransform><RotateTransform Angle="-90"/></Ellipse.RenderTransform></Ellipse>
+            <Ellipse x:Name="ViewOnlyRing" Width="86" Height="86" Stroke="{ThemeResource AccentInspect}" StrokeThickness="10" Fill="Transparent" HorizontalAlignment="Center" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5"><Ellipse.RenderTransform><RotateTransform Angle="-90"/></Ellipse.RenderTransform></Ellipse>
 
             <StackPanel x:Name="DataPanel" HorizontalAlignment="Center" VerticalAlignment="Center">
-                <TextBlock Text="可释放" FontSize="9" Foreground="{StaticResource TextMuted}" HorizontalAlignment="Center"/>
-                <TextBlock x:Name="TotalText" Text="--" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextMain}" HorizontalAlignment="Center"/>
+                <TextBlock Text="已识别" FontSize="11" Foreground="{ThemeResource TextMuted}" HorizontalAlignment="Center"/>
+                <TextBlock x:Name="TotalText" Text="--" FontSize="20" FontWeight="Bold" Foreground="{ThemeResource TextMain}" HorizontalAlignment="Center"/>
             </StackPanel>
 
             <StackPanel x:Name="IdlePanel" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
-                <FontIcon Glyph="&#xE9D9;" FontSize="20" Foreground="{StaticResource TextMuted}" HorizontalAlignment="Center"/>
-                <TextBlock Text="待扫描" FontSize="9" Foreground="{StaticResource TextMuted}" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                <FontIcon Glyph="&#xE9D9;" FontSize="24" Foreground="{ThemeResource TextMuted}" HorizontalAlignment="Center"/>
+                <TextBlock Text="待扫描" FontSize="11" Foreground="{ThemeResource TextMuted}" HorizontalAlignment="Center" Margin="0,3,0,0"/>
             </StackPanel>
 
             <StackPanel x:Name="NoResultsPanel" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
-                <FontIcon Glyph="&#xE73E;" FontSize="22" Foreground="{StaticResource AccentSafe}" HorizontalAlignment="Center"/>
+                <FontIcon Glyph="&#xE73E;" FontSize="26" Foreground="{ThemeResource AccentSafe}" HorizontalAlignment="Center"/>
             </StackPanel>
         </Grid>
 
-        <StackPanel x:Name="LegendPanel" Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
-            <StackPanel Orientation="Horizontal" Spacing="4">
-                <Border Width="6" Height="6" Background="{StaticResource AccentSafe}" CornerRadius="3"/>
-                <TextBlock x:Name="SafeLabel" Text="--" FontSize="10" Foreground="{StaticResource TextMuted}"/>
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" Spacing="4">
-                <Border Width="6" Height="6" Background="{StaticResource AccentReview}" CornerRadius="3"/>
-                <TextBlock x:Name="ReviewLabel" Text="--" FontSize="10" Foreground="{StaticResource TextMuted}"/>
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" Spacing="4">
-                <Border Width="6" Height="6" Background="{StaticResource AccentInspect}" CornerRadius="3"/>
-                <TextBlock x:Name="ViewOnlyLabel" Text="--" FontSize="10" Foreground="{StaticResource TextMuted}"/>
-            </StackPanel>
-        </StackPanel>
-
-        <TextBlock x:Name="NoResultsLabel" Text="无可释放空间" FontSize="10" Foreground="{StaticResource AccentSafe}" HorizontalAlignment="Center" Visibility="Collapsed"/>
+        <TextBlock x:Name="NoResultsLabel" Text="没有需要处理的空间" FontSize="11" Foreground="{ThemeResource AccentSafe}" HorizontalAlignment="Center" Visibility="Collapsed"/>
     </StackPanel>
 </UserControl>

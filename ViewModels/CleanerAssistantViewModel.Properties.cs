@@ -37,7 +37,6 @@ namespace BlueSapphire.ViewModels
 
         private List<string> GetFailureRecoveryProcesses()
         {
-            // Dummy implementation to satisfy bindings, real logic was likely extracting from failure entries
             return Cleanup.GetLatestFailedEntries()
                 .Where(e => e.LockedByProcesses.Count > 0)
                 .SelectMany(e => e.LockedByProcesses)

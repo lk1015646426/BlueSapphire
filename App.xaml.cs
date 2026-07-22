@@ -291,6 +291,9 @@ namespace BlueSapphire
             services.AddSingleton<BlueSapphire.Services.CleanerScanService>();
             services.AddSingleton<BlueSapphire.Services.CleanerDeepScanService>();
             services.AddSingleton<BlueSapphire.Services.CleanerExecutionService>();
+            services.AddSingleton<BlueSapphire.Services.CleanerOperationCoordinator>();
+            services.AddSingleton<BlueSapphire.Services.CleanerSystemCleanupService>();
+            services.AddSingleton<BlueSapphire.Services.CleanerApplicationDiscoveryService>();
             services.AddSingleton<BlueSapphire.Services.AIMemoryService>();
 
             // 注册 ViewModel

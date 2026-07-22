@@ -36,7 +36,7 @@ namespace BlueSapphire.ViewModels.Cleaner
             }
         }
 
-        public string DriveSelectionHintText => "深度扫描会按这里选中的磁盘做空间分析；系统与应用规则仍按真实安装位置识别。";
+        public string DriveSelectionHintText => "支持多选；所有蓝色勾选的磁盘都会进入扫描范围，扫描本身不会删除文件。";
 
         public CleanerDriveSelectionViewModel(CleanerDriveService driveService, CleanerStateStore stateStore)
         {

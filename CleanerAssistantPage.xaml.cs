@@ -19,6 +19,7 @@ namespace BlueSapphire
     public sealed partial class CleanerAssistantPage : Page, ICleanerAssistantViewInteraction
     {
         private bool _isInitialized;
+        private bool _reduceMotion;
 
         public CleanerAssistantViewModel ViewModel { get; }
 
@@ -35,19 +36,28 @@ namespace BlueSapphire
         {
             ViewModel.Scan.PropertyChanged -= Scan_PropertyChanged;
             ViewModel.Scan.PropertyChanged += Scan_PropertyChanged;
+            ViewModel.PropertyChanged -= ViewModel_PropertyChanged;
+            ViewModel.PropertyChanged += ViewModel_PropertyChanged;
+            _reduceMotion = BlueSapphire.Helpers.AppSettings.Get("ReduceMotion", false);
 
             if (_isInitialized)
             {
                 UpdateDonutChart();
+                UpdateCleanupMotionState();
                 return;
             }
 
             _isInitialized = true;
             try
             {
-                if (!BlueSapphire.Helpers.AppSettings.Get("ReduceMotion", false))
+                if (!_reduceMotion)
                 {
                     CardEntrance.Begin();
+                }
+                else
+                {
+                    ScanContentPanel.Opacity = 1;
+                    ScanContentTranslate.Y = 0;
                 }
                 await ViewModel.InitializeAsync(this);
 
@@ -57,10 +67,11 @@ namespace BlueSapphire
                 MainTabBar.SelectedIndex = 0;
 
                 UpdateDonutChart();
+                UpdateCleanupMotionState();
             }
             catch (Exception ex)
             {
-                await ShowTipAsync("清理助手初始化失败", ex.Message);
+                await ShowTipAsync("清理工具初始化失败", ex.Message);
             }
             finally
             {
@@ -71,6 +82,69 @@ namespace BlueSapphire
         private void CleanerAssistantPage_Unloaded(object sender, RoutedEventArgs e)
         {
             ViewModel.Scan.PropertyChanged -= Scan_PropertyChanged;
+            ViewModel.PropertyChanged -= ViewModel_PropertyChanged;
+        }
+
+        private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(ViewModel.IsCleanupRunning))
+            {
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    CleanupProgressRing.IsActive = ViewModel.IsCleanupRunning && !_reduceMotion;
+                });
+            }
+
+            if (e.PropertyName == nameof(ViewModel.IsCleanupExperienceVisible) && ViewModel.IsCleanupExperienceVisible)
+            {
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    if (_reduceMotion)
+                    {
+                        CleanupExperience.Opacity = 1;
+                        CleanupCardTransform.TranslateY = 0;
+                        CleanupCardTransform.ScaleX = 1;
+                        CleanupCardTransform.ScaleY = 1;
+                    }
+                    else
+                    {
+                        CleanupEnterStoryboard.Begin();
+                    }
+                });
+            }
+
+            if (e.PropertyName == nameof(ViewModel.IsCleanupOutcomeVisible) && ViewModel.IsCleanupOutcomeVisible)
+            {
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    CleanupProgressRing.IsActive = false;
+                    if (_reduceMotion)
+                    {
+                        CleanupOutcomePanel.Opacity = 1;
+                        CleanupOutcomeTranslate.Y = 0;
+                        CleanupOutcomeIconScale.ScaleX = 1;
+                        CleanupOutcomeIconScale.ScaleY = 1;
+                    }
+                    else
+                    {
+                        CleanupOutcomeStoryboard.Begin();
+                    }
+                });
+            }
+        }
+
+        private void UpdateCleanupMotionState()
+        {
+            CleanupProgressRing.IsActive = ViewModel.IsCleanupRunning && !_reduceMotion;
+            if (!ViewModel.IsCleanupExperienceVisible)
+            {
+                return;
+            }
+
+            CleanupExperience.Opacity = 1;
+            CleanupCardTransform.TranslateY = 0;
+            CleanupCardTransform.ScaleX = 1;
+            CleanupCardTransform.ScaleY = 1;
         }
 
         private void Scan_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -136,11 +210,9 @@ namespace BlueSapphire
             DonutChart.Update(
                 ViewModel.Scan.SafeItemSpaceBytes,
                 ViewModel.Scan.ReviewItemSpaceBytes,
+                ViewModel.Scan.SystemItemSpaceBytes,
                 ViewModel.Scan.ViewOnlyItemSpaceBytes,
-                ViewModel.Scan.TotalCleanableSpaceText,
-                ViewModel.Scan.SafeSpaceText,
-                ViewModel.Scan.ReviewSpaceText,
-                ViewModel.Scan.ViewOnlySpaceText);
+                ViewModel.Scan.TotalDetectedSpaceText);
         }
 
         private void ItemRow_Tapped(object sender, TappedRoutedEventArgs e)
@@ -154,9 +226,9 @@ namespace BlueSapphire
         private void ApplyDialogStyle(ContentDialog dialog)
         {
             dialog.Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["PanelSurfaceStrong"];
-            dialog.BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentInspect"];
+            dialog.BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["BorderColor"];
             dialog.BorderThickness = new Thickness(1);
-            dialog.CornerRadius = new CornerRadius(16);
+            dialog.CornerRadius = new CornerRadius(12);
             dialog.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextMain"];
         }
 
@@ -174,17 +246,83 @@ namespace BlueSapphire
             await dialog.ShowAsync();
         }
 
-        public async Task<bool> ShowCleanupConfirmationAsync(int count, string sizeText, bool includesReviewItems)
+        public async Task<bool> ShowCleanupConfirmationAsync(CleanerCleanupPlanSummary plan)
         {
-            string hint = includesReviewItems
-                ? "本次包含建议确认项，系统会优先使用隔离区以保留恢复能力。"
-                : "本次主要是低风险项，系统会优先使用保守删除策略。";
+            StackPanel content = new()
+            {
+                Spacing = 10,
+                MaxWidth = 480
+            };
+
+            Grid summary = new() { ColumnSpacing = 16 };
+            summary.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            summary.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            StackPanel summaryText = new() { Spacing = 2 };
+            summaryText.Children.Add(new TextBlock
+            {
+                Text = "本次计划处理",
+                FontSize = 11,
+                Foreground = (Brush)Application.Current.Resources["TextMuted"]
+            });
+            summaryText.Children.Add(new TextBlock
+            {
+                Text = $"{plan.ItemCount} 项",
+                FontSize = 20,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                Foreground = (Brush)Application.Current.Resources["TextMain"]
+            });
+            TextBlock total = new()
+            {
+                Text = CleanerSizeFormatter.Format(plan.TotalBytes),
+                FontSize = 20,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                Foreground = (Brush)Application.Current.Resources["AccentPrimary"],
+                VerticalAlignment = VerticalAlignment.Bottom
+            };
+            Grid.SetColumn(total, 1);
+            summary.Children.Add(summaryText);
+            summary.Children.Add(total);
+            content.Children.Add(new Border
+            {
+                Background = (Brush)Application.Current.Resources["PanelSurface"],
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(14, 12, 14, 12),
+                Child = summary
+            });
+
+            if (plan.PermanentItemCount > 0)
+            {
+                AddCleanupPlanRow(content, "永久处理", $"{plan.PermanentItemCount} 项 · {CleanerSizeFormatter.Format(plan.PermanentBytes)} · 立即释放，不可恢复", "AccentReview", "AccentReviewBg");
+            }
+            if (plan.QuarantineItemCount > 0)
+            {
+                AddCleanupPlanRow(content, "隔离暂存", $"{plan.QuarantineItemCount} 项 · {CleanerSizeFormatter.Format(plan.QuarantineBytes)} · 可恢复，暂不释放空间", "AccentSafe", "AccentSafeBg");
+            }
+            if (plan.RecycleItemCount > 0)
+            {
+                AddCleanupPlanRow(content, "移入回收站", $"{plan.RecycleItemCount} 项 · {CleanerSizeFormatter.Format(plan.RecycleBytes)} · 清空回收站后释放", "AccentInspect", "AccentInspectBg");
+            }
+            if (plan.SystemItemCount > 0)
+            {
+                AddCleanupPlanRow(content, "Windows 专用处理", $"{plan.SystemItemCount} 项 · 当前占用 {CleanerSizeFormatter.Format(plan.SystemBytes)} · 以系统返回结果为准", "AccentPrimary", "AccentPrimaryBg");
+            }
+
+            if (plan.ReviewItemCount + plan.RequiresElevationItemCount + plan.LockedItemCount > 0)
+            {
+                string attention = string.Join("；", new[]
+                {
+                    plan.ReviewItemCount > 0 ? $"{plan.ReviewItemCount} 项需要确认" : string.Empty,
+                    plan.RequiresElevationItemCount > 0 ? $"{plan.RequiresElevationItemCount} 项需要管理员权限" : string.Empty,
+                    plan.LockedItemCount > 0 ? $"{plan.LockedItemCount} 项可能被占用" : string.Empty
+                }.Where(value => !string.IsNullOrWhiteSpace(value)));
+                AddCleanupPlanRow(content, "执行前注意", attention, "AccentReview", "AccentReviewBg");
+            }
 
             ContentDialog dialog = new()
             {
-                Title = "确认执行清理",
-                Content = $"本次将处理 {count} 项对象，预计释放 {sizeText}。\n\n{hint}",
-                PrimaryButtonText = "开始清理",
+                Title = "核对清理计划",
+                Content = content,
+                PrimaryButtonText = plan.HasIrreversibleItems ? "确认并执行" : "执行计划",
                 CloseButtonText = "取消",
                 DefaultButton = ContentDialogButton.Close,
                 XamlRoot = XamlRoot
@@ -194,6 +332,68 @@ namespace BlueSapphire
             return await dialog.ShowAsync() == ContentDialogResult.Primary;
         }
 
+        public async Task<bool> ShowScanReminderConfirmationAsync()
+        {
+            ContentDialog dialog = new()
+            {
+                Title = "该检查磁盘空间了",
+                Content = "现在只会开始快速扫描，不会删除任何内容。扫描完成后，你仍然可以逐项查看和决定。",
+                PrimaryButtonText = "开始扫描",
+                CloseButtonText = "稍后提醒",
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = XamlRoot
+            };
+            ApplyDialogStyle(dialog);
+
+            return await dialog.ShowAsync() == ContentDialogResult.Primary;
+        }
+
+        private static void AddCleanupPlanRow(
+            Panel target,
+            string title,
+            string detail,
+            string accentResource,
+            string backgroundResource)
+        {
+            Grid row = new() { ColumnSpacing = 10 };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            Border dot = new()
+            {
+                Width = 8,
+                Height = 8,
+                CornerRadius = new CornerRadius(4),
+                Background = (Brush)Application.Current.Resources[accentResource],
+                VerticalAlignment = VerticalAlignment.Top,
+                Margin = new Thickness(0, 5, 0, 0)
+            };
+            StackPanel copy = new() { Spacing = 1 };
+            copy.Children.Add(new TextBlock
+            {
+                Text = title,
+                FontSize = 12,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                Foreground = (Brush)Application.Current.Resources["TextMain"]
+            });
+            copy.Children.Add(new TextBlock
+            {
+                Text = detail,
+                FontSize = 11,
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = (Brush)Application.Current.Resources["TextSecondary"]
+            });
+            Grid.SetColumn(copy, 1);
+            row.Children.Add(dot);
+            row.Children.Add(copy);
+            target.Children.Add(new Border
+            {
+                Background = (Brush)Application.Current.Resources[backgroundResource],
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(12, 9, 12, 9),
+                Child = row
+            });
+        }
+
         public async Task<bool> ShowRestoreConfirmationAsync(string summaryText)
         {
             ContentDialog dialog = new()
@@ -201,6 +401,22 @@ namespace BlueSapphire
                 Title = "恢复最近一次清理",
                 Content = $"{summaryText}\n\n恢复时会优先回写原路径，若目标已存在，则自动改名保留。",
                 PrimaryButtonText = "开始恢复",
+                CloseButtonText = "取消",
+                DefaultButton = ContentDialogButton.Close,
+                XamlRoot = XamlRoot
+            };
+            ApplyDialogStyle(dialog);
+
+            return await dialog.ShowAsync() == ContentDialogResult.Primary;
+        }
+
+        public async Task<bool> ShowPurgeQuarantineConfirmationAsync(int itemCount, long sizeBytes)
+        {
+            ContentDialog dialog = new()
+            {
+                Title = "永久清空隔离区",
+                Content = $"将永久删除隔离区中的 {itemCount} 项，共 {CleanerSizeFormatter.Format(sizeBytes)}。\n\n这些内容删除后无法恢复，完成后才会真正释放对应磁盘空间。",
+                PrimaryButtonText = "永久删除",
                 CloseButtonText = "取消",
                 DefaultButton = ContentDialogButton.Close,
                 XamlRoot = XamlRoot

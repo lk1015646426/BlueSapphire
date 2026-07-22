@@ -15,18 +15,25 @@ namespace BlueSapphire.ViewModels
     {
         private readonly CleanerAutomationService _automationService;
         private readonly CleanerTelemetryService _telemetryService;
+        private readonly CleanerStateStore? _stateStore;
         private bool _isUpdatingFromStatus;
         private readonly SemaphoreSlim _saveGate = new(1, 1);
         private readonly object _pendingSaveSync = new();
         private CancellationTokenSource? _automationSaveCts;
         private CancellationTokenSource? _telemetrySaveCts;
+        private CancellationTokenSource? _quarantineSaveCts;
+
+        public event Action<CleanerAutomationStatus>? AutomationStatusSaved;
+        public event Action<CleanerTelemetryStatus>? TelemetryStatusSaved;
 
         public CleanerSettingsViewModel(
             CleanerAutomationService automationService,
-            CleanerTelemetryService telemetryService)
+            CleanerTelemetryService telemetryService,
+            CleanerStateStore? stateStore = null)
         {
             _automationService = automationService;
             _telemetryService = telemetryService;
+            _stateStore = stateStore;
         }
 
         public IReadOnlyList<ReminderIntervalOption> ReminderOptions { get; } = new[]
@@ -35,6 +42,14 @@ namespace BlueSapphire.ViewModels
             new ReminderIntervalOption(3, "3 天"),
             new ReminderIntervalOption(7, "7 天"),
             new ReminderIntervalOption(14, "14 天")
+        };
+
+        public IReadOnlyList<ReminderIntervalOption> QuarantineRetentionOptions { get; } = new[]
+        {
+            new ReminderIntervalOption(3, "3 天"),
+            new ReminderIntervalOption(7, "7 天"),
+            new ReminderIntervalOption(14, "14 天"),
+            new ReminderIntervalOption(30, "30 天")
         };
 
         [ObservableProperty]
@@ -49,10 +64,67 @@ namespace BlueSapphire.ViewModels
         [ObservableProperty]
         public partial bool TelemetryEnabled { get; set; }
 
+        [ObservableProperty]
+        public partial bool AutoPurgeQuarantineEnabled { get; set; }
+
+        [ObservableProperty]
+        public partial int QuarantineRetentionDays { get; set; } = 7;
+
         partial void OnReminderEnabledChanged(bool value) => SaveAutomationSettings();
         partial void OnAutoLowRiskCleanupEnabledChanged(bool value) => SaveAutomationSettings();
         partial void OnReminderIntervalDaysChanged(int value) => SaveAutomationSettings();
         partial void OnTelemetryEnabledChanged(bool value) => SaveTelemetrySettings();
+        partial void OnAutoPurgeQuarantineEnabledChanged(bool value) => SaveQuarantineSettings();
+        partial void OnQuarantineRetentionDaysChanged(int value) => SaveQuarantineSettings();
+
+        public async Task InitializeQuarantineSettingsAsync()
+        {
+            if (_stateStore == null) return;
+            CleanerPreferenceState preferences = await _stateStore.LoadPreferencesAsync();
+            _isUpdatingFromStatus = true;
+            try
+            {
+                AutoPurgeQuarantineEnabled = preferences.AutoPurgeQuarantineEnabled;
+                QuarantineRetentionDays = Math.Clamp(preferences.QuarantineRetentionDays, 1, 365);
+            }
+            finally
+            {
+                _isUpdatingFromStatus = false;
+            }
+        }
+
+        private void SaveQuarantineSettings()
+        {
+            if (_isUpdatingFromStatus || _stateStore == null) return;
+            bool enabled = AutoPurgeQuarantineEnabled;
+            int days = Math.Clamp(QuarantineRetentionDays, 1, 365);
+            CancellationTokenSource cts = ReplacePendingSave(ref _quarantineSaveCts);
+            _ = SaveQuarantineSettingsAsync(enabled, days, cts);
+        }
+
+        private async Task SaveQuarantineSettingsAsync(bool enabled, int days, CancellationTokenSource cts)
+        {
+            try
+            {
+                await Task.Delay(350, cts.Token);
+                await _stateStore!.UpdatePreferencesAsync(state =>
+                {
+                    state.AutoPurgeQuarantineEnabled = enabled;
+                    state.QuarantineRetentionDays = days;
+                });
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                WeakReferenceMessenger.Default.Send(new ShowTipMessage("隔离区设置保存失败", ex.Message));
+            }
+            finally
+            {
+                CompletePendingSave(ref _quarantineSaveCts, cts);
+            }
+        }
 
         public void UpdateFromAutomationStatus(CleanerAutomationStatus status)
         {
@@ -105,7 +177,11 @@ namespace BlueSapphire.ViewModels
                 await _saveGate.WaitAsync(cts.Token);
                 enteredGate = true;
                 cts.Token.ThrowIfCancellationRequested();
-                await _automationService.SaveSettingsAsync(reminderEnabled, autoCleanupEnabled, intervalDays);
+                CleanerAutomationStatus status = await _automationService.SaveSettingsAsync(
+                    reminderEnabled,
+                    autoCleanupEnabled,
+                    intervalDays);
+                AutomationStatusSaved?.Invoke(status);
             }
             catch (OperationCanceledException)
             {
@@ -141,7 +217,8 @@ namespace BlueSapphire.ViewModels
                 enteredGate = true;
                 cts.Token.ThrowIfCancellationRequested();
                 var currentStatus = await _telemetryService.LoadStatusAsync();
-                await _telemetryService.SaveSettingsAsync(enabled, currentStatus.Endpoint);
+                CleanerTelemetryStatus status = await _telemetryService.SaveSettingsAsync(enabled, currentStatus.Endpoint);
+                TelemetryStatusSaved?.Invoke(status);
             }
             catch (OperationCanceledException)
             {
@@ -165,8 +242,10 @@ namespace BlueSapphire.ViewModels
             {
                 _automationSaveCts?.Cancel();
                 _telemetrySaveCts?.Cancel();
+                _quarantineSaveCts?.Cancel();
                 _automationSaveCts = null;
                 _telemetrySaveCts = null;
+                _quarantineSaveCts = null;
             }
         }
 

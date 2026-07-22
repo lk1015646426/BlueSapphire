@@ -1,7 +1,9 @@
 ﻿using Microsoft.Extensions.Logging.Abstractions;
 using BlueSapphire.Models;
+using BlueSapphire.Interfaces;
 using BlueSapphire.Services;
 using BlueSapphire.ViewModels;
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -152,6 +154,99 @@ public class CleanerAssistantViewModelTests : IDisposable
         Assert.Null(ex);
     }
 
+    [Fact]
+    public async Task QuickScan_CancelCommandStopsActiveScanWithoutBlockingCaller()
+    {
+        string cacheDir = Path.Combine(_rootPath, "CancelableScan");
+        Directory.CreateDirectory(cacheDir);
+        for (int i = 0; i < 2_000; i++)
+        {
+            await File.WriteAllTextAsync(Path.Combine(cacheDir, $"cache-{i:D4}.tmp"), "x");
+        }
+
+        await WriteRuleAsync(new CleanerRuleManifest
+        {
+            Rules =
+            [
+                new CleanerRuleDefinition
+                {
+                    Id = "cancelable_cache",
+                    Name = "Cancelable Cache",
+                    Category = "app_cache",
+                    Scope = CleanerScanScope.Quick,
+                    ScanKind = CleanerScanKind.Directory,
+                    Paths = [cacheDir],
+                    ExecutionMode = CleanerExecutionMode.Quarantine,
+                    DefaultSelected = true,
+                    OwnerApp = "BlueSapphire"
+                }
+            ]
+        });
+
+        CleanerAssistantViewModel vm = CreateViewModel();
+        Stopwatch startLatency = Stopwatch.StartNew();
+        Task scanTask = vm.Scan.StartQuickScanCommand.ExecuteAsync(null);
+        startLatency.Stop();
+
+        Assert.True(startLatency.Elapsed < TimeSpan.FromSeconds(1), "启动扫描不应阻塞调用线程。");
+        Assert.True(vm.Scan.IsBusy);
+
+        vm.Scan.CancelCurrentOperationCommand.Execute(null);
+        await scanTask.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.False(vm.Scan.IsBusy);
+        Assert.Equal(CleanerScanState.Idle, vm.Scan.CurrentScanState);
+        Assert.Equal("已取消", vm.Scan.StatusMainText);
+    }
+
+    [Fact]
+    public async Task Rescan_HidesStaleResultsAndCancellationRestoresLastCompleteReport()
+    {
+        string cacheDir = Path.Combine(_rootPath, "RescanState");
+        Directory.CreateDirectory(cacheDir);
+        await File.WriteAllTextAsync(Path.Combine(cacheDir, "initial.tmp"), "initial");
+
+        await WriteRuleAsync(new CleanerRuleManifest
+        {
+            Rules =
+            [
+                new CleanerRuleDefinition
+                {
+                    Id = "rescan_state",
+                    Name = "Rescan state",
+                    Category = "app_cache",
+                    Scope = CleanerScanScope.Quick,
+                    ScanKind = CleanerScanKind.DirectoryContents,
+                    Paths = [cacheDir],
+                    ExecutionMode = CleanerExecutionMode.Quarantine,
+                    RiskLevel = CleanerRiskLevel.Low,
+                    DefaultSelected = true
+                }
+            ]
+        });
+
+        CleanerAssistantViewModel vm = CreateViewModel();
+        await vm.Scan.StartQuickScanCommand.ExecuteAsync(null);
+        Assert.True(vm.Scan.HasSafeItems);
+
+        for (int i = 0; i < 2_000; i++)
+        {
+            await File.WriteAllTextAsync(Path.Combine(cacheDir, $"rescan-{i:D4}.tmp"), "x");
+        }
+
+        Task rescanTask = vm.Scan.StartQuickScanCommand.ExecuteAsync(null);
+        Assert.True(vm.Scan.IsScanning);
+        Assert.False(vm.Scan.HasSafeItems);
+        Assert.False(vm.Scan.HasAnyCategoryItems);
+
+        vm.Scan.CancelCurrentOperationCommand.Execute(null);
+        await rescanTask.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(CleanerScanState.Completed, vm.Scan.CurrentScanState);
+        Assert.True(vm.Scan.HasSafeItems);
+        Assert.Contains("上一次完整扫描结果", vm.Scan.StatusDetailText);
+    }
+
     // ================================================================
     // Test 7: 清理命令在无选中项时不应执行
     // ================================================================
@@ -161,6 +256,53 @@ public class CleanerAssistantViewModelTests : IDisposable
         CleanerAssistantViewModel vm = CreateViewModel();
 
         Assert.False(vm.Scan.CanRunCleanup);
+    }
+
+    [Fact]
+    public async Task RunCleanup_ShowsInlineProgressOutcomeAndCanBeDismissed()
+    {
+        string cacheDir = Path.Combine(_rootPath, "CleanupExperience");
+        Directory.CreateDirectory(cacheDir);
+        string cacheFile = Path.Combine(cacheDir, "cache.tmp");
+        await File.WriteAllTextAsync(cacheFile, new string('x', 4096));
+
+        await WriteRuleAsync(new CleanerRuleManifest
+        {
+            Rules =
+            [
+                new CleanerRuleDefinition
+                {
+                    Id = "cleanup_experience",
+                    Name = "Cleanup Experience",
+                    Category = "app_cache",
+                    Scope = CleanerScanScope.Quick,
+                    ScanKind = CleanerScanKind.DirectoryContents,
+                    Paths = [cacheDir],
+                    BoundaryRoots = [cacheDir],
+                    ExecutionMode = CleanerExecutionMode.Quarantine,
+                    RiskLevel = CleanerRiskLevel.Low,
+                    DefaultSelected = true,
+                    OwnerApp = "BlueSapphire"
+                }
+            ]
+        });
+
+        CleanerAssistantViewModel vm = CreateViewModel();
+        await vm.InitializeAsync(new ConfirmingCleanerView());
+        await vm.Scan.StartQuickScanCommand.ExecuteAsync(null);
+
+        Assert.True(vm.Scan.CanRunCleanup);
+        await vm.RunCleanupCommand.ExecuteAsync(null);
+
+        Assert.False(vm.IsCleanupRunning);
+        Assert.True(vm.IsCleanupOutcomeVisible);
+        Assert.True(vm.IsCleanupExperienceVisible);
+        Assert.Equal("清理完成", vm.CleanupOutcomeTitle);
+        Assert.Equal("4 KB", vm.CleanupRecoverableText);
+        Assert.False(File.Exists(cacheFile));
+
+        vm.DismissCleanupOutcomeCommand.Execute(null);
+        Assert.False(vm.IsCleanupExperienceVisible);
     }
 
     // ================================================================
@@ -233,10 +375,171 @@ public class CleanerAssistantViewModelTests : IDisposable
         Assert.Null(ex);
     }
 
+    [Fact]
+    public void SharedOperationBusyState_DisablesScanAndCleanupEntryPoints()
+    {
+        CleanerAssistantViewModel vm = CreateViewModel();
+
+        vm.Scan.SetBusyState(true, "正在恢复", "正在刷新隔离区记录");
+
+        Assert.True(vm.Scan.IsBusy);
+        Assert.False(vm.Scan.IsNotScanning);
+        Assert.False(vm.Scan.CanRunCleanup);
+        Assert.False(vm.Scan.CanRunAutomaticLowRiskCleanupNow);
+        Assert.False(vm.Cleanup.CanStartHistoryOperation);
+    }
+
+    [Fact]
+    public async Task ScanEntryPoint_RefusesToStartWhileSharedCoordinatorIsBusy()
+    {
+        var coordinator = new CleanerOperationCoordinator(
+            $"Local\\BlueSapphire.Tests.Cleaner.{Guid.NewGuid():N}");
+        Assert.True(coordinator.TryAcquire(CleanerOperationKind.Cleanup, out CleanerOperationLease? lease));
+        CleanerAssistantViewModel vm = CreateViewModel(coordinator);
+
+        await vm.Scan.StartQuickScanCommand.ExecuteAsync(null);
+
+        Assert.Equal(CleanerScanState.Idle, vm.Scan.CurrentScanState);
+        Assert.Contains("另一项", vm.Scan.StatusDetailText);
+        lease!.Dispose();
+    }
+
+    [Fact]
+    public async Task StartingAnotherScan_ClearsPreviouslySelectedDetail()
+    {
+        string cacheDir = Path.Combine(_rootPath, "SelectedDetail");
+        Directory.CreateDirectory(cacheDir);
+        await File.WriteAllTextAsync(Path.Combine(cacheDir, "detail.tmp"), "detail");
+        await WriteRuleAsync(CreateSingleDirectoryRule("selected_detail", cacheDir));
+
+        CleanerAssistantViewModel vm = CreateViewModel();
+        await vm.Scan.StartQuickScanCommand.ExecuteAsync(null);
+        vm.SelectedScanItem = Assert.Single(vm.Scan.SafeItems);
+
+        await vm.Scan.StartQuickScanCommand.ExecuteAsync(null);
+
+        Assert.Null(vm.SelectedScanItem);
+        Assert.False(vm.HasSelectedScanItem);
+    }
+
+    [Fact]
+    public async Task AddingExclusion_ImmediatelyUnselectsAndHidesCurrentItemDetail()
+    {
+        string cacheDir = Path.Combine(_rootPath, "ImmediateExclusion");
+        Directory.CreateDirectory(cacheDir);
+        await File.WriteAllTextAsync(Path.Combine(cacheDir, "excluded.tmp"), "exclude");
+        await WriteRuleAsync(CreateSingleDirectoryRule("immediate_exclusion", cacheDir));
+
+        CleanerAssistantViewModel vm = CreateViewModel();
+        await vm.Scan.StartQuickScanCommand.ExecuteAsync(null);
+        CleanerScanItem item = Assert.Single(vm.Scan.SafeItems);
+        vm.SelectedScanItem = item;
+
+        await vm.Cleanup.AddToExclusionsCommand.ExecuteAsync(item);
+
+        Assert.True(item.IsExcluded);
+        Assert.False(item.IsSelected);
+        Assert.Null(vm.SelectedScanItem);
+        Assert.Equal(0, vm.Scan.TotalSelectedItemCount);
+        await vm.WaitForPendingBackgroundWorkAsync();
+        vm.Shutdown();
+    }
+
+    [Fact]
+    public async Task AutomaticCleanupWithoutSafeItems_MarksScheduleHandled()
+    {
+        await WriteRuleAsync(new CleanerRuleManifest { Rules = [] });
+        CleanerAssistantViewModel vm = CreateViewModel();
+        await vm.InitializeAsync(new ConfirmingCleanerView());
+
+        await vm.ExecuteAutomaticLowRiskCleanupAsync("测试自动保洁", showCompletionTip: false);
+
+        CleanerPreferenceState preferences = await new CleanerStateStore(_rootPath).LoadPreferencesAsync();
+        Assert.NotNull(preferences.LastAutoCleanupAt);
+        Assert.False(vm.Scan.IsBusy);
+    }
+
+    [Fact]
+    public async Task AutomaticCleanup_RefreshesResultsAfterRemovingSafeItems()
+    {
+        string cacheDir = Path.Combine(_rootPath, "AutomaticCleanupRefresh");
+        Directory.CreateDirectory(cacheDir);
+        string cacheFile = Path.Combine(cacheDir, "automatic.tmp");
+        await File.WriteAllTextAsync(cacheFile, new string('a', 2048));
+        await WriteRuleAsync(CreateSingleDirectoryRule("automatic_cleanup_refresh", cacheDir));
+
+        CleanerAssistantViewModel vm = CreateViewModel();
+        await vm.InitializeAsync(new ConfirmingCleanerView());
+
+        await vm.ExecuteAutomaticLowRiskCleanupAsync("测试自动保洁", showCompletionTip: false);
+
+        Assert.False(File.Exists(cacheFile));
+        Assert.Empty(vm.Scan.AllItems);
+        Assert.Equal(CleanerScanState.Completed, vm.Scan.CurrentScanState);
+        Assert.True(vm.IsCleanupOutcomeVisible);
+        Assert.False(vm.Scan.IsBusy);
+    }
+
+    [Fact]
+    public async Task AutomaticCleanup_LeavesLowRiskPermanentItemsForManualReview()
+    {
+        string recoverableDir = Path.Combine(_rootPath, "AutomaticRecoverable");
+        string permanentDir = Path.Combine(_rootPath, "AutomaticPermanent");
+        Directory.CreateDirectory(recoverableDir);
+        Directory.CreateDirectory(permanentDir);
+        string recoverableFile = Path.Combine(recoverableDir, "recoverable.tmp");
+        string permanentFile = Path.Combine(permanentDir, "permanent.tmp");
+        await File.WriteAllTextAsync(recoverableFile, "recoverable");
+        await File.WriteAllTextAsync(permanentFile, "permanent");
+
+        await WriteRuleAsync(new CleanerRuleManifest
+        {
+            Rules =
+            [
+                new CleanerRuleDefinition
+                {
+                    Id = "automatic_recoverable",
+                    Name = "Automatic recoverable",
+                    Category = "app_cache",
+                    Scope = CleanerScanScope.Quick,
+                    ScanKind = CleanerScanKind.DirectoryContents,
+                    Paths = [recoverableDir],
+                    BoundaryRoots = [recoverableDir],
+                    ExecutionMode = CleanerExecutionMode.Quarantine,
+                    RiskLevel = CleanerRiskLevel.Low,
+                    DefaultSelected = true
+                },
+                new CleanerRuleDefinition
+                {
+                    Id = "automatic_permanent",
+                    Name = "Automatic permanent",
+                    Category = "app_cache",
+                    Scope = CleanerScanScope.Quick,
+                    ScanKind = CleanerScanKind.DirectoryContents,
+                    Paths = [permanentDir],
+                    BoundaryRoots = [permanentDir],
+                    ExecutionMode = CleanerExecutionMode.Permanent,
+                    RiskLevel = CleanerRiskLevel.Low,
+                    DefaultSelected = true
+                }
+            ]
+        });
+
+        CleanerAssistantViewModel vm = CreateViewModel();
+        await vm.InitializeAsync(new ConfirmingCleanerView());
+
+        await vm.ExecuteAutomaticLowRiskCleanupAsync("测试自动保洁", showCompletionTip: false);
+
+        Assert.False(File.Exists(recoverableFile));
+        Assert.True(File.Exists(permanentFile));
+        CleanerCleanupBatch latestBatch = Assert.Single(await new CleanerStateStore(_rootPath).LoadHistoryAsync());
+        Assert.All(latestBatch.Entries, entry => Assert.Equal(CleanerExecutionMode.Quarantine, entry.ExecutionMode));
+    }
+
     // ================================================================
     // Helper Methods
     // ================================================================
-    private CleanerAssistantViewModel CreateViewModel()
+    private CleanerAssistantViewModel CreateViewModel(CleanerOperationCoordinator? operationCoordinator = null)
     {
         Directory.CreateDirectory(_rootPath);
 
@@ -269,7 +572,33 @@ public class CleanerAssistantViewModelTests : IDisposable
             automationService, launchActionService, driveService,
             deepScanService, profileService, telemetryService,
             recommendationService,
-            new CleanerSettingsViewModel(automationService, telemetryService));
+            new CleanerSettingsViewModel(automationService, telemetryService),
+            operationCoordinator: operationCoordinator ?? new CleanerOperationCoordinator(
+                $"Local\\BlueSapphire.Tests.Cleaner.{Guid.NewGuid():N}"));
+    }
+
+    private static CleanerRuleManifest CreateSingleDirectoryRule(string ruleId, string directoryPath)
+    {
+        return new CleanerRuleManifest
+        {
+            Rules =
+            [
+                new CleanerRuleDefinition
+                {
+                    Id = ruleId,
+                    Name = ruleId,
+                    Category = "app_cache",
+                    Scope = CleanerScanScope.Quick,
+                    ScanKind = CleanerScanKind.DirectoryContents,
+                    Paths = [directoryPath],
+                    BoundaryRoots = [directoryPath],
+                    ExecutionMode = CleanerExecutionMode.Quarantine,
+                    RiskLevel = CleanerRiskLevel.Low,
+                    DefaultSelected = true,
+                    OwnerApp = "BlueSapphire"
+                }
+            ]
+        };
     }
 
     private async Task WriteRuleAsync(CleanerRuleManifest manifest)
@@ -280,6 +609,19 @@ public class CleanerAssistantViewModelTests : IDisposable
             Converters = { new JsonStringEnumConverter() }
         };
         await File.WriteAllTextAsync(_rulePath, JsonSerializer.Serialize(manifest, jsonOptions));
+    }
+
+    private sealed class ConfirmingCleanerView : ICleanerAssistantViewInteraction
+    {
+        public Task ShowTipAsync(string title, string message) => Task.CompletedTask;
+        public Task<bool> ShowCleanupConfirmationAsync(CleanerCleanupPlanSummary plan) => Task.FromResult(true);
+        public Task<bool> ShowScanReminderConfirmationAsync() => Task.FromResult(false);
+        public Task<bool> ShowRestoreConfirmationAsync(string summaryText) => Task.FromResult(false);
+        public Task<bool> ShowPurgeQuarantineConfirmationAsync(int itemCount, long sizeBytes) => Task.FromResult(false);
+        public Task<bool> ShowRuleDisableConfirmationAsync(string ruleName, string ruleId) => Task.FromResult(false);
+        public Task<string?> PickRulePackFileAsync() => Task.FromResult<string?>(null);
+        public Task<string?> PromptRulePackUrlAsync(string? currentUrl) => Task.FromResult<string?>(null);
+        public Task<string?> PromptTelemetryEndpointAsync(string? currentUrl) => Task.FromResult<string?>(null);
     }
 
     public void Dispose()

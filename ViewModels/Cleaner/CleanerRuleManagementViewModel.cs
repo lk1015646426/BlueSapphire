@@ -48,6 +48,11 @@ namespace BlueSapphire.ViewModels
             _nativeFileService = nativeFileService;
             _settings = settings;
             _auditService = auditService;
+            _settings.TelemetryStatusSaved += status =>
+            {
+                _telemetryStatus = status;
+                NotifyTelemetryPropertiesChanged();
+            };
             _settings.PropertyChanged += (_, args) =>
             {
                 if (args.PropertyName == nameof(CleanerSettingsViewModel.TelemetryEnabled))
@@ -92,14 +97,30 @@ namespace BlueSapphire.ViewModels
             ? "第三方规则已限制为只读分析，不能覆盖内置规则或执行删除"
             : "第三方规则导入后会在受限模式下运行";
 
-        public string QualityGovernanceHeadlineText => "规则质量控制";
-        public string QualityGovernanceDetailText => "质量分析";
-        public string QualityGovernanceHintText => "无异常";
-        public string QualityGovernanceActionText => "查看";
+        public string QualityGovernanceHeadlineText => _ruleStatus.LocalDisabledRuleCount > 0
+            ? $"本机已停用 {_ruleStatus.LocalDisabledRuleCount} 条规则"
+            : "当前规则库状态正常";
+        public string QualityGovernanceDetailText =>
+            $"已加载 {_ruleStatus.BuiltInRuleCount + _ruleStatus.ExternalRuleCount} 条规则，当前生效 {_ruleStatus.EffectiveRuleCount} 条；" +
+            $"规则包停用 {_ruleStatus.DisabledRuleCount} 条，灰度过滤 {_ruleStatus.RolloutFilteredRuleCount} 条。";
+        public string QualityGovernanceHintText => _ruleStatus.LocalDisabledRuleCount > 0
+            ? "本机停用的规则不会参与扫描；恢复后会立即重新扫描。"
+            : _ruleStatus.HasExternalBundle
+                ? "第三方规则只允许提供只读分析结果，不能直接执行删除。"
+                : "当前仅使用内置规则，未发现本机停用项。";
+        public string QualityGovernanceActionText => _ruleStatus.LocalDisabledRuleCount > 0
+            ? $"恢复 {_ruleStatus.LocalDisabledRuleCount} 条规则"
+            : "无需恢复";
 
         public string RolloutSummaryText => "通道: " + _profileState.RolloutChannel;
-        public string RolloutDetailText => "当前通道";
-        public string RolloutHintText => "稳定";
+        public string RolloutDetailText =>
+            $"设备分桶 {_profileState.DeviceBucket:D2} · 当前有 {_ruleStatus.RolloutFilteredRuleCount} 条规则未进入此通道";
+        public string RolloutHintText => _profileState.RolloutChannel switch
+        {
+            "canary" => "灰度通道会提前接收已标记为 canary 的规则。",
+            "internal" => "内测通道用于验证尚未进入稳定范围的规则。",
+            _ => "稳定通道只启用已完成常规验证的规则。"
+        };
 
         public string TelemetrySummaryText => _settings.TelemetryEnabled ? "已启用" : "已关闭";
         public string TelemetryDetailText => _settings.TelemetryEnabled
@@ -120,9 +141,9 @@ namespace BlueSapphire.ViewModels
         public bool IsCanaryRolloutSelected => _profileState.RolloutChannel == "canary";
         public bool IsInternalRolloutSelected => _profileState.RolloutChannel == "internal";
 
-        public bool CanChooseStableRollout => true;
-        public bool CanChooseCanaryRollout => true;
-        public bool CanChooseInternalRollout => true;
+        public bool CanChooseStableRollout => !IsStableRolloutSelected;
+        public bool CanChooseCanaryRollout => !IsCanaryRolloutSelected;
+        public bool CanChooseInternalRollout => !IsInternalRolloutSelected;
 
         [RelayCommand]
         private async Task RefreshRulePackFromRemote(string remoteUri)

@@ -18,20 +18,45 @@ namespace BlueSapphire.ViewModels.Cleaner
         private readonly CleanerExecutionService _executionService;
         private readonly CleanerStateStore _stateStore;
         private readonly NativeFileService _nativeFileService;
+        private readonly CleanerAuditService _auditService;
+        private readonly CleanerOperationCoordinator _operationCoordinator;
         private ICleanerAssistantViewInteraction? _view;
         private readonly object _restoreSync = new();
         private CancellationTokenSource? _restoreCts;
+        private readonly CancellationTokenSource _lifetimeCts = new();
+        public Func<bool>? SharedOperationIdleProvider { get; set; }
+
+        [ObservableProperty]
+        public partial bool IsOperationRunning { get; set; }
+
+        public bool IsOperationIdle => !IsOperationRunning;
+        public bool CanStartHistoryOperation => IsOperationIdle &&
+            !_operationCoordinator.IsBusy &&
+            (SharedOperationIdleProvider?.Invoke() ?? true);
 
         private CleanerCleanupBatch? _latestBatch;
+        private int _quarantineItemCount;
+        private long _quarantineBytes;
 
         public ObservableCollection<CleanerExclusionEntry> Exclusions { get; } = new();
         public ObservableCollection<CleanerCleanupEntry> LatestCleanupEntries { get; } = new();
+        public ObservableCollection<CleanerCleanupBatch> CleanupHistoryBatches { get; } = new();
+
+        [ObservableProperty]
+        public partial CleanerCleanupBatch? SelectedCleanupBatch { get; set; }
 
         public bool HasExclusions => Exclusions.Count > 0;
         public bool HasLatestCleanupEntries => LatestCleanupEntries.Count > 0;
+        public bool HasCleanupHistory => CleanupHistoryBatches.Count > 0;
         public bool HasLatestCleanupFailures => _latestBatch?.FailedCount > 0;
         public bool HasRestorableBatch => _latestBatch?.Entries.Any(entry => entry.CanRestore && !entry.Restored) == true;
         public bool HasRetryableFailures => _latestBatch?.Entries.Any(entry => entry.CanRetryEntry) == true;
+        public bool HasQuarantineEntries => _quarantineItemCount > 0;
+        public bool CanRestoreLatest => HasRestorableBatch && CanStartHistoryOperation;
+        public bool CanPurgeQuarantine => HasQuarantineEntries && CanStartHistoryOperation;
+        public string QuarantineSummaryText => HasQuarantineEntries
+            ? $"隔离区 {_quarantineItemCount} 项 · {CleanerSizeFormatter.Format(_quarantineBytes)} 待释放"
+            : "隔离区为空";
 
         public string ExclusionSummaryText => HasExclusions ? $"{Exclusions.Count} 条排除规则" : "暂无排除项";
         public string LatestCleanupSummaryText => _latestBatch?.SummaryText ?? "暂无最近一次清理记录";
@@ -94,23 +119,77 @@ namespace BlueSapphire.ViewModels.Cleaner
             }
         }
 
-        // 可以在主 VM 中处理提权逻辑，这里我们只需要通知主VM
         public event EventHandler<string>? RetryRequested;
         public event EventHandler? ExclusionsChanged;
+        public event EventHandler? ExclusionListChanged;
+        public event Action<bool, string>? OperationStateChanged;
+
+        partial void OnIsOperationRunningChanged(bool value)
+        {
+            OnPropertyChanged(nameof(IsOperationIdle));
+            OnPropertyChanged(nameof(CanStartHistoryOperation));
+            OnPropertyChanged(nameof(CanRestoreLatest));
+            OnPropertyChanged(nameof(CanPurgeQuarantine));
+        }
+
+        partial void OnSelectedCleanupBatchChanged(CleanerCleanupBatch? value)
+        {
+            _latestBatch = value;
+            LatestCleanupEntries.Clear();
+            if (value != null)
+            {
+                foreach (CleanerCleanupEntry entry in value.Entries
+                    .OrderByDescending(entry => entry.CanRestore)
+                    .ThenByDescending(entry => entry.FailureReason != CleanerFailureReason.None))
+                {
+                    LatestCleanupEntries.Add(entry);
+                }
+            }
+
+            NotifyPropertiesChanged();
+        }
+
+        public void NotifySharedOperationStateChanged()
+        {
+            OnPropertyChanged(nameof(CanStartHistoryOperation));
+            OnPropertyChanged(nameof(CanRestoreLatest));
+            OnPropertyChanged(nameof(CanPurgeQuarantine));
+        }
 
         public CleanerCleanupViewModel(
             CleanerExecutionService executionService,
             CleanerStateStore stateStore,
-            NativeFileService nativeFileService)
+            NativeFileService nativeFileService,
+            CleanerAuditService auditService,
+            CleanerOperationCoordinator operationCoordinator)
         {
             _executionService = executionService;
             _stateStore = stateStore;
             _nativeFileService = nativeFileService;
+            _auditService = auditService;
+            _operationCoordinator = operationCoordinator;
         }
 
         public async Task InitializeAsync(ICleanerAssistantViewInteraction view)
         {
             _view = view;
+            CleanerPreferenceState preferences = await _stateStore.LoadPreferencesAsync();
+            if (preferences.AutoPurgeQuarantineEnabled)
+            {
+                if (_operationCoordinator.TryAcquire(CleanerOperationKind.Purge, out CleanerOperationLease? operationLease))
+                {
+                    using (operationLease)
+                    {
+                        CleanerQuarantinePurgeSummary purge = await _executionService.PurgeExpiredQuarantineAsync(
+                            preferences.QuarantineRetentionDays,
+                            _lifetimeCts.Token);
+                        if (purge.PurgedCount > 0)
+                        {
+                            await _auditService.RecordQuarantinePurgeAsync(purge);
+                        }
+                    }
+                }
+            }
             await ReloadHistoryAndExclusionsAsync();
         }
 
@@ -119,21 +198,26 @@ namespace BlueSapphire.ViewModels.Cleaner
             IReadOnlyList<CleanerExclusionEntry> exclusions = await _stateStore.LoadExclusionsAsync();
             IReadOnlyList<CleanerCleanupBatch> history = await _stateStore.LoadHistoryAsync();
 
-            _latestBatch = history.FirstOrDefault();
+            string? selectedBatchId = SelectedCleanupBatch?.BatchId;
+            CleanupHistoryBatches.Clear();
+            foreach (CleanerCleanupBatch batch in history)
+            {
+                CleanupHistoryBatches.Add(batch);
+            }
+            SelectedCleanupBatch = history.FirstOrDefault(batch =>
+                string.Equals(batch.BatchId, selectedBatchId, StringComparison.OrdinalIgnoreCase))
+                ?? history.FirstOrDefault();
+            List<CleanerCleanupEntry> quarantineEntries = history
+                .SelectMany(batch => batch.Entries)
+                .Where(entry => entry.CanRestore && !entry.Restored && !string.IsNullOrWhiteSpace(entry.BackupPath))
+                .ToList();
+            _quarantineItemCount = quarantineEntries.Count;
+            _quarantineBytes = quarantineEntries.Sum(entry => entry.SizeBytes);
 
             Exclusions.Clear();
             foreach (CleanerExclusionEntry exclusion in exclusions.OrderByDescending(entry => entry.CreatedAt))
             {
                 Exclusions.Add(exclusion);
-            }
-
-            LatestCleanupEntries.Clear();
-            if (_latestBatch != null)
-            {
-                foreach (CleanerCleanupEntry entry in _latestBatch.Entries.OrderByDescending(entry => entry.CanRestore).ThenByDescending(entry => entry.FailureReason != CleanerFailureReason.None))
-                {
-                    LatestCleanupEntries.Add(entry);
-                }
             }
 
             NotifyPropertiesChanged();
@@ -149,13 +233,14 @@ namespace BlueSapphire.ViewModels.Cleaner
 
         public void ApplyLatestBatch(CleanerCleanupBatch batch)
         {
-            _latestBatch = batch;
-            LatestCleanupEntries.Clear();
-            foreach (CleanerCleanupEntry entry in _latestBatch.Entries.OrderByDescending(entry => entry.CanRestore).ThenByDescending(entry => entry.FailureReason != CleanerFailureReason.None))
+            CleanerCleanupBatch? existing = CleanupHistoryBatches.FirstOrDefault(candidate =>
+                string.Equals(candidate.BatchId, batch.BatchId, StringComparison.OrdinalIgnoreCase));
+            if (existing != null)
             {
-                LatestCleanupEntries.Add(entry);
+                CleanupHistoryBatches.Remove(existing);
             }
-            NotifyPropertiesChanged();
+            CleanupHistoryBatches.Insert(0, batch);
+            SelectedCleanupBatch = batch;
         }
 
         public List<CleanerCleanupEntry> GetLatestFailedEntries()
@@ -184,6 +269,7 @@ namespace BlueSapphire.ViewModels.Cleaner
                     current.Add(entry);
                     await _stateStore.SaveExclusionsAsync(current);
                     await ReloadHistoryAndExclusionsAsync();
+                    ExclusionListChanged?.Invoke(this, EventArgs.Empty);
                 }
             }
             catch (Exception ex)
@@ -206,6 +292,7 @@ namespace BlueSapphire.ViewModels.Cleaner
                     current.Remove(toRemove);
                     await _stateStore.SaveExclusionsAsync(current);
                     await ReloadHistoryAndExclusionsAsync();
+                    ExclusionListChanged?.Invoke(this, EventArgs.Empty);
                 }
             }
             catch (Exception ex)
@@ -217,7 +304,7 @@ namespace BlueSapphire.ViewModels.Cleaner
         [RelayCommand]
         private async Task RestoreLatestCleanup()
         {
-            if (_latestBatch == null || _view == null) return;
+            if (_latestBatch == null || _view == null || !CanStartHistoryOperation) return;
 
             try
             {
@@ -230,19 +317,31 @@ namespace BlueSapphire.ViewModels.Cleaner
                 bool confirmed = await _view.ShowRestoreConfirmationAsync(LatestCleanupSummaryText);
                 if (!confirmed) return;
 
-                CancellationTokenSource cts = BeginRestoreOperation();
-                CleanerRestoreSummary summary;
-                try
+                if (!_operationCoordinator.TryAcquire(CleanerOperationKind.Restore, out CleanerOperationLease? operationLease))
                 {
-                    summary = await _executionService.RestoreLatestAsync(cts.Token);
+                    WeakReferenceMessenger.Default.Send(new ShowTipMessage("清理助手正忙", "另一项扫描、清理或恢复任务正在执行，请稍后再试。"));
+                    return;
                 }
-                finally
+
+                const string operationName = "恢复最近一次清理";
+                using (operationLease)
                 {
-                    EndRestoreOperation(cts);
+                    CancellationTokenSource cts = BeginRestoreOperation(operationName);
+                    try
+                    {
+                        CleanerRestoreSummary summary = await _executionService.RestoreBatchAsync(
+                            _latestBatch.BatchId,
+                            progress: null,
+                            cts.Token);
+                        await ReloadHistoryAndExclusionsAsync();
+                        await _auditService.RecordRestoreAsync(summary);
+                        WeakReferenceMessenger.Default.Send(new ShowTipMessage("恢复完毕", summary.Message));
+                    }
+                    finally
+                    {
+                        EndRestoreOperation(cts, operationName);
+                    }
                 }
-                
-                await ReloadHistoryAndExclusionsAsync();
-                WeakReferenceMessenger.Default.Send(new ShowTipMessage("恢复完毕", summary.Message));
             }
             catch (OperationCanceledException)
             {
@@ -263,7 +362,7 @@ namespace BlueSapphire.ViewModels.Cleaner
         [RelayCommand]
         private async Task RestoreCleanupEntry(CleanerCleanupEntry? entry)
         {
-            if (entry == null || !entry.CanRestore || _view == null) return;
+            if (entry == null || !entry.CanRestore || _view == null || !CanStartHistoryOperation) return;
 
             try
             {
@@ -271,22 +370,31 @@ namespace BlueSapphire.ViewModels.Cleaner
                 if (!confirmed) return;
 
                 if (_latestBatch == null) return;
-                CancellationTokenSource cts = BeginRestoreOperation();
-                CleanerRestoreSummary summary;
-                try
+                if (!_operationCoordinator.TryAcquire(CleanerOperationKind.Restore, out CleanerOperationLease? operationLease))
                 {
-                    summary = await _executionService.RestoreEntryAsync(
-                        _latestBatch.BatchId,
-                        entry.EntryId,
-                        cts.Token);
+                    WeakReferenceMessenger.Default.Send(new ShowTipMessage("清理助手正忙", "另一项扫描、清理或恢复任务正在执行，请稍后再试。"));
+                    return;
                 }
-                finally
+
+                const string operationName = "恢复清理项";
+                using (operationLease)
                 {
-                    EndRestoreOperation(cts);
+                    CancellationTokenSource cts = BeginRestoreOperation(operationName);
+                    try
+                    {
+                        CleanerRestoreSummary summary = await _executionService.RestoreEntryAsync(
+                            _latestBatch.BatchId,
+                            entry.EntryId,
+                            cts.Token);
+                        await ReloadHistoryAndExclusionsAsync();
+                        await _auditService.RecordRestoreAsync(summary);
+                        WeakReferenceMessenger.Default.Send(new ShowTipMessage("恢复完毕", summary.Message));
+                    }
+                    finally
+                    {
+                        EndRestoreOperation(cts, operationName);
+                    }
                 }
-                
-                await ReloadHistoryAndExclusionsAsync();
-                WeakReferenceMessenger.Default.Send(new ShowTipMessage("恢复完毕", summary.Message));
             }
             catch (OperationCanceledException)
             {
@@ -305,9 +413,9 @@ namespace BlueSapphire.ViewModels.Cleaner
         }
 
         [RelayCommand]
-        private async Task RetryFailedCleanupEntries()
+        private void RetryFailedCleanupEntries()
         {
-            if (_latestBatch == null) return;
+            if (_latestBatch == null || !CanStartHistoryOperation) return;
             RetryRequested?.Invoke(this, _latestBatch.BatchId);
         }
 
@@ -315,6 +423,52 @@ namespace BlueSapphire.ViewModels.Cleaner
         private async Task OpenQuarantine()
         {
             await _nativeFileService.OpenFolderAsync(_stateStore.QuarantineRootPath);
+        }
+
+        [RelayCommand]
+        private async Task PurgeQuarantine()
+        {
+            if (_view == null || !HasQuarantineEntries || !CanStartHistoryOperation)
+            {
+                return;
+            }
+
+            bool confirmed = await _view.ShowPurgeQuarantineConfirmationAsync(_quarantineItemCount, _quarantineBytes);
+            if (!confirmed)
+            {
+                return;
+            }
+
+            if (!_operationCoordinator.TryAcquire(CleanerOperationKind.Purge, out CleanerOperationLease? operationLease))
+            {
+                WeakReferenceMessenger.Default.Send(new ShowTipMessage("清理助手正忙", "另一项扫描、清理或恢复任务正在执行，请稍后再试。"));
+                return;
+            }
+
+            const string operationName = "清空隔离区";
+            using (operationLease)
+            {
+                CancellationTokenSource cts = BeginRestoreOperation(operationName);
+                try
+                {
+                    CleanerQuarantinePurgeSummary summary = await _executionService.PurgeQuarantineAsync(cts.Token);
+                    await _auditService.RecordQuarantinePurgeAsync(summary);
+                    await ReloadHistoryAndExclusionsAsync();
+                    WeakReferenceMessenger.Default.Send(new ShowTipMessage("隔离区已处理", summary.Message));
+                }
+                catch (OperationCanceledException)
+                {
+                    WeakReferenceMessenger.Default.Send(new ShowTipMessage("已取消", "清空隔离区操作已取消。"));
+                }
+                catch (Exception ex)
+                {
+                    WeakReferenceMessenger.Default.Send(new ShowTipMessage("清空隔离区失败", ex.Message));
+                }
+                finally
+                {
+                    EndRestoreOperation(cts, operationName);
+                }
+            }
         }
 
         [RelayCommand]
@@ -355,9 +509,15 @@ namespace BlueSapphire.ViewModels.Cleaner
         {
             OnPropertyChanged(nameof(HasExclusions));
             OnPropertyChanged(nameof(HasLatestCleanupEntries));
+            OnPropertyChanged(nameof(HasCleanupHistory));
             OnPropertyChanged(nameof(HasLatestCleanupFailures));
             OnPropertyChanged(nameof(HasRestorableBatch));
             OnPropertyChanged(nameof(HasRetryableFailures));
+            OnPropertyChanged(nameof(HasQuarantineEntries));
+            OnPropertyChanged(nameof(CanRestoreLatest));
+            OnPropertyChanged(nameof(CanPurgeQuarantine));
+            OnPropertyChanged(nameof(CanStartHistoryOperation));
+            OnPropertyChanged(nameof(QuarantineSummaryText));
             OnPropertyChanged(nameof(ExclusionSummaryText));
             OnPropertyChanged(nameof(LatestCleanupSummaryText));
             OnPropertyChanged(nameof(LatestCleanupHintText));
@@ -367,15 +527,17 @@ namespace BlueSapphire.ViewModels.Cleaner
 
         public void CancelPendingOperations()
         {
+            _lifetimeCts.Cancel();
             lock (_restoreSync)
             {
                 _restoreCts?.Cancel();
                 _restoreCts = null;
             }
+            IsOperationRunning = false;
             _view = null;
         }
 
-        private CancellationTokenSource BeginRestoreOperation()
+        private CancellationTokenSource BeginRestoreOperation(string operationName)
         {
             var next = new CancellationTokenSource();
             lock (_restoreSync)
@@ -383,19 +545,28 @@ namespace BlueSapphire.ViewModels.Cleaner
                 _restoreCts?.Cancel();
                 _restoreCts = next;
             }
+            IsOperationRunning = true;
+            OperationStateChanged?.Invoke(true, operationName);
             return next;
         }
 
-        private void EndRestoreOperation(CancellationTokenSource cts)
+        private void EndRestoreOperation(CancellationTokenSource cts, string operationName)
         {
+            bool completedCurrentOperation = false;
             lock (_restoreSync)
             {
                 if (ReferenceEquals(_restoreCts, cts))
                 {
                     _restoreCts = null;
+                    completedCurrentOperation = true;
                 }
             }
             cts.Dispose();
+            if (completedCurrentOperation)
+            {
+                IsOperationRunning = false;
+                OperationStateChanged?.Invoke(false, operationName);
+            }
         }
     }
 }

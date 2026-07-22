@@ -29,6 +29,8 @@
     <SolidColorBrush x:Key="AccentCyanHover" Color="#38BBD1"/>
     <SolidColorBrush x:Key="AccentCyanPressed" Color="#1494AC"/>
     <SolidColorBrush x:Key="AccentCyanBg" Color="#2426AFC7"/>
+    <StaticResource x:Key="AccentPrimary" ResourceKey="AccentCyan"/>
+    <StaticResource x:Key="AccentPrimaryBg" ResourceKey="AccentCyanBg"/>
     <SolidColorBrush x:Key="AccentSafe" Color="#43B581"/>
     <SolidColorBrush x:Key="AccentSafeBg" Color="#2043B581"/>
     <SolidColorBrush x:Key="AccentReview" Color="#D9A62E"/>
@@ -388,4 +390,10 @@
         </Setter>
     </Style>
 
+    <Style x:Key="TextStyle_MetricLarge" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="24"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="FontFamily" Value="Segoe UI Variable Display, Segoe UI"/>
+        <Setter Property="Foreground" Value="{ThemeResource TextMain}"/>
+    </Style>
 </ResourceDictionary>
