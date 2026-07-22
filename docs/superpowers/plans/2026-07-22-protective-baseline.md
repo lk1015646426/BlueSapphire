@@ -1,6 +1,6 @@
 # Protective Baseline Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 恢复 BlueSapphire 正式开发日志历史，锁定运行时与源码隔离边界，并建立不会误提交生成物的可验证重构基线。
 
@@ -42,7 +42,7 @@
 - Consumes: `DevLogDataService(ILogger<DevLogDataService>, string? rootPathOverride, string? seedFilePathOverride)`、`LoadLogsAsync()`、`SaveLogsAsync(List<DevLogItem>)`。
 - Produces: 两个回归测试 `SourceSeed_PreservesFormalHistoryAndRejectsKnownPollution` 和 `SaveLogsAsync_WritesRuntimeCopyWithoutChangingSourceSeed`。
 
-- [ ] **Step 1: 将源码文本检查升级为历史不变量和行为测试**
+- [x] **Step 1: 将源码文本检查升级为历史不变量和行为测试**
 
 用以下完整内容替换 `BlueSapphire.Tests/DevLogSourceIsolationTests.cs`：
 
@@ -146,7 +146,7 @@ public sealed class DevLogSourceIsolationTests
 }
 ```
 
-- [ ] **Step 2: 运行聚焦测试并确认当前污染数据导致失败**
+- [x] **Step 2: 运行聚焦测试并确认当前污染数据导致失败**
 
 Run:
 
@@ -170,7 +170,7 @@ Expected: FAIL；`SourceSeed_PreservesFormalHistoryAndRejectsKnownPollution` 在
 - Consumes: Task 1 创建的两个回归测试。
 - Produces: 只包含正式历史节点的源码种子；不存在 `TryGetProjectAssetPath` 或 Debug 源码回写逻辑的 `DevLogDataService`。
 
-- [ ] **Step 1: 恢复正式开发日志节点**
+- [x] **Step 1: 恢复正式开发日志节点**
 
 将 `Assets/DevMatrixLog.json` 恢复为以下精确内容：
 
@@ -189,7 +189,7 @@ Expected: FAIL；`SourceSeed_PreservesFormalHistoryAndRejectsKnownPollution` 在
 ]
 ```
 
-- [ ] **Step 2: 核对并保留 `DevLogDataService` 的最小隔离实现**
+- [x] **Step 2: 核对并保留 `DevLogDataService` 的最小隔离实现**
 
 确认 `Services/DevLogDataService.cs` 的 `PersistLogsAsync` 在创建运行时备份后直接结束，不包含以下任何逻辑：
 
@@ -207,7 +207,7 @@ private string? TryGetProjectAssetPath()
 
 如果当前工作区已经满足，不重新格式化或改写其他代码，只将现有删除源码回写逻辑的差异纳入本任务。
 
-- [ ] **Step 3: 运行源码隔离聚焦测试**
+- [x] **Step 3: 运行源码隔离聚焦测试**
 
 Run:
 
@@ -217,7 +217,7 @@ dotnet test BlueSapphire.Tests\BlueSapphire.Tests.csproj --no-restore -v:minimal
 
 Expected: PASS，2 项通过、0 项失败。
 
-- [ ] **Step 4: 运行开发日志服务邻近测试**
+- [x] **Step 4: 运行开发日志服务邻近测试**
 
 Run:
 
@@ -227,7 +227,7 @@ dotnet test BlueSapphire.Tests\BlueSapphire.Tests.csproj --no-restore -v:minimal
 
 Expected: PASS，开发日志服务和源码隔离测试全部通过。
 
-- [ ] **Step 5: 验证源码种子只发生允许的恢复差异**
+- [x] **Step 5: 验证源码种子只发生允许的恢复差异**
 
 Run:
 
@@ -238,7 +238,7 @@ git diff --check -- Assets/DevMatrixLog.json Services/DevLogDataService.cs BlueS
 
 Expected: JSON 从两个污染节点恢复为原正式节点；服务差异只删除 Debug 反写源码逻辑；测试新增两个明确回归场景；`git diff --check` 无输出。
 
-- [ ] **Step 6: 创建开发日志保护检查点**
+- [x] **Step 6: 创建开发日志保护检查点**
 
 Run:
 
@@ -266,7 +266,7 @@ Services/DevLogDataService.cs
 - Consumes: Git 工作区当前未跟踪文件列表。
 - Produces: 根目录 `Output/` 被忽略；核心 `Services/*.cs`、`BlueSapphire.Tests/*.cs`、`.agents/AGENTS.md` 不被宽泛规则隐藏。
 
-- [ ] **Step 1: 证明安装包当前未被忽略**
+- [x] **Step 1: 证明安装包当前未被忽略**
 
 Run:
 
@@ -277,7 +277,7 @@ if ($LASTEXITCODE -eq 0) { throw "预期 Output 当前未被忽略" }
 
 Expected: 命令正常完成，证明修复前安装包仍作为未跟踪生成物出现。
 
-- [ ] **Step 2: 添加根目录精确忽略规则**
+- [x] **Step 2: 添加根目录精确忽略规则**
 
 在 `.gitignore` 末尾添加：
 
@@ -289,7 +289,7 @@ Expected: 命令正常完成，证明修复前安装包仍作为未跟踪生成�
 
 不得添加 `*.exe`，因为宽泛扩展名规则可能隐藏未来需要审查的工具或测试资产。不得忽略 `.agents/`、`.trae/`、`.workbuddy/` 或 `Services/`。
 
-- [ ] **Step 3: 验证只隔离生成物**
+- [x] **Step 3: 验证只隔离生成物**
 
 Run:
 
@@ -309,7 +309,7 @@ foreach ($path in $protected) {
 
 Expected: 第一条命中 `/Output/`；四个受保护路径均未被忽略。
 
-- [ ] **Step 4: 输出剩余未跟踪文件分类清单**
+- [x] **Step 4: 输出剩余未跟踪文件分类清单**
 
 Run:
 
@@ -325,7 +325,7 @@ $untracked = @(git ls-files --others --exclude-standard)
 
 Expected: `Output/*.exe` 不再出现在 `$untracked`；核心源码与测试仍可见，不删除任何未跟踪文件。
 
-- [ ] **Step 5: 创建 Git 卫生检查点**
+- [x] **Step 5: 创建 Git 卫生检查点**
 
 Run:
 
@@ -355,7 +355,7 @@ Expected staged files exactly:
 - Consumes: Tasks 1–3 的两个 Git 检查点。
 - Produces: 当前阶段的测试、构建、真实窗口、正常关闭和源码未污染证据。
 
-- [ ] **Step 1: 记录测试前源码种子哈希**
+- [x] **Step 1: 记录测试前源码种子哈希**
 
 Run:
 
@@ -367,7 +367,7 @@ Write-Host "Before=$beforeHash"
 
 Expected: 输出一个非空 SHA-256 哈希。
 
-- [ ] **Step 2: 运行全量测试**
+- [x] **Step 2: 运行全量测试**
 
 Run:
 
@@ -377,7 +377,7 @@ dotnet test BlueSapphire.Tests\BlueSapphire.Tests.csproj --no-restore -v:minimal
 
 Expected: 至少 215 项通过、0 项失败、0 项跳过。
 
-- [ ] **Step 3: 证明测试没有污染源码种子**
+- [x] **Step 3: 证明测试没有污染源码种子**
 
 Run in the same PowerShell session:
 
@@ -391,7 +391,7 @@ Write-Host "After=$afterHash"
 
 Expected: `Before` 与 `After` 完全相同。
 
-- [ ] **Step 4: 运行无增量零警告构建**
+- [x] **Step 4: 运行无增量零警告构建**
 
 Run:
 
@@ -401,7 +401,7 @@ dotnet build BlueSapphire.slnx --no-incremental --no-restore -v:minimal
 
 Expected: `已成功生成`、0 个警告、0 个错误。
 
-- [ ] **Step 5: 启动并正常关闭真实 Cleaner 窗口**
+- [x] **Step 5: 启动并正常关闭真实 Cleaner 窗口**
 
 Run:
 
@@ -442,7 +442,7 @@ if ($process.ExitCode -ne 0) {
 
 Expected: 非零 `Handle`、`Responding=True`，正常退出且 `ExitCode=0`。
 
-- [ ] **Step 6: 最终工作区边界核对**
+- [x] **Step 6: 最终工作区边界核对**
 
 Run:
 
@@ -459,3 +459,14 @@ Expected:
 - `Output/` 不再出现在未跟踪列表。
 - Cleaner、AI、UI 的既有未提交重构仍然保留。
 - 对本阶段四个文件执行的 `git diff --check` 无输出；其他重构文件的既有空白问题留待所属阶段处理。
+---
+
+## Execution Result (2026-07-22)
+
+- RED：源码种子仍含污染节点时，`DevLogSourceIsolationTests` 结果为 1 失败、1 通过，失败实际值为 `seed-100`。
+- GREEN：恢复正式种子后，源码隔离聚焦测试 2/2 通过，邻近开发日志测试 6/6 通过。
+- 全量回归：216/216 通过，0 失败，0 跳过。
+- 源码种子保护：全量测试前后 SHA-256 均为 `A9460CC2C03CFED65B36BE74E91D5CD2FBACD978D4243F8E6EFB9C81EBB64FEC`。
+- 无增量构建：0 警告、0 错误。
+- 真实窗口：非零句柄 `397254`、`Responding=True`，正常关闭成功，退出码 0。
+- Git 卫生：`Output/` 已由根目录精确规则忽略；核心未跟踪源码、测试和 `.agents/AGENTS.md` 仍保持可见。
