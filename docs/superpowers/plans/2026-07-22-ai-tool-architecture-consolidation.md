@@ -1,6 +1,6 @@
 # AI Tool Architecture Consolidation Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 将模型工具能力、动作执行、领域 Provider、任务中心和 AI 工作台整理为依赖闭合、可独立构建、可回滚的第三阶段提交。
 
@@ -88,7 +88,7 @@
 - Consumes: current staged patch.
 - Produces: exit code 0 only when patch application, restore, selected tests, build and worktree cleanup all succeed.
 
-- [ ] **Step 1: Create the verifier**
+- [x] **Step 1: Create the verifier**
 
 Create `scripts/verify-ai-slice.ps1`:
 
@@ -147,7 +147,7 @@ finally {
 }
 ```
 
-- [ ] **Step 2: Verify empty-index rejection and syntax**
+- [x] **Step 2: Verify empty-index rejection and syntax**
 
 ```powershell
 $caught = $null
@@ -162,7 +162,7 @@ $errors = $null
 if ($errors.Count -gt 0) { $errors; throw 'PowerShell 语法检查失败' }
 ```
 
-- [ ] **Step 3: Commit the verifier**
+- [x] **Step 3: Commit the verifier**
 
 ```powershell
 git add -- scripts/verify-ai-slice.ps1
@@ -178,7 +178,7 @@ git commit -m "test: 添加 AI 切片隔离验证"
 
 **Interfaces:** Produces stable capability snapshots and exact action-name dispatch without domain dependencies.
 
-- [ ] **Step 1: Run current contract tests**
+- [x] **Step 1: Run current contract tests**
 
 ```powershell
 dotnet test BlueSapphire.Tests\BlueSapphire.Tests.csproj --no-restore -v:minimal --filter "FullyQualifiedName~AIToolActionHandlerRegistryTests|FullyQualifiedName~AIToolCapabilityCatalogTests"
@@ -186,7 +186,7 @@ dotnet test BlueSapphire.Tests\BlueSapphire.Tests.csproj --no-restore -v:minimal
 
 Expected: 7 tests pass.
 
-- [ ] **Step 2: Stage Slice A**
+- [x] **Step 2: Stage Slice A**
 
 ```powershell
 $sliceA = @(
@@ -202,7 +202,7 @@ git add -- $sliceA
 git diff --cached --check
 ```
 
-- [ ] **Step 3: Isolate, test and build**
+- [x] **Step 3: Isolate, test and build**
 
 ```powershell
 .\scripts\verify-ai-slice.ps1 -Name ai-contracts -TestFilter "FullyQualifiedName~AIToolActionHandlerRegistryTests|FullyQualifiedName~AIToolCapabilityCatalogTests"
@@ -210,7 +210,7 @@ git diff --cached --check
 
 Expected: contract tests and build pass independently.
 
-- [ ] **Step 4: Commit Slice A**
+- [x] **Step 4: Commit Slice A**
 
 ```powershell
 git commit -m "feat: 建立 AI 工具能力与动作契约"
@@ -224,7 +224,7 @@ git commit -m "feat: 建立 AI 工具能力与动作契约"
 
 **Interfaces:** Consumes Slice A contracts; produces domain-owned action handlers and an orchestration-only `AIToolsRegistry`.
 
-- [ ] **Step 1: Run provider and registry-related tests**
+- [x] **Step 1: Run provider and registry-related tests**
 
 ```powershell
 dotnet test BlueSapphire.Tests\BlueSapphire.Tests.csproj --no-restore -v:minimal --filter "FullyQualifiedName~CleanerAIToolActionProviderTests|FullyQualifiedName~MediaAIToolActionProviderTests|FullyQualifiedName~AITool"
@@ -232,7 +232,7 @@ dotnet test BlueSapphire.Tests\BlueSapphire.Tests.csproj --no-restore -v:minimal
 
 Expected: all selected tests pass.
 
-- [ ] **Step 2: Verify domain actions left the registry**
+- [x] **Step 2: Verify domain actions left the registry**
 
 ```powershell
 $registry = Get-Content Services\AIToolsRegistry.cs -Raw
@@ -248,7 +248,7 @@ foreach ($name in $forbidden) {
 }
 ```
 
-- [ ] **Step 3: Stage Slice B**
+- [x] **Step 3: Stage Slice B**
 
 ```powershell
 $sliceB = @(
@@ -267,7 +267,7 @@ git add -- $sliceB
 git diff --cached --check
 ```
 
-- [ ] **Step 4: Isolate and commit**
+- [x] **Step 4: Isolate and commit**
 
 ```powershell
 .\scripts\verify-ai-slice.ps1 -Name ai-providers -TestFilter "FullyQualifiedName~CleanerAIToolActionProviderTests|FullyQualifiedName~MediaAIToolActionProviderTests|FullyQualifiedName~AITool"
@@ -284,13 +284,13 @@ If compile errors prove `AIToolsRegistry` requires App DI or task-center changes
 
 **Interfaces:** Consumes provider/catalog types; produces DI-complete singleton orchestration and restart-safe task state.
 
-- [ ] **Step 1: Run task-center tests**
+- [x] **Step 1: Run task-center tests**
 
 ```powershell
 dotnet test BlueSapphire.Tests\BlueSapphire.Tests.csproj --no-restore -v:minimal --filter "FullyQualifiedName~AITaskCenterServiceTests"
 ```
 
-- [ ] **Step 2: Prepare AI-only `App.xaml.cs` candidate**
+- [x] **Step 2: Prepare AI-only `App.xaml.cs` candidate**
 
 Use a temporary backup because the main worktree contains unrelated App/theme changes. Starting from `HEAD:App.xaml.cs`, apply these exact transformations:
 
@@ -360,21 +360,21 @@ Copy-Item -LiteralPath 'App.xaml.cs.ai-current' -Destination 'App.xaml.cs' -Forc
 $backupTarget = Join-Path $env:TEMP ('App.xaml.cs.ai-current.' + [Guid]::NewGuid().ToString('N'))
 Move-Item -LiteralPath 'App.xaml.cs.ai-current' -Destination $backupTarget
 ```
-- [ ] **Step 3: Stage task-center files**
+- [x] **Step 3: Stage task-center files**
 
 ```powershell
 git add -- Services/AITaskCenterService.cs BlueSapphire.Tests/AITaskCenterServiceTests.cs Models/AppMessages.cs
 git diff --cached --check
 ```
 
-- [ ] **Step 4: Isolate and commit**
+- [x] **Step 4: Isolate and commit**
 
 ```powershell
 .\scripts\verify-ai-slice.ps1 -Name ai-task-di -TestFilter "FullyQualifiedName~AITaskCenterServiceTests|FullyQualifiedName~AITool|FullyQualifiedName~CleanerAIToolActionProviderTests|FullyQualifiedName~MediaAIToolActionProviderTests"
 git commit -m "feat: 统一 AI Provider 注册与任务中心状态"
 ```
 
-- [ ] **Step 5: Verify unrelated App changes remain**
+- [x] **Step 5: Verify unrelated App changes remain**
 
 ```powershell
 git status --short -- App.xaml.cs
@@ -391,7 +391,7 @@ Expected: global theme/window/UI changes remain uncommitted.
 
 **Interfaces:** Produces one workspace for conversation, tasks and recent activity with no legacy navigation targets.
 
-- [ ] **Step 1: Stage AI workspace files and deletions**
+- [x] **Step 1: Stage AI workspace files and deletions**
 
 ```powershell
 git add -- HomePage.xaml HomePage.xaml.cs Views/AICopilotPage.xaml Views/AICopilotPage.xaml.cs Tools/HomeTool.cs
@@ -399,18 +399,18 @@ git add -u -- Tools/AICopilotTool.cs Tools/AITaskCenterTool.cs Views/AITaskCente
 git diff --cached --check
 ```
 
-- [ ] **Step 2: Verify legacy references are gone in the candidate**
+- [x] **Step 2: Verify legacy references are gone in the candidate**
 
 ```powershell
 git grep --cached -n "AITaskCenterPage\|AITaskCenterTool\|AICopilotTool"
 if ($LASTEXITCODE -eq 0) { throw '候选提交仍引用旧 AI 入口' }
 ```
 
-- [ ] **Step 3: Check XAML resource closure**
+- [x] **Step 3: Check XAML resource closure**
 
 Before adding any theme file, isolate the candidate. If XAML compilation reports missing resource keys, compare current AI page references with `HEAD:Themes/SharedTheme.xaml` and add only the missing aliases/styles to a minimal staged theme candidate. Do not stage the full current theme diff.
 
-- [ ] **Step 4: Isolate and commit**
+- [x] **Step 4: Isolate and commit**
 
 ```powershell
 .\scripts\verify-ai-slice.ps1 -Name ai-workspace -TestFilter "FullyQualifiedName~AI"
@@ -425,11 +425,11 @@ If Home visual changes prove inseparable from the AI host through XAML named-ele
 
 **Files:** AI files committed in Tasks 2–5.
 
-- [ ] **Step 1: Review action/capability parity**
+- [x] **Step 1: Review action/capability parity**
 
 Build sets of model-visible action names and registered handler names. Every destructive or confirmation-required capability must have exactly one domain handler; unknown or missing handlers are defects.
 
-- [ ] **Step 2: Review observer and cancellation failure paths**
+- [x] **Step 2: Review observer and cancellation failure paths**
 
 Verify:
 
@@ -440,11 +440,11 @@ Verify:
 - provider registration cannot mutate capability snapshots;
 - no local full path appears in Cleaner summaries.
 
-- [ ] **Step 3: Add RED tests for each discovered defect**
+- [x] **Step 3: Add RED tests for each discovered defect**
 
 For every concrete defect, run the failing focused test before applying a root-cause fix. Run the nearest AI suite and an isolated slice build before committing.
 
-- [ ] **Step 4: Commit review fixes separately**
+- [x] **Step 4: Commit review fixes separately**
 
 ```powershell
 git commit -m "fix: 加固 AI 工具分发与任务状态"
@@ -461,7 +461,7 @@ Skip this commit only if no production defect is found.
 - Create: `docs/ai-tool-workflow-acceptance.md`
 - Modify: `docs/superpowers/plans/2026-07-22-ai-tool-architecture-consolidation.md`
 
-- [ ] **Step 1: Run AI-focused and full tests with history guard**
+- [x] **Step 1: Run AI-focused and full tests with history guard**
 
 ```powershell
 $hashBefore = (Get-FileHash -Algorithm SHA256 Assets\DevMatrixLog.json).Hash
@@ -471,11 +471,11 @@ $hashAfter = (Get-FileHash -Algorithm SHA256 Assets\DevMatrixLog.json).Hash
 if ($hashBefore -ne $hashAfter) { throw '测试修改了 DevMatrixLog.json' }
 ```
 
-- [ ] **Step 2: Verify clean committed HEAD independently**
+- [x] **Step 2: Verify clean committed HEAD independently**
 
 Create `$finalPath = 'C:\bsw\final_' + [Guid]::NewGuid().ToString('N').Substring(0, 8)`, add a detached worktree at `HEAD`, run restore, full test and no-incremental build, then remove it normally.
 
-- [ ] **Step 3: Run main worktree build**
+- [x] **Step 3: Run main worktree build**
 
 ```powershell
 dotnet build BlueSapphire.slnx --no-incremental --no-restore -v:minimal
@@ -483,7 +483,7 @@ dotnet build BlueSapphire.slnx --no-incremental --no-restore -v:minimal
 
 Expected: 0 warnings, 0 errors.
 
-- [ ] **Step 4: Launch and close the real AI workspace**
+- [x] **Step 4: Launch and close the real AI workspace**
 
 ```powershell
 $exe = Resolve-Path 'bin\x64\Debug\net8.0-windows10.0.19041.0\win-x64\BlueSapphire.exe'
@@ -492,11 +492,11 @@ $p = Start-Process -FilePath $exe -ArgumentList '--tool=Home' -PassThru
 
 Verify nonzero handle and `Responding=True`, inspect that conversation/tasks/recent activity host loads, then use `CloseMainWindow()` and require exit code 0. Leave a final verified instance running after all documentation commits.
 
-- [ ] **Step 5: Update documents with exact counts and limitations**
+- [x] **Step 5: Update documents with exact counts and limitations**
 
 Document AI-focused count, complete-worktree count, isolated-HEAD count, build result, real window result, deleted legacy entries, and untested remote-provider/destructive real-world paths.
 
-- [ ] **Step 6: Final boundary audit**
+- [x] **Step 6: Final boundary audit**
 
 ```powershell
 git status --short --branch
@@ -512,3 +512,16 @@ Expected:
 - no legacy references in HEAD;
 - global theme and unrelated UI changes remain outside AI commits;
 - `DevMatrixLog.json` remains clean and unchanged.
+---
+
+## Execution Result (2026-07-22)
+
+- AI 契约切片在隔离工作树通过 7/7 测试和零警告构建，提交 `fdafff8`。
+- Cleaner/Media Provider 与 Registry 切片通过 10/10 专项测试和隔离构建，提交 `abb0264`。
+- Task Center/App DI 初始候选包含 `Models/AppMessages.cs` 的粒子消息删除，隔离编译证明 `MainWindow` 和设置页仍依赖该消息，因此将它移出 AI 闭包；修正后 13 项测试和构建通过，提交 `15b48d9`。
+- AI 工作台候选暴露 `MainWindow.xaml.cs` 对旧页面和旧工具的残留引用；只提交 3 行旧入口删除后，AI 37/37 和隔离构建通过，提交 `4d6a37a`。
+- 能力名与处理器名为 8/8 完全一致；已提交源码不存在 `AITaskCenterPage`、`AITaskCenterTool`、`AICopilotTool` 引用。
+- 最终代码审查发现取消被通用异常捕获转换为失败文本。RED 测试复现后显式传播 `OperationCanceledException`，AI 38/38 和隔离构建通过，提交 `dbcc1b3`。
+- 完整工作树全量测试 218/218；已提交 AI 快照隔离全量测试 218/218；构建均 0 警告、0 错误。
+- 最终 AI 工作台 PID `37740`、句柄 `1117254`、`Responding=True`，保持运行。
+- `DevMatrixLog.json` 哈希保持 `A9460CC2C03CFED65B36BE74E91D5CD2FBACD978D4243F8E6EFB9C81EBB64FEC`。

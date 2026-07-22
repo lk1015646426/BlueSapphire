@@ -64,3 +64,30 @@ AI 生成的清理规则始终满足：
 ## 验证
 
 AI 场景测试覆盖任务幂等、取消、重启中断、进度单调、共享上下文克隆、扫描结果过期、隐私脱敏、确认授权和结构化记忆迁移。
+## 2026-07-22 工具架构收口
+
+AI 工具链已拆分为两个权威层：
+
+- `AIToolCapabilityCatalog` 管理模型可见能力、工具归属、风险和函数结构，并对外返回克隆快照。
+- `AIToolActionHandlerRegistry` 管理动作名到处理器的精确映射，未知动作返回未识别，不执行反射或字符串命令。
+
+Cleaner 和 Media 动作分别由 `CleanerAIToolActionProvider`、`MediaAIToolActionProvider` 执行。`AIToolsRegistry` 保留 Agent Loop、隐私安全消息、通用应用动作和 Provider 调度，不再直接实现 Cleaner/Media 领域动作。
+
+`CleanerAssistantTool` 与 `MediaManagerTool` 实现 `IAIToolCapabilityProvider`。模型可见的 8 个领域动作与注册处理器 8/8 完全对应，没有幽灵能力或隐藏处理器。
+
+## 统一工作台
+
+AI 对话、任务中心和最近活动已合并到统一工作台。独立的 `AITaskCenterPage`、`AITaskCenterTool` 和 `AICopilotTool` 已删除，已提交源码不存在残留引用。任务仍由单例 `AITaskCenterService` 管理，页面切换不取消任务，重启后未结束任务标记为中断，写入和删除任务不自动续跑。
+
+## 取消语义
+
+代码审查发现 `AIToolsRegistry.ExecuteToolCallAsync` 的通用异常捕获会把 `OperationCanceledException` 转换为普通失败文本。新增 RED 测试后，取消现在在通用失败处理前显式重新抛出，避免任务中心把取消显示为失败或完成。
+
+## 当前验证
+
+- AI 聚焦测试：38/38 通过。
+- 完整工作树全量测试：218/218 通过。
+- 已提交 AI 快照隔离全量测试：218/218 通过。
+- 当前工作树与隔离快照构建均为 0 警告、0 错误。
+- 最终 AI 工作台实例：PID `37740`，句柄 `1117254`，`Responding=True`，按项目验证规范保持运行。
+- `Assets/DevMatrixLog.json` SHA-256 保持 `A9460CC2C03CFED65B36BE74E91D5CD2FBACD978D4243F8E6EFB9C81EBB64FEC`。
