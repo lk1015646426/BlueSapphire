@@ -14,8 +14,9 @@ if (-not $repoRoot) { throw '无法解析 Git 仓库根目录。' }
 & git diff --cached --quiet
 if ($LASTEXITCODE -eq 0) { throw 'Git 暂存区为空，无法验证候选切片。' }
 
-$tempRoot = Join-Path ([IO.Path]::GetTempPath()) 'BlueSapphireCleanerSlices'
-$runId = $Name + '_' + [Guid]::NewGuid().ToString('N')
+$tempRoot = Join-Path ([IO.Path]::GetPathRoot($repoRoot)) 'bsw'
+$shortName = $Name.Substring(0, [Math]::Min(16, $Name.Length))
+$runId = $shortName + '_' + [Guid]::NewGuid().ToString('N').Substring(0, 8)
 $worktreePath = Join-Path $tempRoot $runId
 $patchPath = Join-Path $tempRoot ($runId + '.patch')
 New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
@@ -48,6 +49,9 @@ try {
 finally {
     if (Test-Path -LiteralPath $worktreePath) {
         & git worktree remove --force $worktreePath
+        if ($LASTEXITCODE -ne 0) {
+            throw "无法清理临时工作树: $worktreePath"
+        }
     }
     & git worktree prune
     if (Test-Path -LiteralPath $patchPath) {
