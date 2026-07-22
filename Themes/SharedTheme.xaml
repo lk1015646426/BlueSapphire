@@ -9,47 +9,67 @@
     <local:InverseBoolToVisibleConverter x:Key="InverseBoolToVisibleConverter"/>
 
     <!-- ═══════════════════════════════════════════════════ -->
-    <!-- Color Brushes — Fluent neutral surfaces + sapphire accent -->
+    <!-- Color Brushes — new workbench system: warm paper, ink, and terracotta action -->
     <!-- ═══════════════════════════════════════════════════ -->
 
-    <SolidColorBrush x:Key="BgColor" Color="#0F1417"/>
-    <SolidColorBrush x:Key="PanelSurface" Color="#151B1F"/>
-    <SolidColorBrush x:Key="PanelSurfaceStrong" Color="#1A2227"/>
-    <SolidColorBrush x:Key="SurfaceElevated" Color="#222D33"/>
-    <SolidColorBrush x:Key="PanelHighlight" Color="#27343B"/>
-    <SolidColorBrush x:Key="BorderColor" Color="#28FFFFFF"/>
-    <SolidColorBrush x:Key="BorderSubtle" Color="#18FFFFFF"/>
-    <SolidColorBrush x:Key="BorderActive" Color="#46FFFFFF"/>
-    <SolidColorBrush x:Key="TextMain" Color="#F1F5F5"/>
-    <SolidColorBrush x:Key="TextSecondary" Color="#B8C5C7"/>
-    <SolidColorBrush x:Key="TextMuted" Color="#93A3A6"/>
-    <SolidColorBrush x:Key="TextFaint" Color="#75868A"/>
-    <SolidColorBrush x:Key="TextOnAccent" Color="#FFFFFFFF"/>
-    <SolidColorBrush x:Key="AccentCyan" Color="#26AFC7"/>
-    <SolidColorBrush x:Key="AccentCyanHover" Color="#38BBD1"/>
-    <SolidColorBrush x:Key="AccentCyanPressed" Color="#1494AC"/>
-    <SolidColorBrush x:Key="AccentCyanBg" Color="#2426AFC7"/>
-    <StaticResource x:Key="AccentPrimary" ResourceKey="AccentCyan"/>
-    <StaticResource x:Key="AccentPrimaryBg" ResourceKey="AccentCyanBg"/>
-    <SolidColorBrush x:Key="AccentSafe" Color="#43B581"/>
-    <SolidColorBrush x:Key="AccentSafeBg" Color="#2043B581"/>
-    <SolidColorBrush x:Key="AccentReview" Color="#D9A62E"/>
-    <SolidColorBrush x:Key="AccentReviewBg" Color="#20D9A62E"/>
-    <SolidColorBrush x:Key="AccentInspect" Color="#4AA6D8"/>
-    <SolidColorBrush x:Key="AccentInspectBg" Color="#204AA6D8"/>
-    <SolidColorBrush x:Key="AccentDanger" Color="#E46C7A"/>
-    <SolidColorBrush x:Key="AccentDangerBg" Color="#24E46C7A"/>
-    <SolidColorBrush x:Key="OverlayScrim" Color="#D90B0F12"/>
-    <SolidColorBrush x:Key="MediaSurface" Color="#10161A"/>
-    <SolidColorBrush x:Key="BadgeSurface" Color="#EA151B1F"/>
+    <!-- Dark values are the runtime fallback; App.xaml.cs swaps them for Light/HighContrast. -->
+    <SolidColorBrush x:Key="BgColor" Color="#201E1B"/>
+    <StaticResource x:Key="SidebarBackground" ResourceKey="BgColor"/>
+    <SolidColorBrush x:Key="PanelSurface" Color="#2A2723"/>
+    <SolidColorBrush x:Key="PanelSurfaceStrong" Color="#332F2A"/>
+    <SolidColorBrush x:Key="SurfaceElevated" Color="#3C3731"/>
+    <SolidColorBrush x:Key="PanelHighlight" Color="#463F37"/>
+    <SolidColorBrush x:Key="BorderColor" Color="#42F4EBDD"/>
+    <SolidColorBrush x:Key="BorderSubtle" Color="#22F4EBDD"/>
+    <SolidColorBrush x:Key="BorderActive" Color="#78F4EBDD"/>
+    <SolidColorBrush x:Key="TextMain" Color="#FFF8F0"/>
+    <SolidColorBrush x:Key="TextSecondary" Color="#D8CDC0"/>
+    <SolidColorBrush x:Key="TextMuted" Color="#B2A69A"/>
+    <SolidColorBrush x:Key="TextFaint" Color="#95897D"/>
+    <SolidColorBrush x:Key="TextOnAccent" Color="#25150F"/>
+    <SolidColorBrush x:Key="AccentPrimary" Color="#E5965B"/>
+    <SolidColorBrush x:Key="AccentPrimaryHover" Color="#F0A66B"/>
+    <SolidColorBrush x:Key="AccentPrimaryPressed" Color="#C97945"/>
+    <SolidColorBrush x:Key="AccentPrimaryBg" Color="#2EE5965B"/>
+    <!-- Compatibility aliases. Existing pages will migrate to semantic names incrementally. -->
+    <StaticResource x:Key="AccentCyan" ResourceKey="AccentPrimary"/>
+    <StaticResource x:Key="AccentCyanHover" ResourceKey="AccentPrimaryHover"/>
+    <StaticResource x:Key="AccentCyanPressed" ResourceKey="AccentPrimaryPressed"/>
+    <StaticResource x:Key="AccentCyanBg" ResourceKey="AccentPrimaryBg"/>
+    <SolidColorBrush x:Key="AccentSafe" Color="#72B59A"/>
+    <SolidColorBrush x:Key="AccentSafeBg" Color="#2472B59A"/>
+    <SolidColorBrush x:Key="AccentReview" Color="#E3B969"/>
+    <SolidColorBrush x:Key="AccentReviewBg" Color="#26E3B969"/>
+    <SolidColorBrush x:Key="AccentInspect" Color="#B7A4E8"/>
+    <SolidColorBrush x:Key="AccentInspectBg" Color="#26B7A4E8"/>
+    <SolidColorBrush x:Key="AccentDanger" Color="#F08A83"/>
+    <SolidColorBrush x:Key="AccentDangerBg" Color="#28F08A83"/>
+    <SolidColorBrush x:Key="OverlayScrim" Color="#D9201E1B"/>
+    <SolidColorBrush x:Key="MediaSurface" Color="#171614"/>
+    <SolidColorBrush x:Key="BadgeSurface" Color="#F02A2723"/>
 
     <!-- Align native WinUI controls (toggle, check box, selection) with the app accent. -->
-    <StaticResource x:Key="AccentFillColorDefaultBrush" ResourceKey="AccentCyan"/>
-    <StaticResource x:Key="AccentFillColorSecondaryBrush" ResourceKey="AccentCyanHover"/>
-    <StaticResource x:Key="AccentFillColorTertiaryBrush" ResourceKey="AccentCyanPressed"/>
-    <StaticResource x:Key="AccentFillColorSelectedTextBackgroundBrush" ResourceKey="AccentCyan"/>
-    <StaticResource x:Key="AccentTextFillColorPrimaryBrush" ResourceKey="AccentCyan"/>
-    <StaticResource x:Key="AccentTextFillColorSecondaryBrush" ResourceKey="AccentCyanHover"/>
+    <StaticResource x:Key="AccentFillColorDefaultBrush" ResourceKey="AccentPrimary"/>
+    <StaticResource x:Key="AccentFillColorSecondaryBrush" ResourceKey="AccentPrimaryHover"/>
+    <StaticResource x:Key="AccentFillColorTertiaryBrush" ResourceKey="AccentPrimaryPressed"/>
+    <StaticResource x:Key="AccentFillColorSelectedTextBackgroundBrush" ResourceKey="AccentPrimary"/>
+    <StaticResource x:Key="AccentTextFillColorPrimaryBrush" ResourceKey="AccentPrimary"/>
+    <StaticResource x:Key="AccentTextFillColorSecondaryBrush" ResourceKey="AccentPrimaryHover"/>
+
+    <!-- ═══════════════════════════════════════════════════ -->
+    <!-- Motion + Material Tokens (quiet workbench)          -->
+    <!-- ═══════════════════════════════════════════════════ -->
+
+    <!-- 动效契约：入场 280ms·CubicEase Out / 悬停 120ms·SineEase / 选中 160ms·SineEase / 弹窗 200ms·BackEase Out -->
+    <!-- Duration 令牌暂以注释记录（WinUI XamlCompiler 不支持 <Duration> 作为资源元素）；页面 Storyboard 直接写 "0:0:0.28" 等数值 -->
+
+    <!-- Compatibility aliases are flat brushes. The redesigned UI deliberately has no glow/sheen layer. -->
+    <StaticResource x:Key="AccentGlowBrush" ResourceKey="AccentPrimary"/>
+    <StaticResource x:Key="EdgeSheen" ResourceKey="BorderSubtle"/>
+    <StaticResource x:Key="PanelSurfaceSheen" ResourceKey="PanelSurface"/>
+    <StaticResource x:Key="PanelSurfaceStrongSheen" ResourceKey="PanelSurfaceStrong"/>
+
+    <!-- 磨砂玻璃面令牌暂移除（排查 XamlCompiler 失败；后续以代码方式提供） -->
 
     <!-- ═══════════════════════════════════════════════════ -->
     <!-- Button Styles                                        -->
@@ -58,13 +78,17 @@
     <Style x:Key="ActionButtonStyle" TargetType="Button">
         <Setter Property="MinHeight" Value="40"/>
         <Setter Property="Padding" Value="14,8"/>
-        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="CornerRadius" Value="7"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Background" Value="{ThemeResource PanelSurface}"/>
         <Setter Property="BorderBrush" Value="{ThemeResource BorderColor}"/>
         <Setter Property="Foreground" Value="{ThemeResource TextMain}"/>
-        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontSize" Value="14"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="UseSystemFocusVisuals" Value="True"/>
+        <Setter Property="FocusVisualPrimaryBrush" Value="{ThemeResource AccentPrimary}"/>
+        <Setter Property="FocusVisualSecondaryBrush" Value="{ThemeResource TextMain}"/>
+        <Setter Property="FocusVisualMargin" Value="-2"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
@@ -102,7 +126,7 @@
                             <VisualStateGroup x:Name="FocusStates">
                                 <VisualState x:Name="Focused">
                                     <VisualState.Setters>
-                                        <Setter Target="ContentPresenter.BorderBrush" Value="{ThemeResource AccentCyan}"/>
+                                        <Setter Target="ContentPresenter.BorderBrush" Value="{ThemeResource AccentPrimary}"/>
                                     </VisualState.Setters>
                                 </VisualState>
                                 <VisualState x:Name="Unfocused"/>
@@ -116,8 +140,8 @@
     </Style>
 
     <Style x:Key="PrimaryActionButtonStyle" TargetType="Button" BasedOn="{StaticResource ActionButtonStyle}">
-        <Setter Property="Background" Value="{ThemeResource AccentCyan}"/>
-        <Setter Property="BorderBrush" Value="{ThemeResource AccentCyan}"/>
+        <Setter Property="Background" Value="{StaticResource AccentGlowBrush}"/>
+        <Setter Property="BorderBrush" Value="{ThemeResource AccentPrimary}"/>
         <Setter Property="Foreground" Value="{ThemeResource TextOnAccent}"/>
         <Setter Property="Template">
             <Setter.Value>
@@ -138,14 +162,14 @@
                                 <VisualState x:Name="Normal"/>
                                 <VisualState x:Name="PointerOver">
                                     <VisualState.Setters>
-                                        <Setter Target="ContentPresenter.Background" Value="{ThemeResource AccentCyanHover}"/>
-                                        <Setter Target="ContentPresenter.BorderBrush" Value="{ThemeResource AccentCyanHover}"/>
+                                        <Setter Target="ContentPresenter.Background" Value="{ThemeResource AccentPrimaryHover}"/>
+                                        <Setter Target="ContentPresenter.BorderBrush" Value="{ThemeResource AccentPrimaryHover}"/>
                                     </VisualState.Setters>
                                 </VisualState>
                                 <VisualState x:Name="Pressed">
                                     <VisualState.Setters>
-                                        <Setter Target="ContentPresenter.Background" Value="{ThemeResource AccentCyanPressed}"/>
-                                        <Setter Target="ContentPresenter.BorderBrush" Value="{ThemeResource AccentCyanPressed}"/>
+                                        <Setter Target="ContentPresenter.Background" Value="{ThemeResource AccentPrimaryPressed}"/>
+                                        <Setter Target="ContentPresenter.BorderBrush" Value="{ThemeResource AccentPrimaryPressed}"/>
                                     </VisualState.Setters>
                                 </VisualState>
                                 <VisualState x:Name="Disabled">
@@ -183,12 +207,106 @@
         <Setter Property="Foreground" Value="{ThemeResource AccentDanger}"/>
     </Style>
 
+    <Style x:Key="SuccessActionButtonStyle" TargetType="Button" BasedOn="{StaticResource ActionButtonStyle}">
+        <Setter Property="Background" Value="{ThemeResource AccentSafeBg}"/>
+        <Setter Property="BorderBrush" Value="{ThemeResource AccentSafe}"/>
+        <Setter Property="Foreground" Value="{ThemeResource AccentSafe}"/>
+    </Style>
+
+    <Style x:Key="LoadingActionButtonStyle" TargetType="Button" BasedOn="{StaticResource ActionButtonStyle}">
+        <Setter Property="Background" Value="{ThemeResource PanelHighlight}"/>
+        <Setter Property="BorderBrush" Value="{ThemeResource BorderSubtle}"/>
+        <Setter Property="Foreground" Value="{ThemeResource TextMuted}"/>
+        <Setter Property="IsEnabled" Value="False"/>
+    </Style>
+
+    <Style x:Key="ErrorActionButtonStyle" TargetType="Button" BasedOn="{StaticResource DangerActionButtonStyle}"/>
+
     <!-- Compact button — for inline actions -->
     <Style x:Key="CompactButtonStyle" TargetType="Button" BasedOn="{StaticResource ActionButtonStyle}">
         <Setter Property="MinHeight" Value="36"/>
         <Setter Property="Padding" Value="10,6"/>
         <Setter Property="FontSize" Value="12"/>
-        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="CornerRadius" Value="6"/>
+    </Style>
+
+    <!-- Form controls share the same quiet field treatment and visible keyboard focus. -->
+    <Style TargetType="TextBox">
+        <Setter Property="MinHeight" Value="38"/>
+        <Setter Property="Padding" Value="10,8"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="Background" Value="{ThemeResource PanelSurface}"/>
+        <Setter Property="BorderBrush" Value="{ThemeResource BorderColor}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Foreground" Value="{ThemeResource TextMain}"/>
+        <Setter Property="PlaceholderForeground" Value="{ThemeResource TextMuted}"/>
+        <Setter Property="UseSystemFocusVisuals" Value="True"/>
+        <Setter Property="FocusVisualPrimaryBrush" Value="{ThemeResource AccentPrimary}"/>
+        <Setter Property="FocusVisualSecondaryBrush" Value="{ThemeResource TextMain}"/>
+        <Setter Property="FocusVisualMargin" Value="-2"/>
+    </Style>
+
+    <Style TargetType="PasswordBox">
+        <Setter Property="MinHeight" Value="38"/>
+        <Setter Property="Padding" Value="10,8"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="Background" Value="{ThemeResource PanelSurface}"/>
+        <Setter Property="BorderBrush" Value="{ThemeResource BorderColor}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Foreground" Value="{ThemeResource TextMain}"/>
+        <Setter Property="UseSystemFocusVisuals" Value="True"/>
+        <Setter Property="FocusVisualPrimaryBrush" Value="{ThemeResource AccentPrimary}"/>
+        <Setter Property="FocusVisualSecondaryBrush" Value="{ThemeResource TextMain}"/>
+        <Setter Property="FocusVisualMargin" Value="-2"/>
+    </Style>
+
+    <Style TargetType="ComboBox">
+        <Setter Property="MinHeight" Value="38"/>
+        <Setter Property="Padding" Value="10,6"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="Background" Value="{ThemeResource PanelSurface}"/>
+        <Setter Property="BorderBrush" Value="{ThemeResource BorderColor}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Foreground" Value="{ThemeResource TextMain}"/>
+        <Setter Property="UseSystemFocusVisuals" Value="True"/>
+        <Setter Property="FocusVisualPrimaryBrush" Value="{ThemeResource AccentPrimary}"/>
+        <Setter Property="FocusVisualSecondaryBrush" Value="{ThemeResource TextMain}"/>
+        <Setter Property="FocusVisualMargin" Value="-2"/>
+    </Style>
+
+    <Style TargetType="NumberBox">
+        <Setter Property="MinHeight" Value="38"/>
+        <Setter Property="Padding" Value="10,6"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="Background" Value="{ThemeResource PanelSurface}"/>
+        <Setter Property="BorderBrush" Value="{ThemeResource BorderColor}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Foreground" Value="{ThemeResource TextMain}"/>
+        <Setter Property="UseSystemFocusVisuals" Value="True"/>
+        <Setter Property="FocusVisualPrimaryBrush" Value="{ThemeResource AccentPrimary}"/>
+        <Setter Property="FocusVisualSecondaryBrush" Value="{ThemeResource TextMain}"/>
+        <Setter Property="FocusVisualMargin" Value="-2"/>
+    </Style>
+
+    <Style TargetType="ToggleSwitch">
+        <Setter Property="UseSystemFocusVisuals" Value="True"/>
+        <Setter Property="FocusVisualPrimaryBrush" Value="{ThemeResource AccentPrimary}"/>
+        <Setter Property="FocusVisualSecondaryBrush" Value="{ThemeResource TextMain}"/>
+        <Setter Property="FocusVisualMargin" Value="-2"/>
+    </Style>
+
+    <Style TargetType="RadioButton">
+        <Setter Property="UseSystemFocusVisuals" Value="True"/>
+        <Setter Property="FocusVisualPrimaryBrush" Value="{ThemeResource AccentPrimary}"/>
+        <Setter Property="FocusVisualSecondaryBrush" Value="{ThemeResource TextMain}"/>
+        <Setter Property="FocusVisualMargin" Value="-2"/>
+    </Style>
+
+    <Style TargetType="ListViewItem">
+        <Setter Property="UseSystemFocusVisuals" Value="True"/>
+        <Setter Property="FocusVisualPrimaryBrush" Value="{ThemeResource AccentPrimary}"/>
+        <Setter Property="FocusVisualSecondaryBrush" Value="{ThemeResource TextMain}"/>
+        <Setter Property="FocusVisualMargin" Value="-2"/>
     </Style>
 
     <!-- ═══════════════════════════════════════════════════ -->
@@ -196,27 +314,27 @@
     <!-- ═══════════════════════════════════════════════════ -->
 
     <Style x:Key="CardBorderStyle" TargetType="Border">
-        <Setter Property="Background" Value="{ThemeResource PanelSurface}"/>
+        <Setter Property="Background" Value="{StaticResource PanelSurfaceSheen}"/>
         <Setter Property="BorderBrush" Value="{ThemeResource BorderSubtle}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="CornerRadius" Value="8"/>
         <Setter Property="Padding" Value="18,16"/>
     </Style>
 
     <Style x:Key="CardBorderStrongStyle" TargetType="Border">
-        <Setter Property="Background" Value="{ThemeResource PanelSurfaceStrong}"/>
+        <Setter Property="Background" Value="{StaticResource PanelSurfaceStrongSheen}"/>
         <Setter Property="BorderBrush" Value="{ThemeResource BorderSubtle}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="CornerRadius" Value="8"/>
         <Setter Property="Padding" Value="18,16"/>
     </Style>
 
     <!-- Bento metric card — for dashboard stats -->
     <Style x:Key="MetricCardStyle" TargetType="Border">
-        <Setter Property="Background" Value="{ThemeResource PanelSurfaceStrong}"/>
+        <Setter Property="Background" Value="{StaticResource PanelSurfaceStrongSheen}"/>
         <Setter Property="BorderBrush" Value="{ThemeResource BorderSubtle}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="CornerRadius" Value="8"/>
         <Setter Property="Padding" Value="16,14"/>
     </Style>
 
@@ -224,22 +342,65 @@
         <Setter Property="Background" Value="{ThemeResource PanelSurface}"/>
         <Setter Property="BorderBrush" Value="{ThemeResource BorderSubtle}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="CornerRadius" Value="7"/>
         <Setter Property="Padding" Value="14,12"/>
         <Setter Property="Margin" Value="0,0,0,4"/>
     </Style>
 
     <Style x:Key="SectionCardStyle" TargetType="Border">
-        <Setter Property="Background" Value="{ThemeResource PanelSurfaceStrong}"/>
+        <Setter Property="Background" Value="{StaticResource PanelSurfaceStrongSheen}"/>
         <Setter Property="BorderBrush" Value="{ThemeResource BorderSubtle}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="CornerRadius" Value="8"/>
         <Setter Property="Padding" Value="18,16"/>
     </Style>
 
     <Style x:Key="InfoChipStyle" TargetType="Border">
-        <Setter Property="CornerRadius" Value="999"/>
+        <Setter Property="CornerRadius" Value="7"/>
         <Setter Property="Padding" Value="8,3"/>
+    </Style>
+
+    <Style x:Key="SuccessBannerStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource AccentSafeBg}"/>
+        <Setter Property="BorderBrush" Value="{ThemeResource AccentSafe}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="7"/>
+        <Setter Property="Padding" Value="12,10"/>
+    </Style>
+
+    <Style x:Key="ReviewBannerStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource AccentReviewBg}"/>
+        <Setter Property="BorderBrush" Value="{ThemeResource AccentReview}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="7"/>
+        <Setter Property="Padding" Value="12,10"/>
+    </Style>
+
+    <Style x:Key="ErrorBannerStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource AccentDangerBg}"/>
+        <Setter Property="BorderBrush" Value="{ThemeResource AccentDanger}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="7"/>
+        <Setter Property="Padding" Value="12,10"/>
+    </Style>
+
+    <!-- ═══════════════════════════════════════════════════ -->
+    <!-- Skeleton Styles (loading placeholders)               -->
+    <!-- ═══════════════════════════════════════════════════ -->
+
+    <Style x:Key="SkeletonBlockStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource SurfaceElevated}"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+
+    <Style x:Key="SkeletonTextStyle" TargetType="Border" BasedOn="{StaticResource SkeletonBlockStyle}">
+        <Setter Property="CornerRadius" Value="4"/>
+        <Setter Property="Height" Value="12"/>
+    </Style>
+
+    <Style x:Key="SkeletonCircleStyle" TargetType="Ellipse">
+        <Setter Property="Fill" Value="{ThemeResource SurfaceElevated}"/>
     </Style>
 
     <!-- ═══════════════════════════════════════════════════ -->
@@ -249,6 +410,7 @@
     <Style x:Key="MetricValueStyle" TargetType="TextBlock">
         <Setter Property="FontSize" Value="24"/>
         <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="FontFamily" Value="Segoe UI Variable Display, Segoe UI"/>
         <Setter Property="Foreground" Value="{ThemeResource TextMain}"/>
     </Style>
 
@@ -287,7 +449,7 @@
 
     <!-- Unified page title — 24px, all pages should use this for main page headings -->
     <Style x:Key="TextStyle_PageTitle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="28"/>
+        <Setter Property="FontSize" Value="18"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="Foreground" Value="{ThemeResource TextMain}"/>
     </Style>
@@ -296,25 +458,46 @@
     <Style x:Key="TextStyle_Metric" TargetType="TextBlock">
         <Setter Property="FontSize" Value="28"/>
         <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI"/>
+        <Setter Property="Foreground" Value="{ThemeResource TextMain}"/>
+    </Style>
+
+    <!-- Large metric — 32px, for hero/dashboard key numbers (e.g. CleanerAssistantPage scan progress). -->
+    <Style x:Key="TextStyle_MetricLarge" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="24"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="FontFamily" Value="Segoe UI Variable Display, Segoe UI"/>
         <Setter Property="Foreground" Value="{ThemeResource TextMain}"/>
     </Style>
 
     <!-- Display — 32px, reserved for HomePage branding/greeting only -->
     <Style x:Key="TextStyle_Display" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="32"/>
+        <Setter Property="FontSize" Value="20"/>
         <Setter Property="FontWeight" Value="Bold"/>
         <Setter Property="Foreground" Value="{ThemeResource TextMain}"/>
+    </Style>
+
+    <!-- Mono (技术等宽) — 工具/数据/状态用，立刻有"仪表盘"气质 -->
+    <Style x:Key="TextStyle_Mono" TargetType="TextBlock"
+           BasedOn="{StaticResource TextStyle_Body}">
+        <Setter Property="FontFamily" Value="Segoe UI Variable Display, Segoe UI"/>
+    </Style>
+    <Style x:Key="TextStyle_MonoCaption" TargetType="TextBlock"
+           BasedOn="{StaticResource TextStyle_Caption}">
+        <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI"/>
     </Style>
 
     <!-- ═══════════════════════════════════════════════════ -->
     <!-- Spacing Tokens (8-multiple system)                  -->
     <!-- ═══════════════════════════════════════════════════ -->
 
-    <Thickness x:Key="PagePadding">24,20</Thickness>
-    <Thickness x:Key="PagePaddingLarge">32,28</Thickness>
-    <Thickness x:Key="CardPadding">18,16</Thickness>
+    <Thickness x:Key="PagePadding">32,28</Thickness>
+    <Thickness x:Key="PagePaddingLarge">40,32</Thickness>
+    <!-- Unified page header padding — all page headers should reference this. -->
+    <Thickness x:Key="PageHeaderPadding">32,28,32,18</Thickness>
+    <Thickness x:Key="CardPadding">20,18</Thickness>
     <Thickness x:Key="SectionGap">0,32,0,0</Thickness>
-    <Thickness x:Key="SectionGapSmall">0,15,0,0</Thickness>
+    <Thickness x:Key="SectionGapSmall">0,14,0,0</Thickness>
 
     <!-- ═══════════════════════════════════════════════════ -->
     <!-- Chip Styles                                          -->
@@ -338,6 +521,10 @@
         <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="FontFamily" Value="Segoe UI"/>
+        <Setter Property="UseSystemFocusVisuals" Value="True"/>
+        <Setter Property="FocusVisualPrimaryBrush" Value="{ThemeResource AccentPrimary}"/>
+        <Setter Property="FocusVisualSecondaryBrush" Value="{ThemeResource TextMain}"/>
+        <Setter Property="FocusVisualMargin" Value="-2"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ListViewItem">
@@ -367,14 +554,14 @@
                                 </VisualState>
                                 <VisualState x:Name="Selected">
                                     <VisualState.Setters>
-                                        <Setter Target="ContentPresenter.Background" Value="{ThemeResource AccentCyanBg}"/>
-                                        <Setter Target="ContentPresenter.BorderBrush" Value="{ThemeResource AccentCyan}"/>
+                                        <Setter Target="ContentPresenter.Background" Value="{ThemeResource AccentPrimaryBg}"/>
+                                        <Setter Target="ContentPresenter.BorderBrush" Value="{ThemeResource AccentPrimary}"/>
                                         <Setter Target="ContentPresenter.BorderThickness" Value="0,0,0,0"/>
                                     </VisualState.Setters>
                                 </VisualState>
                                 <VisualState x:Name="PointerOverSelected">
                                     <VisualState.Setters>
-                                        <Setter Target="ContentPresenter.Background" Value="{ThemeResource AccentCyanBg}"/>
+                                        <Setter Target="ContentPresenter.Background" Value="{ThemeResource AccentPrimaryBg}"/>
                                     </VisualState.Setters>
                                 </VisualState>
                                 <VisualState x:Name="Disabled">
@@ -390,10 +577,76 @@
         </Setter>
     </Style>
 
-    <Style x:Key="TextStyle_MetricLarge" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="24"/>
-        <Setter Property="FontWeight" Value="Bold"/>
-        <Setter Property="FontFamily" Value="Segoe UI Variable Display, Segoe UI"/>
+    <!-- New workbench shell primitives mapped from the approved HTML prototype. -->
+    <Thickness x:Key="WorkbenchPagePadding">20</Thickness>
+
+    <Style x:Key="WorkbenchIconButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource CompactButtonStyle}">
+        <Setter Property="Width" Value="32"/>
+        <Setter Property="Height" Value="32"/>
+        <Setter Property="MinHeight" Value="32"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{ThemeResource TextSecondary}"/>
+        <Setter Property="CornerRadius" Value="6"/>
+    </Style>
+
+    <Style x:Key="WorkbenchTextButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource SubtleActionButtonStyle}">
+        <Setter Property="MinHeight" Value="28"/>
+        <Setter Property="Padding" Value="7,3"/>
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="Foreground" Value="{ThemeResource AccentPrimary}"/>
+    </Style>
+
+    <Style x:Key="WorkbenchContentDialogStyle" TargetType="ContentDialog">
+        <Setter Property="Background" Value="{ThemeResource PanelSurface}"/>
+        <Setter Property="BorderBrush" Value="{ThemeResource BorderColor}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="8"/>
+    </Style>
+
+    <Style x:Key="DialogSectionStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource PanelSurfaceStrong}"/>
+        <Setter Property="BorderBrush" Value="{ThemeResource BorderSubtle}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Padding" Value="14,12"/>
+    </Style>
+
+    <Style x:Key="DialogChoiceButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource ActionButtonStyle}">
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="MinHeight" Value="0"/>
+    </Style>
+
+    <Style x:Key="DialogHeadingStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="Foreground" Value="{ThemeResource TextMain}"/>
+    </Style>
+
+    <Style x:Key="DialogHelperTextStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Foreground" Value="{ThemeResource TextMuted}"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+
+    <Style x:Key="DialogToggleChipStyle" TargetType="ToggleButton">
+        <Setter Property="Background" Value="{ThemeResource PanelSurface}"/>
+        <Setter Property="BorderBrush" Value="{ThemeResource BorderColor}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="Padding" Value="10,5"/>
+        <Setter Property="MinHeight" Value="32"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="UseSystemFocusVisuals" Value="True"/>
+        <Setter Property="FocusVisualPrimaryBrush" Value="{ThemeResource AccentPrimary}"/>
     </Style>
 </ResourceDictionary>

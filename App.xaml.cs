@@ -114,30 +114,50 @@ namespace BlueSapphire
                     : ApplicationTheme.Dark;
             }
 
-            ApplyColorPalette(highContrast ? "HighContrast" : theme == ElementTheme.Light ? "Light" : "Dark");
+            string palette = highContrast ? "HighContrast" : theme == ElementTheme.Light ? "Light" : "Dark";
+            ApplyColorPalette(palette, AppSettings.Get("ThemePreset", "default") ?? "default");
         }
 
-        private static void ApplyColorPalette(string palette)
+        public static void ApplyThemePreset(string preset)
         {
-            IReadOnlyDictionary<string, string> colors = palette switch
+            preset = NormalizeThemePreset(preset);
+            AppSettings.Save("ThemePreset", preset);
+            ApplyThemePreference(AppSettings.Get("AppTheme", "System") ?? "System");
+        }
+
+        public static void ApplyUiFontSize(string size)
+        {
+            AppSettings.Save("UiFontSize", size);
+            double body = size switch { "small" => 13, "medium" => 15, "large" => 16, _ => 14 };
+            double caption = size switch { "small" => 11, "medium" => 13, "large" => 14, _ => 12 };
+            Application.Current.Resources["ControlContentThemeFontSize"] = body;
+            Application.Current.Resources["BodyTextBlockFontSize"] = body;
+            Application.Current.Resources["CaptionTextBlockFontSize"] = caption;
+        }
+
+        private static void ApplyColorPalette(string palette, string preset)
+        {
+            Dictionary<string, string> colors = palette switch
             {
                 "Light" => new Dictionary<string, string>
                 {
-                    ["BgColor"] = "#F3F6F6", ["PanelSurface"] = "#FFFFFFFF",
-                    ["PanelSurfaceStrong"] = "#F8FAFA", ["SurfaceElevated"] = "#EEF3F4",
-                    ["PanelHighlight"] = "#E8EFF0", ["BorderColor"] = "#260F1F23",
-                    ["BorderSubtle"] = "#180F1F23", ["BorderActive"] = "#520F1F23",
-                    ["TextMain"] = "#17282C", ["TextSecondary"] = "#3E565B",
-                    ["TextMuted"] = "#5A7075", ["TextFaint"] = "#6B7E82",
+                    ["BgColor"] = "#F3EEE6", ["PanelSurface"] = "#FFFCF7",
+                    ["PanelSurfaceStrong"] = "#F7F0E8", ["SurfaceElevated"] = "#FFFFFF",
+                    ["PanelHighlight"] = "#EEE4D8", ["BorderColor"] = "#2A3B2E29",
+                    ["BorderSubtle"] = "#193B2E29", ["BorderActive"] = "#663B2E29",
+                    ["TextMain"] = "#2A2520", ["TextSecondary"] = "#554B42",
+                    ["TextMuted"] = "#74695E", ["TextFaint"] = "#8C8175",
                     ["TextOnAccent"] = "#FFFFFFFF",
-                    ["AccentCyan"] = "#007E95", ["AccentCyanHover"] = "#006D82",
-                    ["AccentCyanPressed"] = "#005E70", ["AccentCyanBg"] = "#1C007E95",
-                    ["AccentSafe"] = "#0A7551", ["AccentSafeBg"] = "#180A7551",
-                    ["AccentReview"] = "#7A5500", ["AccentReviewBg"] = "#187A5500",
-                    ["AccentInspect"] = "#176B9A", ["AccentInspectBg"] = "#18176B9A",
-                    ["AccentDanger"] = "#B4233C", ["AccentDangerBg"] = "#18B4233C",
-                    ["OverlayScrim"] = "#CCF3F6F6", ["MediaSurface"] = "#E9EFF0",
-                    ["BadgeSurface"] = "#F2FFFFFF"
+                    ["AccentPrimary"] = "#B34A28", ["AccentPrimaryHover"] = "#A94423",
+                    ["AccentPrimaryPressed"] = "#94391F", ["AccentPrimaryBg"] = "#1AB34A28",
+                    ["AccentCyan"] = "#B34A28", ["AccentCyanHover"] = "#A94423",
+                    ["AccentCyanPressed"] = "#94391F", ["AccentCyanBg"] = "#1AB34A28",
+                    ["AccentSafe"] = "#28775B", ["AccentSafeBg"] = "#1828775B",
+                    ["AccentReview"] = "#8B611F", ["AccentReviewBg"] = "#188B611F",
+                    ["AccentInspect"] = "#66519A", ["AccentInspectBg"] = "#1866519A",
+                    ["AccentDanger"] = "#B33E3E", ["AccentDangerBg"] = "#18B33E3E",
+                    ["OverlayScrim"] = "#CCF3EEE6", ["MediaSurface"] = "#E8DED2",
+                    ["BadgeSurface"] = "#F0FFFCF7"
                 },
                 "HighContrast" => new Dictionary<string, string>
                 {
@@ -148,6 +168,8 @@ namespace BlueSapphire
                     ["TextMain"] = "#FFFFFFFF", ["TextSecondary"] = "#FFFFFFFF",
                     ["TextMuted"] = "#FFE0E0E0", ["TextFaint"] = "#FFC0C0C0",
                     ["TextOnAccent"] = "#FF000000",
+                    ["AccentPrimary"] = "#FFFFFF00", ["AccentPrimaryHover"] = "#FFFFFFFF",
+                    ["AccentPrimaryPressed"] = "#FFFFFF00", ["AccentPrimaryBg"] = "#FF000000",
                     ["AccentCyan"] = "#FFFFFF00", ["AccentCyanHover"] = "#FFFFFFFF",
                     ["AccentCyanPressed"] = "#FFFFFF00", ["AccentCyanBg"] = "#FF000000",
                     ["AccentSafe"] = "#FF00FF00", ["AccentSafeBg"] = "#FF000000",
@@ -159,23 +181,33 @@ namespace BlueSapphire
                 },
                 _ => new Dictionary<string, string>
                 {
-                    ["BgColor"] = "#0F1417", ["PanelSurface"] = "#151B1F",
-                    ["PanelSurfaceStrong"] = "#1A2227", ["SurfaceElevated"] = "#222D33",
-                    ["PanelHighlight"] = "#27343B", ["BorderColor"] = "#28FFFFFF",
-                    ["BorderSubtle"] = "#18FFFFFF", ["BorderActive"] = "#46FFFFFF",
-                    ["TextMain"] = "#F1F5F5", ["TextSecondary"] = "#B8C5C7",
-                    ["TextMuted"] = "#93A3A6", ["TextFaint"] = "#75868A",
-                    ["TextOnAccent"] = "#FFFFFFFF",
-                    ["AccentCyan"] = "#26AFC7", ["AccentCyanHover"] = "#38BBD1",
-                    ["AccentCyanPressed"] = "#1494AC", ["AccentCyanBg"] = "#2426AFC7",
-                    ["AccentSafe"] = "#43B581", ["AccentSafeBg"] = "#2043B581",
-                    ["AccentReview"] = "#D9A62E", ["AccentReviewBg"] = "#20D9A62E",
-                    ["AccentInspect"] = "#4AA6D8", ["AccentInspectBg"] = "#204AA6D8",
-                    ["AccentDanger"] = "#E46C7A", ["AccentDangerBg"] = "#24E46C7A",
-                    ["OverlayScrim"] = "#D90B0F12", ["MediaSurface"] = "#10161A",
-                    ["BadgeSurface"] = "#EA151B1F"
+                    ["BgColor"] = "#201E1B", ["PanelSurface"] = "#2A2723",
+                    ["PanelSurfaceStrong"] = "#332F2A", ["SurfaceElevated"] = "#3C3731",
+                    ["PanelHighlight"] = "#463F37", ["BorderColor"] = "#42F4EBDD",
+                    ["BorderSubtle"] = "#22F4EBDD", ["BorderActive"] = "#78F4EBDD",
+                    ["TextMain"] = "#FFF8F0", ["TextSecondary"] = "#D8CDC0",
+                    ["TextMuted"] = "#B2A69A", ["TextFaint"] = "#95897D",
+                    ["TextOnAccent"] = "#25150F",
+                    ["AccentPrimary"] = "#E5965B", ["AccentPrimaryHover"] = "#F0A66B",
+                    ["AccentPrimaryPressed"] = "#C97945", ["AccentPrimaryBg"] = "#2EE5965B",
+                    ["AccentCyan"] = "#E5965B", ["AccentCyanHover"] = "#F0A66B",
+                    ["AccentCyanPressed"] = "#C97945", ["AccentCyanBg"] = "#2EE5965B",
+                    ["AccentSafe"] = "#72B59A", ["AccentSafeBg"] = "#2472B59A",
+                    ["AccentReview"] = "#E3B969", ["AccentReviewBg"] = "#26E3B969",
+                    ["AccentInspect"] = "#B7A4E8", ["AccentInspectBg"] = "#26B7A4E8",
+                    ["AccentDanger"] = "#F08A83", ["AccentDangerBg"] = "#28F08A83",
+                    ["OverlayScrim"] = "#D9201E1B", ["MediaSurface"] = "#171614",
+                    ["BadgeSurface"] = "#F02A2723"
                 }
             };
+
+            if (palette != "HighContrast")
+            {
+                foreach ((string key, string value) in GetPresetPalette(preset, palette == "Dark"))
+                {
+                    colors[key] = value;
+                }
+            }
 
             if (Application.Current is not App app) return;
             foreach ((string key, string value) in colors)
@@ -192,6 +224,68 @@ namespace BlueSapphire
                 mainWindow.ApplyThemeChrome(
                     palette == "Light" ? ElementTheme.Light : ElementTheme.Dark);
             }
+        }
+
+        private static string NormalizeThemePreset(string preset)
+        {
+            string normalized = preset.Trim().ToLowerInvariant();
+            return normalized == "azure" ? "sky" : normalized;
+        }
+
+        private static IReadOnlyDictionary<string, string> GetPresetPalette(string preset, bool dark)
+        {
+            (string paper, string paper2, string surface, string raised, string ink, string ink2,
+             string muted, string faint, string rule, string ruleStrong, string primary,
+             string primarySoft, string onPrimary, string accent, string accentSoft) values =
+                (NormalizeThemePreset(preset), dark) switch
+                {
+                    ("sky", false) => ("#FFFFFF", "#E5E5E6", "#FFFFFF", "#F7F8F8", "#0F1419", "#29333B", "#52616C", "#70808A", "#D4DEE4", "#AEBDC6", "#1E9DF1", "#E3ECF6", "#07131B", "#1E9DF1", "#E3ECF6"),
+                    ("sky", true) => ("#0B0D0F", "#191B1F", "#1D2125", "#111417", "#E7E9EA", "#DFE2E3", "#9B9FA3", "#747A80", "#272A2E", "#3B4249", "#1C9CF0", "#1A2129", "#07131B", "#1C9CF0", "#191F25"),
+                    ("cobalt", false) => ("#FFFFFF", "#F5F5F5", "#FFFFFF", "#FFFFFF", "#262626", "#404040", "#666666", "#737373", "#BEBEBE", "#9F9F9F", "#1166D4", "#ECF4FD", "#FFFFFF", "#1166D4", "#EAEFF6"),
+                    ("cobalt", true) => ("#1F1F1F", "#2E2E2E", "#262626", "#262626", "#EBEBEB", "#D9D9D9", "#A6A6A6", "#858585", "#525252", "#686868", "#80BBFF", "#003066", "#001833", "#80BBFF", "#333333"),
+                    ("graphite", false) => ("#FCFCFC", "#F5F5F5", "#FCFCFC", "#FCFCFC", "#000000", "#292929", "#525252", "#747474", "#C4C4C4", "#A4A4A4", "#000000", "#EBEBEB", "#FFFFFF", "#FFAF09", "#FFF1CF"),
+                    ("graphite", true) => ("#000000", "#1D1D1D", "#111111", "#000000", "#FFFFFF", "#E4E4E4", "#A4A4A4", "#747474", "#3D3D3D", "#525252", "#62A400", "#223900", "#000000", "#FFAF09", "#3B2A05"),
+                    ("lagoon", false) => ("#F8FCFB", "#EDF3F2", "#FFFFFF", "#FFFFFF", "#173636", "#284B4B", "#58706F", "#718685", "#BFD3D0", "#9EB9B5", "#00B298", "#E0FAFF", "#001B18", "#00B298", "#E3FAFC"),
+                    ("lagoon", true) => ("#050F0F", "#152828", "#102424", "#0A1A1A", "#F3F7F6", "#D7E4E2", "#9DB0AD", "#718C88", "#345050", "#496966", "#0DF2D0", "#133339", "#001B18", "#0DF2D0", "#173336"),
+                    ("ink", false) => ("#F3F9FF", "#F5F5F5", "#F8FCFF", "#F8FCFF", "#000102", "#20252B", "#525252", "#747474", "#C7C7C7", "#A4A4A4", "#000102", "#EBEBEB", "#F3F9FF", "#2671F4", "#DCE9FF"),
+                    ("ink", true) => ("#000000", "#1D1D1D", "#111114", "#08090B", "#C8D9F3", "#B7C8E1", "#A4A4A4", "#747474", "#3D3D3D", "#525252", "#C8D9F3", "#333333", "#000000", "#2671F4", "#13284A"),
+                    ("ochre", false) => ("#FCF8F3", "#F3EBE2", "#FFFAF5", "#FAF5EF", "#17100B", "#312620", "#6A5A51", "#8A776B", "#E3D9CD", "#CBBCAE", "#F97015", "#F3EADE", "#25130A", "#F97015", "#F3EADE"),
+                    ("ochre", true) => ("#0E0A07", "#231E1B", "#1A1512", "#252422", "#E7E4E2", "#C9C3C0", "#948984", "#827873", "#2B2522", "#423832", "#F97015", "#322A23", "#25130A", "#F97015", "#322A23"),
+                    ("sepia", false) => ("#F9F9F9", "#EFEFEF", "#FCFCFC", "#FCFCFC", "#202020", "#343434", "#646464", "#7A7A7A", "#D8D8D8", "#B5B5B5", "#644A40", "#FFDFB5", "#FFFFFF", "#644A40", "#FFE6C4"),
+                    ("sepia", true) => ("#111111", "#222222", "#191919", "#191919", "#EEEEEE", "#D8D5D2", "#B4B4B4", "#8E8E8E", "#302D29", "#484848", "#FFE0C2", "#393028", "#081A1B", "#FFE0C2", "#42382E"),
+                    ("default", false) => ("#F8F8F6", "#EDE9DE", "#FFFFFF", "#FAF9F5", "#3D3929", "#535146", "#6F6D66", "#83827D", "#D7D7D5", "#B4B2A7", "#C96442", "#EFEEEB", "#25150F", "#C96442", "#E9E6DC"),
+                    _ => ("#1F1F1E", "#1B1B19", "#30302E", "#262624", "#E5E5E2", "#C3C0B6", "#B7B5A9", "#8F8D84", "#3B3A39", "#52514A", "#D97757", "#3B2821", "#25150F", "#D97757", "#33251F")
+                };
+
+            return new Dictionary<string, string>
+            {
+                ["BgColor"] = values.paper,
+                ["PanelSurfaceStrong"] = values.paper2,
+                ["PanelSurface"] = values.surface,
+                ["SurfaceElevated"] = values.raised,
+                ["PanelHighlight"] = values.primarySoft,
+                ["BorderSubtle"] = values.rule,
+                ["BorderColor"] = values.ruleStrong,
+                ["BorderActive"] = values.primary,
+                ["TextMain"] = values.ink,
+                ["TextSecondary"] = values.ink2,
+                ["TextMuted"] = values.muted,
+                ["TextFaint"] = values.faint,
+                ["TextOnAccent"] = values.onPrimary,
+                ["AccentPrimary"] = values.primary,
+                ["AccentPrimaryHover"] = values.primary,
+                ["AccentPrimaryPressed"] = values.primary,
+                ["AccentPrimaryBg"] = values.primarySoft,
+                ["AccentCyan"] = values.accent,
+                ["AccentCyanHover"] = values.accent,
+                ["AccentCyanPressed"] = values.accent,
+                ["AccentCyanBg"] = values.accentSoft,
+                ["AccentInspect"] = values.accent,
+                ["AccentInspectBg"] = values.accentSoft,
+                ["MediaSurface"] = values.paper2,
+                ["BadgeSurface"] = values.surface,
+                ["OverlayScrim"] = dark ? "#D9000000" : "#CCFFFFFF"
+            };
         }
 
         private static ResourceDictionary? FindResourceOwner(ResourceDictionary dictionary, string key)
@@ -281,6 +375,7 @@ namespace BlueSapphire
             services.AddSingleton<BlueSapphire.Interfaces.IAIToolActionProvider>(sp =>
                 sp.GetRequiredService<BlueSapphire.Services.CleanerAIToolActionProvider>());
             services.AddSingleton<BlueSapphire.Services.CleanerStateStore>();
+            services.AddSingleton<BlueSapphire.Services.CleanerOperationCoordinator>();
             services.AddSingleton<BlueSapphire.Services.CleanerRiskEvaluator>();
             services.AddSingleton<BlueSapphire.Services.CleanerLockService>();
             services.AddSingleton<BlueSapphire.Services.CleanerOrphanResidueService>();
@@ -298,7 +393,6 @@ namespace BlueSapphire
             services.AddSingleton<BlueSapphire.Services.CleanerScanService>();
             services.AddSingleton<BlueSapphire.Services.CleanerDeepScanService>();
             services.AddSingleton<BlueSapphire.Services.CleanerExecutionService>();
-            services.AddSingleton<BlueSapphire.Services.CleanerOperationCoordinator>();
             services.AddSingleton<BlueSapphire.Services.CleanerSystemCleanupService>();
             services.AddSingleton<BlueSapphire.Services.CleanerApplicationDiscoveryService>();
             services.AddSingleton<BlueSapphire.Services.AIMemoryService>();
@@ -365,6 +459,7 @@ namespace BlueSapphire
 
             // 实例化 MainWindow 并赋值给静态属性
             CurrentWindow = new MainWindow();
+            ApplyUiFontSize(AppSettings.Get("UiFontSize", "standard") ?? "standard");
             ApplyThemePreference(AppSettings.Get("AppTheme", "System") ?? "System");
             CurrentWindow.Activate();
         }
@@ -416,4 +511,3 @@ namespace BlueSapphire
         }
     }
 }
-
