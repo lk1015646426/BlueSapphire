@@ -2,7 +2,7 @@
 
 > 此文件属于重构前的设计协定。新的 UI 设计目标和验收标准以 [UI_REDESIGN_SPEC.md](UI_REDESIGN_SPEC.md) 为准。
 
-版本：0.1  
+版本：0.1
 用途：作为 BlueSapphire 后续 UI 设计、审计和重设计的项目级约定。
 
 ## 外部参考
