@@ -1,4 +1,5 @@
 using BlueSapphire.Models;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -18,9 +19,10 @@ namespace BlueSapphire.Services
         private readonly string _memoryFilePath;
         private readonly string _legacyMemoryFilePath;
         private readonly SemaphoreSlim _gate = new(1, 1);
+        private readonly ILogger<AIMemoryService>? _logger;
         private AIMemoryState? _cachedState;
 
-        public AIMemoryService(string? rootPath = null)
+        public AIMemoryService(string? rootPath = null, ILogger<AIMemoryService>? logger = null)
         {
             string appFolder = rootPath ?? Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -28,6 +30,7 @@ namespace BlueSapphire.Services
             Directory.CreateDirectory(appFolder);
             _memoryFilePath = Path.Combine(appFolder, "AIMemory.dat");
             _legacyMemoryFilePath = Path.Combine(appFolder, "AIMemory.json");
+            _logger = logger;
         }
 
         public async Task<List<string>> GetMemoryRulesAsync()
@@ -300,7 +303,7 @@ namespace BlueSapphire.Services
             }
         }
 
-        private static AIMemoryState DeserializeState(byte[] jsonBytes)
+        private AIMemoryState DeserializeState(byte[] jsonBytes)
         {
             try
             {
@@ -311,8 +314,9 @@ namespace BlueSapphire.Services
                     return state;
                 }
             }
-            catch
+            catch (Exception)
             {
+                // 新版格式解析失败属正常回退路径：旧版本存的是字符串列表，继续按旧格式尝试。
             }
 
             try
@@ -323,8 +327,10 @@ namespace BlueSapphire.Services
                     Entries = NormalizeLegacyRules(legacyRules)
                 };
             }
-            catch
+            catch (Exception ex)
             {
+                // 旧格式也失败说明记忆文件已损坏，按空记忆启动；留痕避免用户误以为记忆被静默清除。
+                _logger?.LogWarning(ex, "长期记忆文件解析失败，已按空记忆启动：{MemoryFilePath}", _memoryFilePath);
                 return new AIMemoryState();
             }
         }
@@ -351,7 +357,11 @@ namespace BlueSapphire.Services
                         File.Delete(temporaryPath);
                     }
                 }
-                catch { }
+                catch (Exception cleanupEx)
+                {
+                    // 清理半成品文件失败只记日志，原始保存异常仍向上传递。
+                    _logger?.LogWarning(cleanupEx, "长期记忆保存失败后清理残留文件失败：{TemporaryPath}", temporaryPath);
+                }
                 throw;
             }
         }

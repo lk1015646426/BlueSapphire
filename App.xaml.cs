@@ -489,7 +489,7 @@ namespace BlueSapphire
                         }
                     }
                 }
-                catch { }
+                catch { /* 代理探测失败按无代理直连处理，属可容忍降级。 */ }
                 return handler;
             });
             services.AddLogging(builder => builder.AddFileLogger());

@@ -224,8 +224,9 @@ namespace BlueSapphire
                 var file = await StorageFile.GetFileFromPathAsync(item.ImagePath);
                 await Windows.System.Launcher.LaunchFileAsync(file);
             }
-            catch
+            catch (Exception)
             {
+                // 外部打开失败常见于文件已被移动或无关联程序，双击预览属辅助操作，不阻断列表操作。
             }
         }
 

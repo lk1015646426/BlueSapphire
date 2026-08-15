@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using System.Threading;
 using BlueSapphire.Models;
 using BlueSapphire.Helpers;
+using Microsoft.Extensions.Logging;
 
 namespace BlueSapphire.Services
 {
@@ -20,16 +21,20 @@ namespace BlueSapphire.Services
         private const long MaxConfigBytes = 20L * 1024 * 1024;
         private readonly string _configFilePath;
         private readonly IHttpClientFactory _httpClientFactory;
-        
+        private readonly ILogger<AgentSkillManager>? _logger;
+
         public ObservableCollection<AgentSkillConfig> Skills { get; } = new();
 
-        public AgentSkillManager(IHttpClientFactory httpClientFactory)
+        public AgentSkillManager(
+            IHttpClientFactory httpClientFactory,
+            ILogger<AgentSkillManager>? logger = null)
         {
             string appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "BlueSapphire");
             Directory.CreateDirectory(appData);
             _configFilePath = Path.Combine(appData, "agentskills.json");
-            
+
             _httpClientFactory = httpClientFactory;
+            _logger = logger;
 
             LoadConfig();
         }
@@ -56,7 +61,11 @@ namespace BlueSapphire.Services
                         }
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    // 配置损坏或不可读时技能列表为空，用户需要在设置页重新导入，必须留痕。
+                    _logger?.LogWarning(ex, "Agent Skill 配置加载失败，已按空技能列表启动：{ConfigPath}", _configFilePath);
+                }
             }
         }
 

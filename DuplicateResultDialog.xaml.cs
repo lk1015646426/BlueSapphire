@@ -1,4 +1,4 @@
-﻿using BlueSapphire.Models;
+using BlueSapphire.Models;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -84,7 +84,10 @@ namespace BlueSapphire
                 {
                     await Windows.System.Launcher.LaunchFileAsync(item.File);
                 }
-                catch { }
+                catch (Exception)
+                {
+                    // 外部打开失败常见于文件已被移动或无关联程序，双击预览属辅助操作，不阻断列表操作。
+                }
             }
         }
     }

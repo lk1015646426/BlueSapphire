@@ -188,9 +188,17 @@ namespace BlueSapphire.Views
                     await Windows.Storage.FileIO.WriteTextAsync(file, sb.ToString());
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // 忽略导出异常
+                // 导出是用户主动操作，失败必须可见，否则用户会误以为已成功导出。
+                var dialog = new ContentDialog
+                {
+                    Title = "导出失败",
+                    Content = $"对话记录未能写入所选文件：{ex.Message}",
+                    CloseButtonText = "知道了",
+                    XamlRoot = XamlRoot
+                };
+                await dialog.ShowAsync();
             }
         }
 

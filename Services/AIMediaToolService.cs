@@ -377,8 +377,9 @@ namespace BlueSapphire.Services
                         count++;
                     }
                 }
-                catch
+                catch (Exception)
                 {
+                    // 启发式统计按尽力而为处理：个别文件被占用或属性不可读时跳过，不影响整体结论。
                 }
             }
             return count;

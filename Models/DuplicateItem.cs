@@ -1,4 +1,4 @@
-﻿using Windows.Storage;
+using Windows.Storage;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -72,7 +72,10 @@ namespace BlueSapphire.Models
                     }
                 }
             }
-            catch { }
+            catch (Exception)
+            {
+                // 缩略图属装饰性内容，加载失败只影响占位显示，不影响列表数据本身。
+            }
         }
     }
 }

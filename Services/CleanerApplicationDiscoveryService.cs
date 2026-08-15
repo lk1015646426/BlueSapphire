@@ -85,8 +85,9 @@ public sealed class CleanerApplicationDiscoveryService
                         }
                         result.Add(new InstalledApplication(displayName.Trim(), version.Trim(), installLocation.Trim()));
                     }
-                    catch
+                    catch (Exception)
                     {
+                        // 个别卸载注册表键权限不足或损坏时跳过，属正常降级，不影响其余应用识别。
                     }
                 }
             }

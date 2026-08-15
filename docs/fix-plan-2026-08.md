@@ -292,3 +292,7 @@ AI 助手能力静默降级且无法排查。第 125 行尤其严重：磁盘信
 | 2026-08-15 | F3 | ✅ 完成 | AppSettings 新增 PersistFailed 静态事件，Save/Remove 写盘失败触发；App.ConfigureServices 订阅并路由到文件日志。ViewModel 层 UI 反馈经核实已存在。新增测试 Save_DoesNotThrow_AndRaisesPersistFailed_WhenDiskWriteFails |
 | 2026-08-15 | F4 | ✅ 完成 | 仅 ImageItem 属实：外层 finally 去掉 !handedOffToUi 前置条件，无条件兜底释放 loadingCts（Dispose 幂等）。另两处 Begin/End 配对完整，判定误报未改动 |
 | 2026-08-15 | 回归 | ✅ 通过 | dotnet build 0 错误 0 警告；dotnet test 241/241 通过（原 240 + 新增 1）；csproj 增加 InternalsVisibleTo("BlueSapphire.Tests") |
+| 2026-08-15 | F5 | ✅ 完成 | 版本号核实已全部统一为 1.0.3（csproj/README/installer.iss/builder_config，1.0.5 仅存于历史文档）；README 测试基线 165→241；.gitignore 补 .agents/.trae/.workbuddy；遗留 20 个 UI 重构文件以独立提交收口（e03ae13），仓库卫生 6ac6ef9，工作树干净 |
+| 2026-08-15 | F6 | ✅ 完成 | 计划内 15 处全部处理：AgentSkillManager/AIChatHistoryService/AIMemoryService 注入可选 ILogger 记警告；AIMediaTool/CleanerApplicationDiscovery/DuplicateItem/App.xaml.cs(ProxyTools)/DuplicateResultDialog/MediaManagerPage 补注释说明可忽略原因；AICopilotPage 导出失败改为用户可见 ContentDialog。另核实 JobObjectHelper/AIClassifierService/MainWindow/App(560) 原有注释已达标。遗留：全文另扫出约 59 处 `try {...} catch {}` 单行尽力而为模式（取文件大小/删临时文件类），未列入本计划，留待后续批次 |
+| 2026-08-15 | F7 | ✅ 完成 | MediaManagerViewModel 1829 行 → 主文件 615 + Rename 330 + Operations 532 + Library 373（partial class 拆分，方法集 93/93 一致，XAML 绑定零变化）；AIToolsRegistry 1772 行 → 主文件 424 + SystemPrompt 175 + WebFetch 548 + ToolCatalog 468 + AgentLoop 216（方法集 23/23 一致）。其余 6 个超 800 行文件按计划留待后续改动机会顺势拆分 |
+| 2026-08-15 | 回归(F5-F7) | ✅ 通过 | dotnet build 0 错误 0 警告；dotnet test 241/241 通过 |

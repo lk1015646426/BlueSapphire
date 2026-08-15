@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace BlueSapphire.Services
 {
@@ -18,14 +19,16 @@ namespace BlueSapphire.Services
         private const long MaxEncryptedHistoryBytes = 2 * 1024 * 1024;
         private readonly SemaphoreSlim _gate = new(1, 1);
         private readonly string _historyPath;
+        private readonly ILogger<AIChatHistoryService>? _logger;
 
-        public AIChatHistoryService(string? rootPath = null)
+        public AIChatHistoryService(string? rootPath = null, ILogger<AIChatHistoryService>? logger = null)
         {
             string folder = rootPath ?? Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "BlueSapphire");
             Directory.CreateDirectory(folder);
             _historyPath = Path.Combine(folder, "ai_chat_history.dat");
+            _logger = logger;
         }
 
         public async Task<IReadOnlyList<ChatMessage>> LoadAsync()
@@ -85,7 +88,11 @@ namespace BlueSapphire.Services
                     {
                         if (File.Exists(tempPath)) File.Delete(tempPath);
                     }
-                    catch { }
+                    catch (Exception cleanupEx)
+                    {
+                        // 清理半成品文件失败只记日志，原始保存异常仍向上传递。
+                        _logger?.LogWarning(cleanupEx, "聊天历史保存失败后清理残留文件失败：{TempPath}", tempPath);
+                    }
                     throw;
                 }
             }
