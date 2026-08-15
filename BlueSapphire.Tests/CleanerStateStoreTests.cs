@@ -96,6 +96,23 @@ public class CleanerStateStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task UpdatePreferencesAsync_ParallelIncrementsHaveNoLostUpdates()
+    {
+        CleanerStateStore store = new(_rootPath);
+        await store.SavePreferencesAsync(new CleanerPreferenceState { ReminderIntervalDays = 0 });
+        const int incrementCount = 60;
+
+        Task[] increments = Enumerable.Range(0, incrementCount).Select(_ =>
+            store.UpdatePreferencesAsync(state => state.ReminderIntervalDays += 1)).ToArray();
+
+        await Task.WhenAll(increments);
+
+        CleanerPreferenceState loaded = await store.LoadPreferencesAsync();
+        // 读-改-写在同一把文件锁内完成，60 次自增不允许任何一次丢失。
+        Assert.Equal(incrementCount, loaded.ReminderIntervalDays);
+    }
+
+    [Fact]
     public async Task SaveAndLoadRuleUpdateState_RoundTripsRemoteMetadata()
     {
         CleanerStateStore store = new(_rootPath);

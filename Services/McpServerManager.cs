@@ -23,6 +23,9 @@ namespace BlueSapphire.Services
         private const long MaxConfigBytes = 2 * 1024 * 1024;
         private readonly string _configFilePath;
         private readonly ConcurrentDictionary<string, McpClient> _clients = new();
+        // _configs 被 UI 线程（增删改/枚举）与后台（启动扫描/工具枚举）并发访问，
+        // 所有读写必须持 _configLock；跨 await 的长操作先在锁内取快照再在锁外执行。
+        private readonly object _configLock = new();
         private readonly List<McpServerConfig> _configs = new();
         private static readonly HashSet<string> AllowedCommands = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -35,12 +38,21 @@ namespace BlueSapphire.Services
             RegexOptions.Compiled | RegexOptions.CultureInvariant);
         public event Action? OnServersChanged;
 
-        public McpServerManager()
+        public McpServerManager(string? configFilePath = null)
         {
-            var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BlueSapphire");
-            if (!Directory.Exists(folder)) Directory.CreateDirectory(folder);
-            _configFilePath = Path.Combine(folder, "mcp_servers.json");
-            
+            if (configFilePath == null)
+            {
+                var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BlueSapphire");
+                if (!Directory.Exists(folder)) Directory.CreateDirectory(folder);
+                _configFilePath = Path.Combine(folder, "mcp_servers.json");
+            }
+            else
+            {
+                string? directory = Path.GetDirectoryName(configFilePath);
+                if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
+                _configFilePath = configFilePath;
+            }
+
             LoadConfigs();
         }
 
@@ -88,62 +100,99 @@ namespace BlueSapphire.Services
 
         private void SaveConfigs()
         {
-            try
+            bool saved = false;
+            // 全程持锁：序列化读取与临时文件写替换必须串行，避免并发保存写坏配置文件。
+            // 事件在锁外触发，防止订阅者同步回调本类方法时长时间持锁。
+            lock (_configLock)
             {
-                foreach (McpServerConfig config in _configs)
+                try
                 {
-                    config.ProtectedEnvironmentVariables = ProtectEnvironmentVariables(config.EnvironmentVariables);
-                }
+                    foreach (McpServerConfig config in _configs)
+                    {
+                        config.ProtectedEnvironmentVariables = ProtectEnvironmentVariables(config.EnvironmentVariables);
+                    }
 
-                var json = JsonSerializer.Serialize(_configs, new JsonSerializerOptions { WriteIndented = true });
-                string tempPath = _configFilePath + ".tmp";
-                File.WriteAllText(tempPath, json);
-                File.Move(tempPath, _configFilePath, true);
+                    var json = JsonSerializer.Serialize(_configs, new JsonSerializerOptions { WriteIndented = true });
+                    string tempPath = _configFilePath + ".tmp";
+                    File.WriteAllText(tempPath, json);
+                    File.Move(tempPath, _configFilePath, true);
+                    saved = true;
+                }
+                catch
+                {
+                    // 写盘失败保持内存态，下次保存重试。
+                }
+            }
+
+            if (saved)
+            {
                 OnServersChanged?.Invoke();
             }
-            catch { }
         }
 
-        public IReadOnlyList<McpServerConfig> GetServers() => _configs.AsReadOnly();
+        public IReadOnlyList<McpServerConfig> GetServers()
+        {
+            // 返回快照而非包装：调用方枚举期间集合可能被增删。
+            lock (_configLock)
+            {
+                return _configs.ToList();
+            }
+        }
 
         public void AddOrUpdateServer(McpServerConfig config)
         {
             ValidateConfig(config);
-            var existing = _configs.FirstOrDefault(c => c.Id == config.Id);
-            if (existing != null)
+            lock (_configLock)
             {
-                existing.Name = config.Name;
-                existing.Command = config.Command;
-                existing.Arguments = config.Arguments;
-                existing.IsEnabled = config.IsEnabled;
-                existing.IsApproved = config.IsApproved;
-                existing.EnvironmentVariables = config.EnvironmentVariables;
-            }
-            else
-            {
-                if (_configs.Count >= MaxServers)
+                var existing = _configs.FirstOrDefault(c => c.Id == config.Id);
+                if (existing != null)
                 {
-                    throw new InvalidOperationException($"最多只能保存 {MaxServers} 个 MCP 服务器。");
+                    existing.Name = config.Name;
+                    existing.Command = config.Command;
+                    existing.Arguments = config.Arguments;
+                    existing.IsEnabled = config.IsEnabled;
+                    existing.IsApproved = config.IsApproved;
+                    existing.EnvironmentVariables = config.EnvironmentVariables;
                 }
-                _configs.Add(config);
+                else
+                {
+                    if (_configs.Count >= MaxServers)
+                    {
+                        throw new InvalidOperationException($"最多只能保存 {MaxServers} 个 MCP 服务器。");
+                    }
+                    _configs.Add(config);
+                }
             }
             SaveConfigs();
         }
 
         public void RemoveServer(string id)
         {
-            var config = _configs.FirstOrDefault(c => c.Id == id);
-            if (config != null)
+            bool removed = false;
+            lock (_configLock)
+            {
+                var config = _configs.FirstOrDefault(c => c.Id == id);
+                if (config != null)
+                {
+                    _configs.Remove(config);
+                    removed = true;
+                }
+            }
+            if (removed)
             {
                 StopServer(id);
-                _configs.Remove(config);
                 SaveConfigs();
             }
         }
 
         public async Task StartAllEnabledServersAsync()
         {
-            foreach (var config in _configs.Where(c => c.IsEnabled && c.IsApproved))
+            List<McpServerConfig> toStart;
+            lock (_configLock)
+            {
+                toStart = _configs.Where(c => c.IsEnabled && c.IsApproved).ToList();
+            }
+            foreach (var config in toStart)
             {
                 await StartServerAsync(config.Id);
             }
@@ -153,7 +202,11 @@ namespace BlueSapphire.Services
             string id,
             CancellationToken cancellationToken = default)
         {
-            var config = _configs.FirstOrDefault(c => c.Id == id);
+            McpServerConfig? config;
+            lock (_configLock)
+            {
+                config = _configs.FirstOrDefault(c => c.Id == id);
+            }
             if (config == null || !config.IsApproved || string.IsNullOrWhiteSpace(config.Command)) return;
             ValidateConfig(config);
 

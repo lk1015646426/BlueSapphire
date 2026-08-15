@@ -5,6 +5,13 @@ using System.Linq;
 
 namespace BlueSapphire.Services
 {
+    /// <summary>
+    /// 线程模型：可变状态全部在 _sync 锁内交换；CleanerScanReport 进出均深克隆，
+    /// 订阅者与调用方拿到的是独立副本，可安全使用。
+    /// AIMediaAnalysisContext / AIMediaOrganizationPreview 属性全部为 init-only，
+    /// 按约定创建后不再修改（含其内部集合），因此直接共享引用；
+    /// 若未来改为可变模型，必须同步改为克隆进出。
+    /// </summary>
     public sealed class AISharedContextService
     {
         private readonly object _sync = new();

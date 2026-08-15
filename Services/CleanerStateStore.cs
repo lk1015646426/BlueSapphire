@@ -11,6 +11,12 @@ using System.Threading.Tasks;
 
 namespace BlueSapphire.Services
 {
+    /// <summary>
+    /// 线程模型：每个持久化文件对应一把独立 SemaphoreSlim（按文件路径键），
+    /// 同一文件的读/改/写互斥；写入一律"临时文件 + 原子替换"。
+    /// <see cref="LoadAuditAsync"/> 的版本迁移在 audit 锁外执行（需读 history），
+    /// 并发调用可能重复迁移一次，但迁移是幂等重算，结果一致，无需加锁。
+    /// </summary>
     public sealed class CleanerStateStore
     {
         private readonly System.Collections.Concurrent.ConcurrentDictionary<string, SemaphoreSlim> _locks = new(StringComparer.OrdinalIgnoreCase);
@@ -61,6 +67,7 @@ namespace BlueSapphire.Services
             }
         }
 
+        /// <summary>传入的集合在锁内被拷贝后序列化；调用方在交出后不得继续修改该集合。</summary>
         public async Task SaveHistoryAsync(IReadOnlyList<CleanerCleanupBatch> history)
         {
             SemaphoreSlim fileLock = GetLock(HistoryFilePath);

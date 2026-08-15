@@ -34,4 +34,55 @@ public class AISharedContextServiceTests
         Assert.Equal("缓存", service.GetCleanerScan()!.Items[0].Name);
         Assert.Null(service.GetCleanerScan(TimeSpan.Zero));
     }
+
+    [Fact]
+    public async Task ParallelSetAndGet_ConsistentSnapshotsWithoutCorruption()
+    {
+        var service = new AISharedContextService();
+        const int iterations = 200;
+
+        Task[] writers = Enumerable.Range(0, 4).Select(writerIndex => Task.Run(async () =>
+        {
+            for (int i = 0; i < iterations; i++)
+            {
+                var report = new CleanerScanReport
+                {
+                    CreatedAt = DateTimeOffset.Now,
+                    Items =
+                    [
+                        new CleanerScanItem
+                        {
+                            Name = $"w{writerIndex}-i{i}",
+                            Path = @"C:\Temp",
+                            RiskLevel = CleanerRiskLevel.Low,
+                            CanSelect = true
+                        }
+                    ]
+                };
+                service.SetCleanerScan(report);
+                service.SetCurrentMediaFolder($@"C:\Media\w{writerIndex}\{i}");
+                await Task.Yield();
+            }
+        })).ToArray();
+
+        Task[] readers = Enumerable.Range(0, 4).Select(_ => Task.Run(async () =>
+        {
+            for (int i = 0; i < iterations; i++)
+            {
+                CleanerScanReport? snapshot = service.GetCleanerScan();
+                if (snapshot != null)
+                {
+                    // 读到的每个快照必须完整可读：单条目且名字与路径非空。
+                    CleanerScanItem item = Assert.Single(snapshot.Items);
+                    Assert.False(string.IsNullOrEmpty(item.Name));
+                }
+
+                string? folder = service.GetCurrentMediaFolder();
+                Assert.False(folder != null && folder.Contains('\0'));
+                await Task.Yield();
+            }
+        })).ToArray();
+
+        await Task.WhenAll(writers.Concat(readers));
+    }
 }
