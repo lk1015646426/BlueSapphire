@@ -10,7 +10,23 @@
     Style="{StaticResource WorkbenchContentDialogStyle}"
     DefaultButton="Close">
 
-    <Grid Width="380" MaxWidth="520" RowSpacing="12">
+    <Grid x:Name="FormatDialogRoot"
+          MaxWidth="520"
+          HorizontalAlignment="Stretch"
+          RowSpacing="12">
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup x:Name="ResponsiveDialogStates">
+                <VisualState x:Name="CompactDialog"/>
+                <VisualState x:Name="WideDialog">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="900"/>
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="FormatDialogRoot.MaxWidth" Value="560"/>
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
         <TextBlock Text="选择输出格式。原文件不会被覆盖。" Style="{StaticResource DialogHelperTextStyle}"/>
         <ComboBox Grid.Row="1" Header="目标格式" x:Name="FormatComboBox"

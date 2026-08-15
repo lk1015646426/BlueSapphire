@@ -11,31 +11,97 @@
     DefaultButton="Close"
     Loaded="ContentDialog_Loaded">
 
-    <ScrollViewer MaxHeight="560" VerticalScrollBarVisibility="Auto">
-        <StackPanel Width="440" MaxWidth="560" Spacing="12">
-            <Border x:Name="PreviewBorder" Height="190" Background="{ThemeResource MediaSurface}"
-                    BorderBrush="{ThemeResource BorderSubtle}" BorderThickness="1" CornerRadius="8"
+    <ScrollViewer x:Name="EnhanceContentScroller"
+                  MaxHeight="440"
+                  HorizontalAlignment="Stretch"
+                  VerticalScrollBarVisibility="Auto">
+        <Grid x:Name="EnhanceDialogRoot"
+              MaxWidth="620"
+              HorizontalAlignment="Stretch"
+              RowSpacing="12">
+            <VisualStateManager.VisualStateGroups>
+                <VisualStateGroup x:Name="ResponsiveDialogStates">
+                    <VisualState x:Name="NarrowDialog"/>
+                    <VisualState x:Name="WideDialog">
+                        <VisualState.StateTriggers>
+                            <AdaptiveTrigger MinWindowWidth="920"/>
+                        </VisualState.StateTriggers>
+                        <VisualState.Setters>
+                            <Setter Target="EnhanceContentScroller.MaxHeight" Value="460"/>
+                            <Setter Target="PreviewBorder.MaxHeight" Value="150"/>
+                            <Setter Target="EnhanceParameterColumn1.Width" Value="*"/>
+                            <Setter Target="ContrastParameter.Grid.Row" Value="0"/>
+                            <Setter Target="ContrastParameter.Grid.Column" Value="1"/>
+                            <Setter Target="SaturationParameter.Grid.Row" Value="1"/>
+                            <Setter Target="SaturationParameter.Grid.Column" Value="0"/>
+                            <Setter Target="SharpnessParameter.Grid.Row" Value="1"/>
+                            <Setter Target="SharpnessParameter.Grid.Column" Value="1"/>
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateManager.VisualStateGroups>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <Border x:Name="PreviewBorder"
+                    MinHeight="120"
+                    MaxHeight="140"
+                    Background="{ThemeResource MediaSurface}"
+                    BorderBrush="{ThemeResource BorderSubtle}"
+                    BorderThickness="1"
+                    CornerRadius="8"
                     Visibility="Collapsed">
                 <Image x:Name="PreviewImage" Stretch="Uniform"/>
             </Border>
 
-            <Border Background="{ThemeResource AccentSafeBg}" CornerRadius="6" Padding="10,8">
+            <Border Grid.Row="1" Background="{ThemeResource AccentSafeBg}" CornerRadius="6" Padding="10,8">
                 <TextBlock Text="全部处理均在本机完成，不会上传图片；多选时统一应用参数。"
                            Foreground="{ThemeResource TextSecondary}" FontSize="12" TextWrapping="Wrap"/>
             </Border>
 
-            <Border Style="{StaticResource DialogSectionStyle}">
-                <StackPanel Spacing="10">
-                    <Grid><TextBlock Text="亮度"/><TextBlock x:Name="BrightnessText" Text="0.0" HorizontalAlignment="Right"/></Grid>
-                    <Slider x:Name="BrightnessSlider" Minimum="-1" Maximum="1" StepFrequency="0.05" Value="0" ValueChanged="Slider_ValueChanged"/>
-                    <Grid><TextBlock Text="对比度"/><TextBlock x:Name="ContrastText" Text="1.0" HorizontalAlignment="Right"/></Grid>
-                    <Slider x:Name="ContrastSlider" Minimum="0" Maximum="2" StepFrequency="0.05" Value="1" ValueChanged="Slider_ValueChanged"/>
-                    <Grid><TextBlock Text="饱和度"/><TextBlock x:Name="SaturationText" Text="1.0" HorizontalAlignment="Right"/></Grid>
-                    <Slider x:Name="SaturationSlider" Minimum="0" Maximum="2" StepFrequency="0.05" Value="1" ValueChanged="Slider_ValueChanged"/>
-                    <Grid><TextBlock Text="锐化"/><TextBlock x:Name="SharpnessText" Text="0.0" HorizontalAlignment="Right"/></Grid>
-                    <Slider x:Name="SharpnessSlider" Minimum="0" Maximum="1" StepFrequency="0.05" Value="0" ValueChanged="Slider_ValueChanged"/>
-                </StackPanel>
-            </Border>
-        </StackPanel>
+            <Grid x:Name="EnhanceParameterGrid" Grid.Row="2" ColumnSpacing="10" RowSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition x:Name="EnhanceParameterColumn1" Width="0"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <Border Style="{StaticResource DialogSectionStyle}">
+                    <StackPanel Spacing="8">
+                        <Grid><TextBlock Text="亮度"/><TextBlock x:Name="BrightnessText" Text="0.0" HorizontalAlignment="Right"/></Grid>
+                        <Slider x:Name="BrightnessSlider" Minimum="-1" Maximum="1" StepFrequency="0.05" Value="0" ValueChanged="Slider_ValueChanged"/>
+                    </StackPanel>
+                </Border>
+
+                <Border x:Name="ContrastParameter" Grid.Row="1" Style="{StaticResource DialogSectionStyle}">
+                    <StackPanel Spacing="8">
+                        <Grid><TextBlock Text="对比度"/><TextBlock x:Name="ContrastText" Text="1.0" HorizontalAlignment="Right"/></Grid>
+                        <Slider x:Name="ContrastSlider" Minimum="0" Maximum="2" StepFrequency="0.05" Value="1" ValueChanged="Slider_ValueChanged"/>
+                    </StackPanel>
+                </Border>
+
+                <Border x:Name="SaturationParameter" Grid.Row="2" Style="{StaticResource DialogSectionStyle}">
+                    <StackPanel Spacing="8">
+                        <Grid><TextBlock Text="饱和度"/><TextBlock x:Name="SaturationText" Text="1.0" HorizontalAlignment="Right"/></Grid>
+                        <Slider x:Name="SaturationSlider" Minimum="0" Maximum="2" StepFrequency="0.05" Value="1" ValueChanged="Slider_ValueChanged"/>
+                    </StackPanel>
+                </Border>
+
+                <Border x:Name="SharpnessParameter" Grid.Row="3" Style="{StaticResource DialogSectionStyle}">
+                    <StackPanel Spacing="8">
+                        <Grid><TextBlock Text="锐化"/><TextBlock x:Name="SharpnessText" Text="0.0" HorizontalAlignment="Right"/></Grid>
+                        <Slider x:Name="SharpnessSlider" Minimum="0" Maximum="1" StepFrequency="0.05" Value="0" ValueChanged="Slider_ValueChanged"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Grid>
     </ScrollViewer>
 </ContentDialog>

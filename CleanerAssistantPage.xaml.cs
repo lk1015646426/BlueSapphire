@@ -21,6 +21,7 @@ namespace BlueSapphire
     {
         private bool _isInitialized;
         private bool _reduceMotion;
+        private string _currentLayoutState = string.Empty;
 
         public CleanerAssistantViewModel ViewModel { get; }
 
@@ -69,6 +70,8 @@ namespace BlueSapphire
                 SettingsNav.SelectedIndex = 0;
                 HistoryNav.SelectedIndex = 0;
                 MainTabBar.SelectedIndex = 0;
+                CompactSectionPicker.SelectedIndex = 0;
+                ApplyCleanerLayout(CleanerLayoutRoot.ActualWidth);
 
                 UpdateDonutChart();
                 UpdateCleanupMotionState();
@@ -189,6 +192,35 @@ namespace BlueSapphire
             DispatcherQueue.TryEnqueue(UpdateDonutChart);
         }
 
+        private void CleanerLayoutRoot_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            ApplyCleanerLayout(e.NewSize.Width);
+        }
+
+        private void ApplyCleanerLayout(double availableWidth)
+        {
+            string state = availableWidth < 720
+                ? "NarrowLayout"
+                : availableWidth < 1080
+                    ? "MediumLayout"
+                    : "WideLayout";
+            if (state == _currentLayoutState)
+            {
+                return;
+            }
+
+            _currentLayoutState = state;
+            VisualStateManager.GoToState(this, state, false);
+        }
+
+        private void CompactSectionPicker_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (sender is ComboBox picker && picker.SelectedIndex >= 0 && MainTabBar.SelectedIndex != picker.SelectedIndex)
+            {
+                MainTabBar.SelectedIndex = picker.SelectedIndex;
+            }
+        }
+
         private void SettingsNav_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (sender is not ListView lv) return;
@@ -219,6 +251,10 @@ namespace BlueSapphire
             Tab1Content.Visibility = lv.SelectedIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
             Tab2Content.Visibility = lv.SelectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
             Tab3Content.Visibility = lv.SelectedIndex == 2 ? Visibility.Visible : Visibility.Collapsed;
+            if (CompactSectionPicker.SelectedIndex != lv.SelectedIndex)
+            {
+                CompactSectionPicker.SelectedIndex = lv.SelectedIndex;
+            }
         }
 
         private void UpdateDonutChart()

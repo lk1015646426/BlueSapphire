@@ -30,11 +30,31 @@
                     </VisualState.Setters>
                 </VisualState>
             </VisualStateGroup>
+            <VisualStateGroup x:Name="WindowHeightStates">
+                <VisualState x:Name="ShortHomeLayout">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowHeight="0"/>
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="AiRow.Height" Value="0.9*"/>
+                        <Setter Target="TaskRow.Height" Value="1.1*"/>
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="TallHomeLayout">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowHeight="780"/>
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="AiRow.Height" Value="1.15*"/>
+                        <Setter Target="TaskRow.Height" Value="0.85*"/>
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
         </VisualStateManager.VisualStateGroups>
 
         <Grid.RowDefinitions>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="*"/>
+            <RowDefinition x:Name="AiRow" Height="*"/>
+            <RowDefinition x:Name="TaskRow" Height="*"/>
         </Grid.RowDefinitions>
 
         <Frame x:Name="AiFrame"

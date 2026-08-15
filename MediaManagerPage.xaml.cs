@@ -21,6 +21,9 @@ namespace BlueSapphire
     {
 
 
+        private const double WideMediaLayoutMinWidth = 1040;
+        private bool _isWideMediaLayout = true;
+
         public MediaManagerViewModel ViewModel { get; }
 
         public MediaManagerPage()
@@ -240,7 +243,27 @@ namespace BlueSapphire
             TagButton.IsEnabled = hasSelection;
             OpenLocationButton.IsEnabled = hasSelection;
             DeleteButton.IsEnabled = hasSelection;
-            SelectionDetailsPanel.Visibility = ImageGrid.SelectedItems.Count == 1
+            UpdateSelectionDetailsVisibility();
+        }
+
+        private void MediaLayoutRoot_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            ApplyMediaContentWidth(e.NewSize.Width);
+        }
+
+        private void ApplyMediaContentWidth(double availableWidth)
+        {
+            _isWideMediaLayout = availableWidth >= WideMediaLayoutMinWidth;
+            VisualStateManager.GoToState(
+                this,
+                _isWideMediaLayout ? "WideMediaLayout" : "CompactMediaLayout",
+                useTransitions: true);
+            UpdateSelectionDetailsVisibility();
+        }
+
+        private void UpdateSelectionDetailsVisibility()
+        {
+            SelectionDetailsPanel.Visibility = _isWideMediaLayout && ImageGrid.SelectedItems.Count == 1
                 ? Visibility.Visible
                 : Visibility.Collapsed;
         }

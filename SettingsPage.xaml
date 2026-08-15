@@ -9,7 +9,7 @@
     Loaded="SettingsPage_Loaded"
     mc:Ignorable="d">
 
-    <Grid Padding="20" MaxWidth="1180" HorizontalAlignment="Center">
+    <Grid x:Name="SettingsLayoutRoot" Padding="20" MaxWidth="1180" HorizontalAlignment="Stretch" SizeChanged="SettingsLayoutRoot_SizeChanged">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -55,9 +55,12 @@
                         <Grid x:Name="ThemePresetGrid" Grid.Row="1" ColumnSpacing="8" RowSpacing="8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
                             <RadioButton x:Name="PresetDefault" GroupName="ThemePreset" Tag="default"
@@ -68,33 +71,33 @@
                                     </Grid><TextBlock Text="默认暖陶"/>
                                 </StackPanel>
                             </RadioButton>
-                            <RadioButton x:Name="PresetAzure" Grid.Row="1" GroupName="ThemePreset" Tag="sky"
+                            <RadioButton x:Name="PresetAzure" Grid.Row="0" Grid.Column="1" GroupName="ThemePreset" Tag="sky"
                                          Checked="ThemePreset_Checked" AutomationProperties.Name="天蓝">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Grid Width="30" Height="24"><Rectangle Fill="#FFFFFF"/><Rectangle Width="10" HorizontalAlignment="Center" Fill="#F7F8F8"/><Rectangle Width="10" HorizontalAlignment="Right" Fill="#1E9DF1"/></Grid><TextBlock Text="天蓝"/>
                                 </StackPanel>
                             </RadioButton>
-                            <RadioButton x:Name="PresetCobalt" Grid.Row="2" GroupName="ThemePreset" Tag="cobalt"
+                            <RadioButton x:Name="PresetCobalt" Grid.Row="0" Grid.Column="2" GroupName="ThemePreset" Tag="cobalt"
                                          Checked="ThemePreset_Checked" AutomationProperties.Name="钴蓝">
                                 <StackPanel Orientation="Horizontal" Spacing="8"><Grid Width="30" Height="24"><Rectangle Fill="#FFFFFF"/><Rectangle Width="10" HorizontalAlignment="Center" Fill="#F3F5F7"/><Rectangle Width="10" HorizontalAlignment="Right" Fill="#1166D4"/></Grid><TextBlock Text="钴蓝"/></StackPanel>
                             </RadioButton>
-                            <RadioButton x:Name="PresetGraphite" Grid.Row="3" GroupName="ThemePreset" Tag="graphite"
+                            <RadioButton x:Name="PresetGraphite" Grid.Row="0" Grid.Column="3" GroupName="ThemePreset" Tag="graphite"
                                          Checked="ThemePreset_Checked" AutomationProperties.Name="石墨">
                                 <StackPanel Orientation="Horizontal" Spacing="8"><Grid Width="30" Height="24"><Rectangle Fill="#FCFCFC"/><Rectangle Width="10" HorizontalAlignment="Center" Fill="#EBEBEB"/><Rectangle Width="10" HorizontalAlignment="Right" Fill="#000000"/></Grid><TextBlock Text="石墨"/></StackPanel>
                             </RadioButton>
-                            <RadioButton x:Name="PresetLagoon" Grid.Row="4" GroupName="ThemePreset" Tag="lagoon"
+                            <RadioButton x:Name="PresetLagoon" Grid.Row="1" Grid.Column="0" GroupName="ThemePreset" Tag="lagoon"
                                          Checked="ThemePreset_Checked" AutomationProperties.Name="泻湖">
                                 <StackPanel Orientation="Horizontal" Spacing="8"><Grid Width="30" Height="24"><Rectangle Fill="#F8FCFB"/><Rectangle Width="10" HorizontalAlignment="Center" Fill="#E3FAFC"/><Rectangle Width="10" HorizontalAlignment="Right" Fill="#00B298"/></Grid><TextBlock Text="泻湖"/></StackPanel>
                             </RadioButton>
-                            <RadioButton x:Name="PresetInk" Grid.Row="5" GroupName="ThemePreset" Tag="ink"
+                            <RadioButton x:Name="PresetInk" Grid.Row="1" Grid.Column="1" GroupName="ThemePreset" Tag="ink"
                                          Checked="ThemePreset_Checked" AutomationProperties.Name="墨色">
                                 <StackPanel Orientation="Horizontal" Spacing="8"><Grid Width="30" Height="24"><Rectangle Fill="#F3F9FF"/><Rectangle Width="10" HorizontalAlignment="Center" Fill="#F8FCFF"/><Rectangle Width="10" HorizontalAlignment="Right" Fill="#000102"/></Grid><TextBlock Text="墨色"/></StackPanel>
                             </RadioButton>
-                            <RadioButton x:Name="PresetOchre" Grid.Row="6" GroupName="ThemePreset" Tag="ochre"
+                            <RadioButton x:Name="PresetOchre" Grid.Row="1" Grid.Column="2" GroupName="ThemePreset" Tag="ochre"
                                          Checked="ThemePreset_Checked" AutomationProperties.Name="赭橙">
                                 <StackPanel Orientation="Horizontal" Spacing="8"><Grid Width="30" Height="24"><Rectangle Fill="#FCF8F3"/><Rectangle Width="10" HorizontalAlignment="Center" Fill="#F3EADE"/><Rectangle Width="10" HorizontalAlignment="Right" Fill="#F97015"/></Grid><TextBlock Text="赭橙"/></StackPanel>
                             </RadioButton>
-                            <RadioButton x:Name="PresetSepia" Grid.Row="7" GroupName="ThemePreset" Tag="sepia"
+                            <RadioButton x:Name="PresetSepia" Grid.Row="1" Grid.Column="3" GroupName="ThemePreset" Tag="sepia"
                                          Checked="ThemePreset_Checked" AutomationProperties.Name="棕褐">
                                 <StackPanel Orientation="Horizontal" Spacing="8"><Grid Width="30" Height="24"><Rectangle Fill="#F9F9F9"/><Rectangle Width="10" HorizontalAlignment="Center" Fill="#FFDFB5"/><Rectangle Width="10" HorizontalAlignment="Right" Fill="#644A40"/></Grid><TextBlock Text="棕褐"/></StackPanel>
                             </RadioButton>

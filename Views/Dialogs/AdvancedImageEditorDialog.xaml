@@ -11,20 +11,56 @@
     DefaultButton="Close"
     Loaded="ContentDialog_Loaded"
     PrimaryButtonClick="ContentDialog_PrimaryButtonClick"
-    MaxWidth="1200">
+    MaxWidth="980">
 
-    <ContentDialog.Resources>
-        <x:Double x:Key="ContentDialogMaxWidth">1200</x:Double>
-    </ContentDialog.Resources>
-
-    <Grid MinWidth="780" MaxWidth="1080" MinHeight="480" MaxHeight="620"
-          ColumnSpacing="12">
+    <Grid x:Name="EditorDialogRoot"
+          MaxWidth="960"
+          MaxHeight="520"
+          HorizontalAlignment="Stretch"
+          ColumnSpacing="12"
+          RowSpacing="12">
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup x:Name="ResponsiveDialogStates">
+                <VisualState x:Name="NarrowDialog"/>
+                <VisualState x:Name="MediumDialog">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="900"/>
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="EditorOptionsColumn.Width" Value="320"/>
+                        <Setter Target="EditorOptionsScroller.Grid.Column" Value="1"/>
+                        <Setter Target="EditorOptionsScroller.Grid.Row" Value="0"/>
+                        <Setter Target="EditorOptionsScroller.MaxHeight" Value="500"/>
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="WideDialog">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="1280"/>
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="EditorOptionsColumn.Width" Value="340"/>
+                        <Setter Target="EditorOptionsScroller.Grid.Column" Value="1"/>
+                        <Setter Target="EditorOptionsScroller.Grid.Row" Value="0"/>
+                        <Setter Target="EditorOptionsScroller.MaxHeight" Value="500"/>
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="1.25*"/>
-            <ColumnDefinition Width="360"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition x:Name="EditorOptionsColumn" Width="0"/>
         </Grid.ColumnDefinitions>
 
-        <Border Background="{ThemeResource MediaSurface}"
+        <Border x:Name="EditorPreviewSurface"
+                Grid.Row="0"
+                Grid.Column="0"
+                MinHeight="240"
+                MaxHeight="360"
+                Background="{ThemeResource MediaSurface}"
                 BorderBrush="{ThemeResource BorderSubtle}" BorderThickness="1"
                 CornerRadius="8" Padding="12">
             <Viewbox x:Name="PreviewViewbox" Stretch="Uniform">
@@ -76,7 +112,12 @@
             </Viewbox>
         </Border>
 
-        <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer x:Name="EditorOptionsScroller"
+                      Grid.Row="1"
+                      Grid.Column="0"
+                      MaxHeight="420"
+                      HorizontalAlignment="Stretch"
+                      VerticalScrollBarVisibility="Auto">
             <StackPanel Spacing="10" Padding="0,0,2,2">
                 <InfoBar x:Name="BatchInfoBar" IsOpen="False" Severity="Informational"
                          Title="批量处理" Message="以下参数将应用到全部所选图片。"/>

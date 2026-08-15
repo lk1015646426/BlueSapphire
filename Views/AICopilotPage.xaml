@@ -117,9 +117,7 @@
                     </ItemsControl.ItemContainerTransitions>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Grid Margin="0,5"
-                                  HorizontalAlignment="{Binding Alignment}"
-                                  MaxWidth="760">
+                            <Grid Margin="0,5">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
@@ -142,11 +140,14 @@
                                                FontSize="10"
                                                Foreground="{ThemeResource TextMuted}"
                                                HorizontalAlignment="{Binding Alignment}"/>
-                                    <Border Background="{Binding BubbleBackground}"
+                                    <Border x:Name="MessageBubble"
+                                            Background="{Binding BubbleBackground}"
                                             CornerRadius="7"
                                             Padding="12,8"
                                             BorderBrush="{Binding BubbleBorder}"
-                                            BorderThickness="0">
+                                            BorderThickness="0"
+                                            HorizontalAlignment="{Binding Alignment}"
+                                            MaxWidth="640">
                                         <Grid>
                                             <TextBlock Text="{Binding Content}"
                                                        TextWrapping="Wrap"
@@ -158,21 +159,26 @@
                                                            Foreground="{ThemeResource TextMain}"
                                                            FontSize="13"
                                                            Visibility="{Binding AIVisibility}"/>
-                                            <StackPanel Orientation="Horizontal" Spacing="7"
-                                                        Visibility="{Binding ToolVisibility}">
+                                            <Grid x:Name="ToolMessageGrid" ColumnSpacing="7"
+                                                  Visibility="{Binding ToolVisibility}">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
                                                 <ProgressRing IsActive="{Binding IsInProgress}"
                                                               Visibility="{Binding ToolProgressVisibility}"
                                                               Width="13" Height="13"
                                                               Foreground="{ThemeResource AccentPrimary}"/>
-                                                <FontIcon Glyph="&#xE73E;"
+                                                <FontIcon Grid.Column="1" Glyph="&#xE73E;"
                                                           Visibility="{Binding ToolCompletedVisibility}"
                                                           FontSize="12"
                                                           Foreground="{ThemeResource AccentSafe}"/>
-                                                <TextBlock Text="{Binding Content}"
+                                                <TextBlock Grid.Column="2" Text="{Binding Content}"
                                                            TextWrapping="Wrap"
                                                            Foreground="{ThemeResource TextMuted}"
                                                            FontSize="12"/>
-                                            </StackPanel>
+                                            </Grid>
                                         </Grid>
                                     </Border>
                                 </StackPanel>

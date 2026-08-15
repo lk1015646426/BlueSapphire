@@ -25,10 +25,10 @@
                         IsPaneToggleButtonVisible="True"
                         AlwaysShowHeader="False"
                         IsPaneOpen="True"
-                        OpenPaneLength="248"
+                        OpenPaneLength="220"
                         CompactPaneLength="56"
-                        CompactModeThresholdWidth="760"
-                        ExpandedModeThresholdWidth="1040"
+                        CompactModeThresholdWidth="900"
+                        ExpandedModeThresholdWidth="1280"
                         Background="{ThemeResource BgColor}"
                         BorderBrush="{ThemeResource BorderSubtle}"
                         BorderThickness="0">

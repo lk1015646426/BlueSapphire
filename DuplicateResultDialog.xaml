@@ -41,7 +41,7 @@
                 </Border>
                 <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="2">
                     <TextBlock Text="{x:Bind DisplayName}" FontSize="12" FontWeight="SemiBold"
-                               TextTrimming="CharacterEllipsis"/>
+                               TextWrapping="WrapWholeWords" TextTrimming="CharacterEllipsis"/>
                     <TextBlock Text="{x:Bind DateString}" Style="{StaticResource DialogHelperTextStyle}"/>
                     <TextBlock Text="建议保留，请人工确认" Visibility="{x:Bind SuggestionVisibility}"
                                Foreground="{ThemeResource AccentSafe}" FontSize="11"/>
@@ -51,7 +51,24 @@
         </DataTemplate>
     </ContentDialog.Resources>
 
-    <Grid Width="620" MaxWidth="760" RowSpacing="10">
+    <Grid x:Name="DuplicateDialogRoot"
+          MaxWidth="720"
+          MaxHeight="500"
+          HorizontalAlignment="Stretch"
+          RowSpacing="10">
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup x:Name="ResponsiveDialogStates">
+                <VisualState x:Name="CompactDialog"/>
+                <VisualState x:Name="WideDialog">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="1000"/>
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="DuplicateList.MaxHeight" Value="420"/>
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -63,11 +80,12 @@
                        Foreground="{ThemeResource AccentReview}" FontSize="12" TextWrapping="Wrap"/>
         </Border>
         <Border Grid.Row="2" Style="{StaticResource DialogSectionStyle}" Padding="0">
-            <ListView x:Name="DuplicateList" SelectionMode="None" MaxHeight="430"
+            <ListView x:Name="DuplicateList" SelectionMode="None" MaxHeight="340"
                       ItemsSource="{x:Bind GroupedItems.View, Mode=OneWay}"
                       ItemTemplate="{StaticResource DuplicateItemTemplate}"
                       ContainerContentChanging="DuplicateList_ContainerContentChanging"
-                      DoubleTapped="DuplicateList_DoubleTapped">
+                      DoubleTapped="DuplicateList_DoubleTapped"
+                      ScrollViewer.VerticalScrollBarVisibility="Auto">
                 <ListView.GroupStyle>
                     <GroupStyle HeaderTemplate="{StaticResource DuplicateGroupHeaderTemplate}"/>
                 </ListView.GroupStyle>
@@ -75,3 +93,4 @@
         </Border>
     </Grid>
 </ContentDialog>
+

@@ -85,8 +85,49 @@ namespace BlueSapphire
 
         private void SettingsPage_Loaded(object sender, RoutedEventArgs e)
         {
+            ApplyThemePresetGridLayout(SettingsLayoutRoot.ActualWidth);
             DispatcherQueue.TryEnqueue(() =>
                 SettingsScrollViewer.ChangeView(null, 0, null, disableAnimation: true));
+        }
+
+        private void SettingsLayoutRoot_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            ApplyThemePresetGridLayout(e.NewSize.Width);
+        }
+
+        private void ApplyThemePresetGridLayout(double availableWidth)
+        {
+            int columns = availableWidth >= 900 ? 4 : availableWidth >= 560 ? 2 : 1;
+            RadioButton[] presets =
+            [
+                PresetDefault,
+                PresetAzure,
+                PresetCobalt,
+                PresetGraphite,
+                PresetLagoon,
+                PresetInk,
+                PresetOchre,
+                PresetSepia
+            ];
+            int rows = (int)Math.Ceiling(presets.Length / (double)columns);
+
+            ThemePresetGrid.ColumnDefinitions.Clear();
+            ThemePresetGrid.RowDefinitions.Clear();
+            for (int column = 0; column < columns; column++)
+            {
+                ThemePresetGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            }
+
+            for (int row = 0; row < rows; row++)
+            {
+                ThemePresetGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            }
+
+            for (int index = 0; index < presets.Length; index++)
+            {
+                Grid.SetRow(presets[index], index / columns);
+                Grid.SetColumn(presets[index], index % columns);
+            }
         }
 
         private void LoadVersionInfo()

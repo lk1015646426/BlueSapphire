@@ -71,6 +71,70 @@ public sealed class UiDialogContractTests
         Assert.Contains("原文件不会被覆盖", converter, StringComparison.Ordinal);
     }
 
+
+    [Fact]
+    public void ResponsiveDialogs_RemoveFixedWidthsAndKeepContentScrollBounded()
+    {
+        string root = FindProjectRoot();
+        Dictionary<string, string[]> forbidden = new(StringComparer.Ordinal)
+        {
+            [Path.Combine("Views", "Dialogs", "AdvancedImageEditorDialog.xaml")] = ["MinWidth=\"780\"", "Width=\"360\"", "<x:Double x:Key=\"ContentDialogMaxWidth\">1200</x:Double>"],
+            ["DuplicateResultDialog.xaml"] = ["Width=\"620\"", "MaxHeight=\"430\""],
+            [Path.Combine("Views", "Dialogs", "EnhanceImageDialog.xaml")] = ["Width=\"440\"", "MaxHeight=\"560\"", "Height=\"190\""],
+            [Path.Combine("Views", "DevLogInputDialog.xaml")] = ["Width=\"600\"", "MaxHeight=\"580\""]
+        };
+
+        foreach ((string dialogFile, string[] blockedFragments) in forbidden)
+        {
+            string source = File.ReadAllText(Path.Combine(root, dialogFile));
+
+            Assert.Contains("HorizontalAlignment=\"Stretch\"", source, StringComparison.Ordinal);
+            Assert.Contains("VerticalScrollBarVisibility=\"Auto\"", source, StringComparison.Ordinal);
+            Assert.Contains("VisualStateManager.VisualStateGroups", source, StringComparison.Ordinal);
+            Assert.Contains("AdaptiveTrigger", source, StringComparison.Ordinal);
+
+            foreach (string blocked in blockedFragments)
+            {
+                Assert.DoesNotContain(blocked, source, StringComparison.Ordinal);
+            }
+        }
+    }
+
+    [Fact]
+    public void DialogCancelButtonsUseThemedWeakSurfaceInsteadOfAccentOrTransparent()
+    {
+        string root = FindProjectRoot();
+        string theme = File.ReadAllText(Path.Combine(root, "Themes", "SharedTheme.xaml"));
+
+        Match subtleStyle = Regex.Match(
+            theme,
+            "<Style x:Key=\"SubtleActionButtonStyle\"[\\s\\S]*?</Style>",
+            RegexOptions.CultureInvariant);
+
+        Assert.True(subtleStyle.Success, "SubtleActionButtonStyle must be declared.");
+        Assert.Contains("PanelSurfaceStrong", subtleStyle.Value, StringComparison.Ordinal);
+        Assert.Contains("BorderSubtle", subtleStyle.Value, StringComparison.Ordinal);
+        Assert.Contains("PanelHighlight", subtleStyle.Value, StringComparison.Ordinal);
+        Assert.Contains("SurfaceElevated", subtleStyle.Value, StringComparison.Ordinal);
+        Assert.DoesNotContain("Value=\"Transparent\"", subtleStyle.Value, StringComparison.Ordinal);
+        Assert.DoesNotContain("AccentPrimary", subtleStyle.Value, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RuntimeThemePresetUpdatesNativeAccentBrushes()
+    {
+        string root = FindProjectRoot();
+        string app = File.ReadAllText(Path.Combine(root, "App.xaml.cs"));
+        string theme = File.ReadAllText(Path.Combine(root, "Themes", "SharedTheme.xaml"));
+
+        Assert.Contains("ApplyNativeAccentResources", app, StringComparison.Ordinal);
+        Assert.Contains("AccentFillColorDefaultBrush", theme, StringComparison.Ordinal);
+        Assert.Contains("AccentTextFillColorPrimaryBrush", theme, StringComparison.Ordinal);
+        Assert.Contains("SystemAccentColor", app, StringComparison.Ordinal);
+        Assert.Contains("SystemAccentColorLight1", app, StringComparison.Ordinal);
+        Assert.Contains("SystemAccentColorDark1", app, StringComparison.Ordinal);
+    }
+
     private static string FindProjectRoot()
     {
         DirectoryInfo? current = new(AppContext.BaseDirectory);
@@ -87,3 +151,4 @@ public sealed class UiDialogContractTests
         throw new DirectoryNotFoundException("未找到 BlueSapphire 项目根目录。");
     }
 }
+

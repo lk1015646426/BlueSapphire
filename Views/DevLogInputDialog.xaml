@@ -10,52 +10,102 @@
     CloseButtonStyle="{StaticResource SubtleActionButtonStyle}"
     Style="{StaticResource WorkbenchContentDialogStyle}">
 
-    <ScrollViewer MaxHeight="580" VerticalScrollBarVisibility="Auto">
-        <StackPanel Width="600" MaxWidth="720" Spacing="12">
+    <ScrollViewer x:Name="DevLogInputContentScroller"
+                  MaxHeight="500"
+                  HorizontalAlignment="Stretch"
+                  VerticalScrollBarVisibility="Auto">
+        <StackPanel x:Name="DevLogInputRoot"
+                    MaxWidth="720"
+                    HorizontalAlignment="Stretch"
+                    Spacing="12">
+            <VisualStateManager.VisualStateGroups>
+                <VisualStateGroup x:Name="ResponsiveDialogStates">
+                    <VisualState x:Name="NarrowDialog"/>
+                    <VisualState x:Name="MediumDialog">
+                        <VisualState.StateTriggers>
+                            <AdaptiveTrigger MinWindowWidth="860"/>
+                        </VisualState.StateTriggers>
+                        <VisualState.Setters>
+                            <Setter Target="DevLogInputContentScroller.MaxHeight" Value="480"/>
+                            <Setter Target="MetaColumn1.Width" Value="*"/>
+                            <Setter Target="LevelInput.Grid.Row" Value="0"/>
+                            <Setter Target="LevelInput.Grid.Column" Value="1"/>
+                            <Setter Target="DateInput.Grid.Row" Value="1"/>
+                            <Setter Target="DateInput.Grid.Column" Value="0"/>
+                            <Setter Target="DateInput.Grid.ColumnSpan" Value="2"/>
+                        </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="WideDialog">
+                        <VisualState.StateTriggers>
+                            <AdaptiveTrigger MinWindowWidth="1120"/>
+                        </VisualState.StateTriggers>
+                        <VisualState.Setters>
+                            <Setter Target="DevLogInputContentScroller.MaxHeight" Value="520"/>
+                            <Setter Target="MetaColumn1.Width" Value="1.1*"/>
+                            <Setter Target="MetaColumn2.Width" Value="1.4*"/>
+                            <Setter Target="LevelInput.Grid.Row" Value="0"/>
+                            <Setter Target="LevelInput.Grid.Column" Value="1"/>
+                            <Setter Target="DateInput.Grid.Row" Value="0"/>
+                            <Setter Target="DateInput.Grid.Column" Value="2"/>
+                            <Setter Target="DateInput.Grid.ColumnSpan" Value="1"/>
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateManager.VisualStateGroups>
+
             <StackPanel Spacing="2">
-                <TextBlock x:Name="DialogTitleText" Text="添加更新记录" FontSize="16" FontWeight="SemiBold"/>
+                <TextBlock x:Name="DialogTitleText" Text="添加更新记录" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap"/>
                 <TextBlock Text="填写版本摘要；完整说明可直接输入或从文本文件导入。"
                            Style="{StaticResource DialogHelperTextStyle}"/>
             </StackPanel>
 
             <TextBox x:Name="TitleInput" Header="更新标题" PlaceholderText="例如：视觉重构与系统级优化"/>
 
-            <Grid ColumnSpacing="10">
+            <Grid x:Name="MetaFieldsGrid" ColumnSpacing="10" RowSpacing="10">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="1.1*"/>
-                    <ColumnDefinition Width="1.1*"/>
-                    <ColumnDefinition Width="1.4*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition x:Name="MetaColumn1" Width="0"/>
+                    <ColumnDefinition x:Name="MetaColumn2" Width="0"/>
                 </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
                 <TextBox x:Name="VersionInput" Header="构建版本" PlaceholderText="1.0.0"/>
-                <ComboBox x:Name="LevelInput" Grid.Column="1" Header="记录分级"
+                <ComboBox x:Name="LevelInput" Grid.Row="1" Header="记录分级"
                           SelectedIndex="1" HorizontalAlignment="Stretch">
                     <ComboBoxItem Content="核心跃迁"/>
                     <ComboBoxItem Content="常规迭代"/>
                 </ComboBox>
-                <TextBox x:Name="DateInput" Grid.Column="2" Header="更新日期"
+                <TextBox x:Name="DateInput" Grid.Row="2" Header="更新日期"
                          PlaceholderText="留空使用当前日期"/>
             </Grid>
 
             <TextBox x:Name="DescInput" Header="版本摘要"
                      PlaceholderText="概括本次更新的主要变化"
-                     Height="76" TextWrapping="Wrap" AcceptsReturn="True"/>
+                     MinHeight="76" TextWrapping="Wrap" AcceptsReturn="True"/>
 
             <Border Style="{StaticResource DialogSectionStyle}">
                 <StackPanel Spacing="8">
-                    <Grid>
+                    <Grid ColumnSpacing="10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
                         <StackPanel Spacing="2">
                             <TextBlock Text="完整说明" Style="{StaticResource DialogHeadingStyle}"/>
                             <TextBlock Text="支持导入不超过 1 MB 的 TXT 或 Markdown 文件。"
                                        Style="{StaticResource DialogHelperTextStyle}"/>
                         </StackPanel>
-                        <Button Content="选择文档" Click="SelectTxtFile_Click"
+                        <Button Grid.Column="1" Content="选择文档" Click="SelectTxtFile_Click"
                                 Style="{StaticResource CompactButtonStyle}" HorizontalAlignment="Right"/>
                     </Grid>
                     <TextBlock x:Name="FileStatusText" Text="尚未选择文件"
                                Style="{StaticResource DialogHelperTextStyle}"/>
                     <TextBox x:Name="FullContentInput" Header="完整正文"
                              PlaceholderText="输入完整版本说明，或先导入文档后继续编辑"
-                             Height="170" TextWrapping="Wrap" AcceptsReturn="True"/>
+                             MinHeight="150" TextWrapping="Wrap" AcceptsReturn="True"/>
                 </StackPanel>
             </Border>
         </StackPanel>

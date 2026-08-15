@@ -210,6 +210,9 @@ namespace BlueSapphire
             }
 
             if (Application.Current is not App app) return;
+
+            ApplyNativeAccentResources(app, colors);
+
             foreach ((string key, string value) in colors)
             {
                 ResourceDictionary? owner = FindResourceOwner(app.Resources, key);
@@ -224,6 +227,53 @@ namespace BlueSapphire
                 mainWindow.ApplyThemeChrome(
                     palette == "Light" ? ElementTheme.Light : ElementTheme.Dark);
             }
+        }
+
+
+        private static void ApplyNativeAccentResources(App app, IReadOnlyDictionary<string, string> colors)
+        {
+            string primary = colors.TryGetValue("AccentPrimary", out string? primaryValue)
+                ? primaryValue
+                : "#E5965B";
+            string hover = colors.TryGetValue("AccentPrimaryHover", out string? hoverValue)
+                ? hoverValue
+                : primary;
+            string pressed = colors.TryGetValue("AccentPrimaryPressed", out string? pressedValue)
+                ? pressedValue
+                : primary;
+
+            Dictionary<string, string> nativeBrushes = new(StringComparer.Ordinal)
+            {
+                ["AccentFillColorDefaultBrush"] = primary,
+                ["AccentFillColorSecondaryBrush"] = hover,
+                ["AccentFillColorTertiaryBrush"] = pressed,
+                ["AccentFillColorSelectedTextBackgroundBrush"] = primary,
+                ["AccentTextFillColorPrimaryBrush"] = primary,
+                ["AccentTextFillColorSecondaryBrush"] = hover,
+                ["AccentTextFillColorTertiaryBrush"] = pressed
+            };
+
+            foreach ((string key, string value) in nativeBrushes)
+            {
+                Windows.UI.Color color = ParseColor(value);
+                ResourceDictionary? owner = FindResourceOwner(app.Resources, key);
+                if (owner?[key] is SolidColorBrush brush)
+                {
+                    brush.Color = color;
+                }
+                else
+                {
+                    app.Resources[key] = new SolidColorBrush(color);
+                }
+            }
+
+            app.Resources["SystemAccentColor"] = ParseColor(primary);
+            app.Resources["SystemAccentColorLight1"] = ParseColor(hover);
+            app.Resources["SystemAccentColorLight2"] = ParseColor(hover);
+            app.Resources["SystemAccentColorLight3"] = ParseColor(hover);
+            app.Resources["SystemAccentColorDark1"] = ParseColor(pressed);
+            app.Resources["SystemAccentColorDark2"] = ParseColor(pressed);
+            app.Resources["SystemAccentColorDark3"] = ParseColor(pressed);
         }
 
         private static string NormalizeThemePreset(string preset)

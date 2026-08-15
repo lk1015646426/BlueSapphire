@@ -29,7 +29,24 @@
         </DataTemplate>
     </ContentDialog.Resources>
 
-    <Grid Width="560" MaxWidth="720" RowSpacing="10">
+    <Grid x:Name="RenameDialogRoot"
+          MaxWidth="680"
+          MaxHeight="500"
+          HorizontalAlignment="Stretch"
+          RowSpacing="10">
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup x:Name="ResponsiveDialogStates">
+                <VisualState x:Name="CompactDialog"/>
+                <VisualState x:Name="WideDialog">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="1000"/>
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="PreviewList.MaxHeight" Value="360"/>
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -41,7 +58,7 @@
                    Style="{StaticResource DialogHelperTextStyle}"/>
 
         <Border Grid.Row="1" Style="{StaticResource DialogSectionStyle}" Padding="0">
-            <ListView x:Name="PreviewList" SelectionMode="None" MaxHeight="380"
+            <ListView x:Name="PreviewList" SelectionMode="None" MaxHeight="320"
                       ItemTemplate="{StaticResource RenameItemTemplate}"/>
         </Border>
 
