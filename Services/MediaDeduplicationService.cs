@@ -13,6 +13,14 @@ namespace BlueSapphire.Services
 {
     public class MediaDeduplicationService
     {
+        /// <summary>
+        /// 2145 位指纹汉明距离判定阈值。距离 ≤ 该值视为"疑似相似"（仍需人工确认）。
+        /// 由 229 张真实截图人工标定：真重复（同屏重截，含动画/小幅内容变化）d=26~31，
+        /// 不同页面误报最低 d=39。取 35：真重复侧留 4 位余量，距最近误报留 4 位边距，
+        /// 宁可漏报不可误报。
+        /// </summary>
+        internal const int MaxHammingDistanceForSimilar = 35;
+
         private readonly ILogger<MediaDeduplicationService> _logger;
 
         public MediaDeduplicationService(ILogger<MediaDeduplicationService> logger)
@@ -214,7 +222,7 @@ namespace BlueSapphire.Services
             // ========== Phase 1: Parallel dHash extraction ==========
             progress?.Report((0, "阶段 1/2: 极速提取视觉指纹...", $"0 / {allFiles.Count}"));
 
-            var hashResults = new ConcurrentBag<(StorageFile File, ulong Hash, ulong Size)>();
+            var hashResults = new ConcurrentBag<(StorageFile File, PerceptualHash Hash, ulong Size)>();
             int processed = 0;
             int total = allFiles.Count;
             long lastReportTicks3 = 0;
@@ -300,7 +308,7 @@ namespace BlueSapphire.Services
 
                 var cluster = new List<(StorageFile File, ulong Size)>();
                 var directMatches = new List<BKTreeNode>();
-                root?.Search(node.Hash, 5, directMatches);
+                root?.Search(node.Hash, MaxHammingDistanceForSimilar, directMatches);
                 foreach (var match in directMatches)
                 {
                     if (!match.Visited)
@@ -326,18 +334,18 @@ namespace BlueSapphire.Services
 
         private sealed class BKTreeNode
         {
-            public ulong Hash;
+            public PerceptualHash Hash;
             public bool Visited;
             public List<(StorageFile File, ulong Size)> Items = new();
             public Dictionary<int, BKTreeNode>? Children;
 
-            public BKTreeNode(StorageFile file, ulong hash, ulong size)
+            public BKTreeNode(StorageFile file, PerceptualHash hash, ulong size)
             {
                 Hash = hash;
                 Items.Add((file, size));
             }
 
-            public bool AddWithNodeReturn(StorageFile file, ulong hash, ulong size, out BKTreeNode? newNode)
+            public bool AddWithNodeReturn(StorageFile file, PerceptualHash hash, ulong size, out BKTreeNode? newNode)
             {
                 int dist = MediaScanService.HammingDistance(Hash, hash);
                 if (dist == 0)
@@ -360,7 +368,7 @@ namespace BlueSapphire.Services
                 }
             }
 
-            public void Search(ulong queryHash, int maxDistance, List<BKTreeNode> results)
+            public void Search(PerceptualHash queryHash, int maxDistance, List<BKTreeNode> results)
             {
                 int dist = MediaScanService.HammingDistance(Hash, queryHash);
                 if (dist <= maxDistance)

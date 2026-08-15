@@ -150,7 +150,7 @@ public class MediaDeduplicationServiceTests
         }
     }
 
-    private static string GetRealWorldSampleImage()
+    private static string GetRealWorldSampleImage(string fileName = "sample-image.png")
     {
         string? dir = AppDomain.CurrentDomain.BaseDirectory;
         while (dir != null && !Directory.Exists(Path.Combine(dir, "TestData", "MediaRealWorld")))
@@ -158,7 +158,7 @@ public class MediaDeduplicationServiceTests
             dir = Path.GetDirectoryName(dir);
         }
         if (dir == null) throw new FileNotFoundException("Could not find TestData/MediaRealWorld directory");
-        string samplePath = Path.Combine(dir, "TestData", "MediaRealWorld", "sample-image.png");
+        string samplePath = Path.Combine(dir, "TestData", "MediaRealWorld", fileName);
         if (!File.Exists(samplePath)) throw new FileNotFoundException($"Sample image not found at {samplePath}");
         return samplePath;
     }
@@ -194,11 +194,12 @@ public class MediaDeduplicationServiceTests
 
     // ================================================================
     // Test 7: 使用真实世界样本文件测试相似图片识别
+    // （structured-sample.png 为带结构的真实图像；两张拷贝指纹相同应被分组）
     // ================================================================
     [Fact]
     public async Task FindSimilarImagesAsync_WithRealWorldSampleImage_DetectsSimilarImages()
     {
-        string samplePath = GetRealWorldSampleImage();
+        string samplePath = GetRealWorldSampleImage("structured-sample.png");
         string testDir = Path.Combine(Path.GetTempPath(), "BlueSapphireDedupRealSimilar", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(testDir);
         try
@@ -214,6 +215,37 @@ public class MediaDeduplicationServiceTests
 
             Assert.Single(groups);
             Assert.Equal(2, groups[0].Count);
+        }
+        finally
+        {
+            if (Directory.Exists(testDir)) Directory.Delete(testDir, true);
+        }
+    }
+
+    // ================================================================
+    // Test 8: 内容明显不同的图片（平坦图 vs 结构图）绝不能被报为相似
+    // 回归自真实缺陷：1×1 纯白图等平坦图哈希退化为全 0，
+    // 旧实现会把任意两张平坦图（截图、纯色底图）互相误报为相似。
+    // ================================================================
+    [Fact]
+    public async Task FindSimilarImagesAsync_ObviouslyDifferentImagesAreNotGrouped()
+    {
+        string flatPath = GetRealWorldSampleImage("sample-image.png");
+        string structuredPath = GetRealWorldSampleImage("structured-sample.png");
+        string testDir = Path.Combine(Path.GetTempPath(), "BlueSapphireDedupDistinct", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(testDir);
+        try
+        {
+            File.Copy(flatPath, Path.Combine(testDir, "flat_white.png"));
+            File.Copy(structuredPath, Path.Combine(testDir, "landscape.png"));
+            StorageFolder folder = await StorageFolder.GetFolderFromPathAsync(testDir);
+
+            var groups = await _service.FindSimilarImagesAsync(
+                folder,
+                new Progress<(double Value, string Message, string Detail)>(),
+                CancellationToken.None);
+
+            Assert.Empty(groups);
         }
         finally
         {
