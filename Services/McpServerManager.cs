@@ -11,6 +11,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Threading;
 using BlueSapphire.Models;
+using Microsoft.Extensions.Logging;
 
 namespace BlueSapphire.Services
 {
@@ -38,8 +39,11 @@ namespace BlueSapphire.Services
             RegexOptions.Compiled | RegexOptions.CultureInvariant);
         public event Action? OnServersChanged;
 
-        public McpServerManager(string? configFilePath = null)
+        private readonly ILogger<McpServerManager>? _logger;
+
+        public McpServerManager(string? configFilePath = null, ILogger<McpServerManager>? logger = null)
         {
+            _logger = logger;
             if (configFilePath == null)
             {
                 var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BlueSapphire");
@@ -94,7 +98,11 @@ namespace BlueSapphire.Services
                         }
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    // 配置损坏时按空配置启动，但必须留痕，否则"服务器列表丢失"无从排查。
+                    _logger?.LogWarning(ex, "MCP 服务器配置加载失败，按空配置启动：{ConfigPath}", _configFilePath);
+                }
             }
         }
 

@@ -854,6 +854,7 @@ namespace BlueSapphire.Services
 
         private static async Task TryDeleteAsync(StorageFile file)
         {
+            // 临时产物删除尽力而为：失败（占用/已不存在）不覆盖处理结果本身。
             try { await file.DeleteAsync(); } catch { }
         }
 

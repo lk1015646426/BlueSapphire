@@ -114,7 +114,10 @@ namespace BlueSapphire.Services
                 {
                     if (File.Exists(importTempPath)) File.Delete(importTempPath);
                 }
-                catch { }
+                catch
+                {
+                    // 临时文件清理失败不掩盖导入原始异常。
+                }
                 throw;
             }
 
@@ -172,7 +175,10 @@ namespace BlueSapphire.Services
                 {
                     if (File.Exists(tempPath)) File.Delete(tempPath);
                 }
-                catch { }
+                catch
+                {
+                    // 临时文件清理失败不掩盖下载原始异常。
+                }
                 throw;
             }
 

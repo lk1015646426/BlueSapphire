@@ -161,7 +161,10 @@ namespace BlueSapphire.Services
                     }
                 }
             }
-            catch { }
+            catch
+            {
+                // 读取循环随取消/进程退出结束，日志转储尽力而为。
+            }
         }
 
         private async Task<JsonNode?> SendRequestAsync(
@@ -303,9 +306,13 @@ namespace BlueSapphire.Services
                     }
                     _process.Dispose();
                 }
-                catch { }
+                catch
+                {
+                    // 进程已自行退出或句柄失效时，Kill/Dispose 允许失败。
+                }
                 _process = null;
             }
+            // 释放路径兜底：已释放对象重复 Dispose 不应掩盖主流程。
             try { _stdinLock.Dispose(); } catch { }
             try { _cts?.Dispose(); } catch { }
         }

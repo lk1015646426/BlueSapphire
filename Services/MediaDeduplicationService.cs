@@ -243,6 +243,7 @@ namespace BlueSapphire.Services
                         {
                             // Use pure .NET FileInfo instead of WinRT GetBasicPropertiesAsync
                             ulong fileSize = 0;
+                            // 大小读取失败按 0 处理，不阻断指纹聚类。
                             try { fileSize = (ulong)new FileInfo(file.Path).Length; } catch { }
                             hashResults.Add((file, hash.Value, fileSize));
                         }

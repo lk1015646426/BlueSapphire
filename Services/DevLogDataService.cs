@@ -199,7 +199,10 @@ namespace BlueSapphire.Services
                 {
                     if (File.Exists(tempFilePath)) File.Delete(tempFilePath);
                 }
-                catch { }
+                catch
+                {
+                    // 临时文件清理失败不掩盖落盘原始异常。
+                }
                 throw;
             }
 

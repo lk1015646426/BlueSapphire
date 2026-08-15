@@ -56,6 +56,7 @@ namespace BlueSapphire.Views.Dialogs
                     long totalBytes = 0;
                     foreach (var path in _imagePaths)
                     {
+                        // 单文件大小读取失败按 0 累计，不影响统计主流程。
                         try { totalBytes += new System.IO.FileInfo(path).Length; } catch {}
                     }
                     string sizeStr = FormatBytes(totalBytes);

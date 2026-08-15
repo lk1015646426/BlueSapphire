@@ -800,6 +800,7 @@ namespace BlueSapphire.Services
                     {
                         if (File.Exists(destinationPath))
                         {
+                            // 回滚删除尽力而为，移动的原始异常优先抛出。
                             try { DeleteFileSafely(destinationPath); } catch { }
                         }
                         throw;
@@ -831,6 +832,7 @@ namespace BlueSapphire.Services
                     {
                         if (Directory.Exists(destinationPath))
                         {
+                            // 回滚删除尽力而为，移动的原始异常优先抛出。
                             try { DeleteDirectorySafely(destinationPath); } catch { }
                         }
                         throw;

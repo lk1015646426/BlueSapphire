@@ -79,7 +79,10 @@ namespace BlueSapphire.Helpers
                     WriteSettingsUnsafe();
                 }
             }
-            catch { }
+            catch
+            {
+                // 加密迁移失败保持现状，下次启动重试。
+            }
         }
 
         public static void Save(string key, object value)
@@ -180,7 +183,10 @@ namespace BlueSapphire.Helpers
                 {
                     if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
                 }
-                catch { }
+                catch
+                {
+                    // 临时文件清理失败不掩盖落盘原始异常。
+                }
                 throw;
             }
         }

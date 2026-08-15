@@ -223,6 +223,8 @@ namespace BlueSapphire.Services
 
             _ = Task.Run(async () =>
             {
+                // 火忘调用：外层兜底，避免快照构造等 SaveAsync 内部 try 之前的
+                // 异常变成未观察任务异常。
                 try
                 {
                     await Task.Delay(120);
@@ -230,6 +232,10 @@ namespace BlueSapphire.Services
                     {
                         await SaveAsync();
                     }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "任务中心延迟保存调度失败。");
                 }
                 finally
                 {
@@ -397,6 +403,7 @@ namespace BlueSapphire.Services
             _disposed = true;
             foreach (CancellationTokenSource cts in _cancellations.Values)
             {
+                // 收尾取消尽力而为：CTS 可能已随释放路径释放。
                 try { cts.Cancel(); } catch { }
                 cts.Dispose();
             }

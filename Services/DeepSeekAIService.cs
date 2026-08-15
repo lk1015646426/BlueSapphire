@@ -300,7 +300,10 @@ namespace BlueSapphire.Services
                             }
                         }
                     }
-                    catch { }
+                    catch
+                    {
+                        // 跳过无法解析的 SSE 数据行，保持流式输出连续。
+                    }
 
                     if (hasData)
                     {

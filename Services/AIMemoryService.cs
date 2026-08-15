@@ -280,6 +280,7 @@ namespace BlueSapphire.Services
             if (_cachedState.Entries.Count > 0)
             {
                 await SaveMemoryCoreAsync();
+                // 遗留文件删除尽力而为：失败不影响迁移结果，下次启动再试。
                 try { File.Delete(_legacyMemoryFilePath); } catch { }
             }
         }

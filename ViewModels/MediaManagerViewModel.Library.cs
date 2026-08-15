@@ -209,41 +209,50 @@ namespace BlueSapphire.ViewModels
                     // 后台异步填充当前分页可视窗口内图片的 EXIF 元数据（高阶分辨率与色彩位深）
                     _ = Task.Run(async () =>
                     {
-                        using CancellationTokenSource linkedCts =
-                            CancellationTokenSource.CreateLinkedTokenSource(ct, _metadataCts.Token);
-                        CancellationToken metadataToken = linkedCts.Token;
-                        foreach (var item in batch)
+                        // 火忘调用：外层必须兜底。CreateLinkedTokenSource 可在所属操作
+                        // 的 CTS 已释放时抛 ObjectDisposedException（取消窗口竞态）。
+                        try
                         {
-                            if (metadataToken.IsCancellationRequested) break;
-                            if (item.ImageWidth == 0 && item.ImageHeight == 0)
+                            using CancellationTokenSource linkedCts =
+                                CancellationTokenSource.CreateLinkedTokenSource(ct, _metadataCts.Token);
+                            CancellationToken metadataToken = linkedCts.Token;
+                            foreach (var item in batch)
                             {
-                                try
+                                if (metadataToken.IsCancellationRequested) break;
+                                if (item.ImageWidth == 0 && item.ImageHeight == 0)
                                 {
-                                    var file = await StorageFile.GetFileFromPathAsync(item.ImagePath);
-                                    metadataToken.ThrowIfCancellationRequested();
-                                    var meta = await _imageMetadataService.TryReadAsync(file);
-                                    if (meta != null)
+                                    try
                                     {
-                                        RunOnUi(() =>
+                                        var file = await StorageFile.GetFileFromPathAsync(item.ImagePath);
+                                        metadataToken.ThrowIfCancellationRequested();
+                                        var meta = await _imageMetadataService.TryReadAsync(file);
+                                        if (meta != null)
                                         {
-                                            if (metadataToken.IsCancellationRequested) return;
-                                            item.ImageWidth = meta.Width;
-                                            item.ImageHeight = meta.Height;
-                                            item.ImageFormat = meta.FormatName;
-                                            item.ImageBitDepth = meta.BitDepth;
-                                            item.ImageDateTaken = meta.DateTaken;
-                                        });
+                                            RunOnUi(() =>
+                                            {
+                                                if (metadataToken.IsCancellationRequested) return;
+                                                item.ImageWidth = meta.Width;
+                                                item.ImageHeight = meta.Height;
+                                                item.ImageFormat = meta.FormatName;
+                                                item.ImageBitDepth = meta.BitDepth;
+                                                item.ImageDateTaken = meta.DateTaken;
+                                            });
+                                        }
+                                    }
+                                    catch (OperationCanceledException)
+                                    {
+                                        break;
+                                    }
+                                    catch
+                                    {
+                                        // 单个损坏或不可访问文件不应中止整批元数据读取。
                                     }
                                 }
-                                catch (OperationCanceledException)
-                                {
-                                    break;
-                                }
-                                catch
-                                {
-                                    // 单个损坏或不可访问文件不应中止整批元数据读取。
-                                }
                             }
+                        }
+                        catch
+                        {
+                            // 元数据是增强信息，后台填充失败直接放弃本批。
                         }
                     });
 
@@ -277,6 +286,7 @@ namespace BlueSapphire.ViewModels
             }
             catch
             {
+                // 属性读取失败保持 0，不影响建库主流程。
                 try { var properties = await file.GetBasicPropertiesAsync(); fileSize = properties.Size; } catch { }
             }
 

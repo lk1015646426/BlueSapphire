@@ -363,6 +363,7 @@ namespace BlueSapphire.ViewModels
             if (cts != null && !cts.IsCancellationRequested)
             {
                 StatusDetailText = "正在取消操作...";
+                // CTS 可能已被替换/释放，取消尽力而为。
                 try { cts.Cancel(); } catch (ObjectDisposedException) { }
             }
         }

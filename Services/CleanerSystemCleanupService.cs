@@ -108,6 +108,7 @@ public sealed class CleanerSystemCleanupService
             string current = pending.Pop();
             foreach (string file in CleanerPathSafety.SafeEnumerateFiles(current))
             {
+                // 单文件大小读取失败按 0 累计，不影响统计主流程。
                 try { total += new FileInfo(file).Length; } catch { }
             }
             foreach (string directory in CleanerPathSafety.SafeEnumerateDirectories(current))

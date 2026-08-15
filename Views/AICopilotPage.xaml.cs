@@ -631,8 +631,17 @@ namespace BlueSapphire.Views
 
         private async Task ScrollToBottomAsync()
         {
-            await Task.Delay(50);
-            ChatScrollViewer.ChangeView(null, ChatScrollViewer.ScrollableHeight, null);
+            // 全部调用点均为火忘式（_ = ...）：自动滚动只是体验优化，
+            // 页面卸载/窗口关闭与延迟间的竞态失败可安全忽略。
+            try
+            {
+                await Task.Delay(50);
+                ChatScrollViewer.ChangeView(null, ChatScrollViewer.ScrollableHeight, null);
+            }
+            catch
+            {
+                // 尽力而为的 UI 附加行为，失败无需反馈。
+            }
         }
     }
 

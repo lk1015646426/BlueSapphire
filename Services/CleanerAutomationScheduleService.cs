@@ -178,7 +178,10 @@ namespace BlueSapphire.Services
                 {
                     if (!process.HasExited) process.Kill(entireProcessTree: true);
                 }
-                catch { }
+                catch
+                {
+                    // Kill 尽力而为：进程可能恰好已自行退出。
+                }
                 return new CleanerTaskCommandResult(-1, string.Empty, "schtasks.exe 执行超时。");
             }
         }
