@@ -47,6 +47,7 @@
 			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
 		</Content>
 		<Manifest Include="$(ApplicationManifest)" />
+		<InternalsVisibleTo Include="BlueSapphire.Tests" />
 	</ItemGroup>
 
 	<ItemGroup>

@@ -53,6 +53,38 @@ public class AppSettingsTests : IDisposable
         Assert.Equal("fallback", AppSettings.Get(key, "fallback"));
     }
 
+    [Fact]
+    public void Save_DoesNotThrow_AndRaisesPersistFailed_WhenDiskWriteFails()
+    {
+        string key = $"PersistFail_{Guid.NewGuid():N}";
+        // 用同名目录占住临时写入路径，使 WriteAllText 必然失败，模拟磁盘写入故障。
+        string tempWritePath = Path.Combine(TestRoot, "config.json.tmp");
+        Directory.CreateDirectory(tempWritePath);
+
+        Exception? observedError = null;
+        string? observedKey = null;
+        void OnPersistFailed(Exception ex, string failedKey)
+        {
+            observedError = ex;
+            observedKey = failedKey;
+        }
+
+        AppSettings.PersistFailed += OnPersistFailed;
+        try
+        {
+            AppSettings.Save(key, true);
+        }
+        finally
+        {
+            AppSettings.PersistFailed -= OnPersistFailed;
+            // 恢复临时路径，避免占用同一 TestRoot 的其他测试写入失败。
+            Directory.Delete(tempWritePath, recursive: true);
+        }
+
+        Assert.NotNull(observedError);
+        Assert.Equal(key, observedKey);
+    }
+
     private static void ReloadSettingsCache()
     {
         Type settingsType = typeof(AppSettings);

@@ -443,7 +443,23 @@ namespace BlueSapphire
                 return handler;
             });
             services.AddLogging(builder => builder.AddFileLogger());
-            return services.BuildServiceProvider();
+            var provider = services.BuildServiceProvider();
+
+            // AppSettings 是静态类无法构造注入日志，这里把写盘失败路由到统一文件日志。
+            AppSettings.PersistFailed += (ex, key) =>
+            {
+                try
+                {
+                    provider.GetRequiredService<ILogger<App>>()
+                        .LogWarning(ex, "配置写入失败，下次启动该设置将回退：{Key}", key);
+                }
+                catch
+                {
+                    // 日志基础设施不可用时静默，不影响设置主流程。
+                }
+            };
+
+            return provider;
         }
 
         /// <summary>

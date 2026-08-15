@@ -325,7 +325,10 @@ namespace BlueSapphire.Models
                 {
                     dispatcherQueue.TryEnqueue(() => IsImageLoading = false);
                 }
-                if (!handedOffToUi && ReferenceEquals(_loadingCts, loadingCts))
+                // 无条件兜底释放：回调可能因 dispatcher 停机永不执行（窗口关闭）。
+                // CTS.Dispose 幂等，回调 finally 的二次释放安全；未被取消的 token
+                // 在 Dispose 后 IsCancellationRequested 仍可安全读取。
+                if (ReferenceEquals(_loadingCts, loadingCts))
                 {
                     loadingCts.Dispose();
                     _loadingCts = null;

@@ -14,6 +14,7 @@ using System.Text.RegularExpressions;
 using BlueSapphire.Models;
 using BlueSapphire.Helpers;
 using BlueSapphire.Interfaces;
+using Microsoft.Extensions.Logging;
 
 namespace BlueSapphire.Services
 {
@@ -34,9 +35,10 @@ namespace BlueSapphire.Services
         private readonly AIToolActionHandlerRegistry _actionHandlers = new();
         private readonly ConcurrentDictionary<string, (string ServerId, string ToolName)> _mcpToolRoutes =
             new(StringComparer.Ordinal);
+        private readonly ILogger<AIToolsRegistry>? _logger;
 
         public AIToolsRegistry(
-            DeepSeekAIService aiService, 
+            DeepSeekAIService aiService,
             DevLogDataService devLogDataService,
             AIMemoryService memoryService,
             McpServerManager mcpServerManager,
@@ -49,7 +51,8 @@ namespace BlueSapphire.Services
             AIOperationPolicyService operationPolicy,
             AIToolCapabilityCatalog capabilityCatalog,
             IEnumerable<IAIToolCapabilityProvider> capabilityProviders,
-            IEnumerable<IAIToolActionProvider> actionProviders)
+            IEnumerable<IAIToolActionProvider> actionProviders,
+            ILogger<AIToolsRegistry>? logger = null)
         {
             _aiService = aiService;
             _devLogDataService = devLogDataService;
@@ -63,6 +66,7 @@ namespace BlueSapphire.Services
             _insightService = insightService;
             _operationPolicy = operationPolicy;
             _capabilityCatalog = capabilityCatalog;
+            _logger = logger;
             foreach (IAIToolCapabilityProvider provider in capabilityProviders)
             {
                 _capabilityCatalog.RegisterProvider(provider);
@@ -122,7 +126,11 @@ namespace BlueSapphire.Services
                 var drives = string.Join(", ", System.IO.DriveInfo.GetDrives().Where(d => d.IsReady).Select(d => d.Name));
                 systemPrompt += $"\n【可用本地磁盘】系统当前就绪的磁盘有：{drives}。";
             }
-            catch { }
+            catch (Exception ex)
+            {
+                // 磁盘枚举失败会导致 AI 缺少磁盘上下文，影响清理建议的前提。
+                _logger?.LogWarning(ex, "系统提示词磁盘信息构建失败，AI 将缺少磁盘上下文。");
+            }
             string? currentMediaFolder = _sharedContext.GetCurrentMediaFolder();
             if (!string.IsNullOrWhiteSpace(currentMediaFolder))
             {
@@ -171,7 +179,10 @@ namespace BlueSapphire.Services
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "系统提示词长期偏好加载失败，本轮对话缺少用户偏好资料。");
+            }
 
             try
             {
@@ -208,7 +219,10 @@ namespace BlueSapphire.Services
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "系统提示词第三方技能注入失败，本轮对话缺少技能资料。");
+            }
 
             return new ChatMessage { Role = "system", Content = systemPrompt };
         }
@@ -240,7 +254,11 @@ namespace BlueSapphire.Services
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                // 代理探测失败按无代理处理，属可容忍的降级，但保留日志便于诊断网络问题。
+                _logger?.LogWarning(ex, "本地代理端口探测失败，本次请求将不使用代理。");
+            }
             return null;
         }
 
@@ -744,7 +762,11 @@ namespace BlueSapphire.Services
                         {
                             if (File.Exists(savePath)) File.Delete(savePath);
                         }
-                        catch { }
+                        catch (Exception cleanupEx)
+                        {
+                            // 清理半成品文件失败只记日志，原始下载异常仍向上传递。
+                            _logger?.LogWarning(cleanupEx, "下载失败后清理残留文件失败：{SavePath}", savePath);
+                        }
                         throw;
                     }
 
@@ -1469,7 +1491,11 @@ namespace BlueSapphire.Services
                     });
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                // MCP 工具枚举失败会导致 AI 本轮缺少第三方工具能力。
+                _logger?.LogWarning(ex, "MCP 工具枚举失败，AI 本轮将缺少第三方 MCP 工具。");
+            }
 
             // 添加在线 Web Skills
             try
@@ -1480,7 +1506,10 @@ namespace BlueSapphire.Services
                     baseTools.AddRange(skillTools);
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Web Skill 工具枚举失败，AI 本轮将缺少在线技能工具。");
+            }
 
             // 统一由能力目录向 AI 模型提供工具定义，同时保留现有执行分发逻辑以确保兼容。
             _capabilityCatalog.Replace(baseTools);

@@ -1,4 +1,5 @@
 using BlueSapphire.Models;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -20,18 +21,20 @@ namespace BlueSapphire.Services
         private readonly ConcurrentDictionary<string, CancellationTokenSource> _cancellations = new(StringComparer.Ordinal);
         private readonly SemaphoreSlim _saveGate = new(1, 1);
         private readonly List<AITaskRecord> _tasks;
+        private readonly ILogger<AITaskCenterService>? _logger;
         private int _saveScheduled;
         private bool _disposed;
 
         public event EventHandler? TasksChanged;
 
-        public AITaskCenterService(string? rootPath = null)
+        public AITaskCenterService(string? rootPath = null, ILogger<AITaskCenterService>? logger = null)
         {
             string root = rootPath ?? Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "BlueSapphire");
             Directory.CreateDirectory(root);
             _statePath = Path.Combine(root, "ai_tasks.json");
+            _logger = logger;
             _tasks = LoadState();
             RecoverInterruptedTasks();
         }
@@ -258,8 +261,10 @@ namespace BlueSapphire.Services
                 await File.WriteAllBytesAsync(tempPath, data).ConfigureAwait(false);
                 File.Move(tempPath, _statePath, true);
             }
-            catch
+            catch (Exception ex)
             {
+                // 落盘失败不中断任务运行，但必须留痕，避免任务历史静默丢失后无法排查。
+                _logger?.LogWarning(ex, "任务中心状态保存失败：{StatePath}", _statePath);
             }
             finally
             {
@@ -396,8 +401,35 @@ namespace BlueSapphire.Services
                 cts.Dispose();
             }
             _cancellations.Clear();
-            try { SaveAsync().ConfigureAwait(false).GetAwaiter().GetResult(); } catch { }
+
+            // 超时保护：慢 I/O 不允许卡死窗口关闭；失败或超时记录日志而非静默丢弃。
+            Task flush = Task.Run(async () => await SaveAsync().ConfigureAwait(false));
+            if (!flush.Wait(TimeSpan.FromSeconds(3)))
+            {
+                // 超时后不能释放 _saveGate：落盘任务可能仍在运行，释放会让其 Release 抛异常。
+                // 进程即将退出，信号量交由运行时回收。
+                LogDisposeWarning("任务状态最终落盘超时（3 秒），已放弃等待。");
+                return;
+            }
+            if (flush.IsFaulted)
+            {
+                LogDisposeWarning(
+                    $"任务状态最终落盘失败：{flush.Exception?.GetBaseException().Message}");
+            }
             _saveGate.Dispose();
+        }
+
+        private void LogDisposeWarning(string message)
+        {
+            try
+            {
+                // 退出期日志提供者可能已被容器先行释放，日志调用本身也需要兜底。
+                _logger?.LogWarning("{Message}（状态文件：{StatePath}）", message, _statePath);
+            }
+            catch
+            {
+                System.Diagnostics.Debug.WriteLine(message);
+            }
         }
     }
 

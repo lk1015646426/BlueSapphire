@@ -24,6 +24,12 @@ namespace BlueSapphire.Helpers
         private const string SecretKeySuffix = ".Secret";
         private static readonly object Sync = new();
 
+        /// <summary>
+        /// 配置写盘失败时触发（异常 + 失败的键名）。
+        /// 静态类无法构造注入日志，由宿主（App）订阅并路由到 ILogger。
+        /// </summary>
+        internal static event Action<Exception, string>? PersistFailed;
+
         private static Dictionary<string, JsonElement> _settingsCache = new();
 
         static AppSettings()
@@ -81,7 +87,12 @@ namespace BlueSapphire.Helpers
             lock (Sync)
             {
                 _settingsCache[key] = SerializeValue(value);
-                try { WriteSettingsUnsafe(); } catch { }
+                try { WriteSettingsUnsafe(); }
+                catch (Exception ex)
+                {
+                    // 内存缓存已更新（本次会话仍生效），但落盘失败会导致下次启动回退，必须留痕。
+                    PersistFailed?.Invoke(ex, key);
+                }
             }
         }
 
@@ -142,7 +153,11 @@ namespace BlueSapphire.Helpers
             lock (Sync)
             {
                 if (!_settingsCache.Remove(key)) return;
-                try { WriteSettingsUnsafe(); } catch { }
+                try { WriteSettingsUnsafe(); }
+                catch (Exception ex)
+                {
+                    PersistFailed?.Invoke(ex, key);
+                }
             }
         }
 
