@@ -565,5 +565,10 @@ xaml_*.txt
 check.py
 AppPackages/
 
+# AI collaboration tool working directories
+.agents/
+.trae/
+.workbuddy/
+
 # Local installer build output
 /Output/
