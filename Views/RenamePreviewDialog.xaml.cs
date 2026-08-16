@@ -1,0 +1,22 @@
+using BlueSapphire.Models;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using System.Collections.Generic;
+
+namespace BlueSapphire.Views
+{
+    public sealed partial class RenamePreviewDialog : ContentDialog
+    {
+        public RenamePreviewDialog(List<RenamePreviewItem> items, int skippedCount)
+        {
+            this.InitializeComponent();
+            PreviewList.ItemsSource = items;
+
+            if (skippedCount > 0)
+            {
+                WarningText.Text = $"注意：有 {skippedCount} 个文件缺少拍摄日期，将跳过这些文件。";
+                WarningText.Visibility = Visibility.Visible;
+            }
+        }
+    }
+}

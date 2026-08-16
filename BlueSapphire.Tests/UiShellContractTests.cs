@@ -36,7 +36,7 @@ public sealed class UiShellContractTests
             Assert.DoesNotContain("IsPart" + "icleEffectEnabled", source, StringComparison.Ordinal);
         }
 
-        string settingsSource = File.ReadAllText(Path.Combine(projectRoot, "SettingsPage.xaml.cs"));
+        string settingsSource = File.ReadAllText(Path.Combine(projectRoot, "Views", "SettingsPage.xaml.cs"));
         Assert.Contains("AppSettings.Save(\"ReduceMotion\", reduceMotion)", settingsSource, StringComparison.Ordinal);
         Assert.Contains("new ToggleReducedMotionMessage(reduceMotion)", settingsSource, StringComparison.Ordinal);
     }

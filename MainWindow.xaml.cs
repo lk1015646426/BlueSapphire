@@ -2,6 +2,7 @@ using BlueSapphire.Helpers;
 using BlueSapphire.Interfaces;
 using BlueSapphire.Models;
 using BlueSapphire.Tools;
+using BlueSapphire.Views;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI;

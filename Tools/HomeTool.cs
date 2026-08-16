@@ -1,6 +1,7 @@
-﻿using System;
+using System;
 using Microsoft.UI.Xaml.Controls;
 using BlueSapphire.Interfaces;
+using BlueSapphire.Views;
 
 namespace BlueSapphire.Tools
 {

@@ -8,6 +8,7 @@ using BlueSapphire.Helpers;
 using BlueSapphire.Interfaces;
 using BlueSapphire.Models;
 using BlueSapphire.Services;
+using BlueSapphire.ViewModels.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI.Dispatching;
@@ -17,14 +18,15 @@ using Microsoft.Extensions.Logging;
 namespace BlueSapphire.ViewModels
 {
     // 主分部：依赖与服务、可绑定状态、导航与排序命令、重复扫描、可取消操作基建与共享工具。
-    // 批量重命名见 MediaManagerViewModel.Rename.cs；图片批处理见 MediaManagerViewModel.Operations.cs；
+    // 批量重命名见 Media/MediaRenameViewModel；图片批处理见 Media/MediaOperationsViewModel
+    // （共享会话状态经 IMediaWorkbenchContext 提供，实现见 MediaManagerViewModel.Context.cs）；
     // 图片库加载与视图刷新见 MediaManagerViewModel.Library.cs。
     public partial class MediaManagerViewModel : ObservableObject
     {
-        private readonly MediaRenameService _renameService;
+        public MediaRenameViewModel Rename { get; }
+        public MediaOperationsViewModel Operations { get; }
+
         private readonly MediaDeduplicationService _deduplicationService;
-        private readonly NativeFileService _nativeFileService;
-        private readonly ImageProcessingService _imageProcessingService;
         private readonly ImageMetadataService _imageMetadataService;
         private readonly MediaTagService _mediaTagService;
         private readonly ILogger<MediaManagerViewModel> _logger;
@@ -241,14 +243,16 @@ namespace BlueSapphire.ViewModels
             ILogger<MediaManagerViewModel> logger,
             AISharedContextService? sharedContext = null)
         {
-            _renameService = renameService;
             _deduplicationService = deduplicationService;
-            _nativeFileService = nativeFileService;
-            _imageProcessingService = imageProcessingService;
             _imageMetadataService = imageMetadataService;
             _mediaTagService = mediaTagService;
             _logger = logger;
             _sharedContext = sharedContext;
+
+            // 子 VM 组合（模式同 CleanerAssistantViewModel 的 Scan/Cleanup/Rule/Drive）：
+            // this 即共享会话上下文，构造期仅保存引用、不发生回调。
+            Operations = new MediaOperationsViewModel(nativeFileService, imageProcessingService, mediaTagService, logger, this);
+            Rename = new MediaRenameViewModel(renameService, mediaTagService, logger, this);
         }
 
         public void Initialize(IMediaViewInteraction view, DispatcherQueue dispatcherQueue)
@@ -429,7 +433,7 @@ namespace BlueSapphire.ViewModels
                     isSimilarScan);
                 if (filesToDelete.Count > 0)
                 {
-                    await PerformDeleteFilesAsync(filesToDelete);
+                    await Operations.PerformDeleteFilesAsync(filesToDelete);
                 }
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -589,16 +593,6 @@ namespace BlueSapphire.ViewModels
             }
 
             _dispatcherQueue.TryEnqueue(() => action());
-        }
-
-        private static string GetDirectoryPath(string? path)
-        {
-            return Path.GetDirectoryName(path ?? string.Empty) ?? string.Empty;
-        }
-
-        private static string BuildSiblingPath(string originalPath, string newName)
-        {
-            return Path.Combine(GetDirectoryPath(originalPath), newName);
         }
 
         private static string? NormalizeFolderPathInput(string? input)

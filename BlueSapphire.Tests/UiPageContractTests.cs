@@ -6,7 +6,7 @@ public sealed class UiPageContractTests
 {
     private static readonly string[] PageFiles =
     [
-        "MediaManagerPage.xaml",
+        Path.Combine("Views", "MediaManagerPage.xaml"),
         Path.Combine("Views", "DevLogPage.xaml"),
         Path.Combine("Views", "DevLogInputDialog.xaml")
     ];
@@ -53,8 +53,8 @@ public sealed class UiPageContractTests
     public void MediaWorkspace_KeepsSelectedActionsReachableAtNarrowWidths()
     {
         string root = FindProjectRoot();
-        string source = File.ReadAllText(Path.Combine(root, "MediaManagerPage.xaml"));
-        string code = File.ReadAllText(Path.Combine(root, "MediaManagerPage.xaml.cs"));
+        string source = File.ReadAllText(Path.Combine(root, "Views", "MediaManagerPage.xaml"));
+        string code = File.ReadAllText(Path.Combine(root, "Views", "MediaManagerPage.xaml.cs"));
 
         Assert.Contains("x:Name=\"SelectedActionsScroller\"", source, StringComparison.Ordinal);
         Assert.Contains("HorizontalScrollBarVisibility=\"Auto\"", source, StringComparison.Ordinal);
@@ -85,7 +85,7 @@ public sealed class UiPageContractTests
     [Fact]
     public void HomeWorkspace_HidesSecondaryActivityPanelAtNarrowWidths()
     {
-        string source = File.ReadAllText(Path.Combine(FindProjectRoot(), "HomePage.xaml"));
+        string source = File.ReadAllText(Path.Combine(FindProjectRoot(), "Views", "HomePage.xaml"));
 
         Assert.Contains("x:Name=\"RecentActivityCard\"", source, StringComparison.Ordinal);
         Assert.Contains("MinWindowWidth=\"1000\"", source, StringComparison.Ordinal);
@@ -97,8 +97,8 @@ public sealed class UiPageContractTests
     public void CleanerWorkspace_UsesNarrowLayoutAndAppliesReducedMotionImmediately()
     {
         string root = FindProjectRoot();
-        string xaml = File.ReadAllText(Path.Combine(root, "CleanerAssistantPage.xaml"));
-        string code = File.ReadAllText(Path.Combine(root, "CleanerAssistantPage.xaml.cs"));
+        string xaml = File.ReadAllText(Path.Combine(root, "Views", "CleanerAssistantPage.xaml"));
+        string code = File.ReadAllText(Path.Combine(root, "Views", "CleanerAssistantPage.xaml.cs"));
 
         Assert.Contains("x:Name=\"ScanDetailPanel\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Target=\"ScanDetailPanel.Visibility\" Value=\"Collapsed\"", xaml, StringComparison.Ordinal);
@@ -115,8 +115,8 @@ public sealed class UiPageContractTests
     {
         string root = FindProjectRoot();
         string copilot = File.ReadAllText(Path.Combine(root, "Views", "AICopilotPage.xaml"));
-        string settings = File.ReadAllText(Path.Combine(root, "SettingsPage.xaml"));
-        string settingsCode = File.ReadAllText(Path.Combine(root, "SettingsPage.xaml.cs"));
+        string settings = File.ReadAllText(Path.Combine(root, "Views", "SettingsPage.xaml"));
+        string settingsCode = File.ReadAllText(Path.Combine(root, "Views", "SettingsPage.xaml.cs"));
 
         Assert.Contains("Target=\"HeaderTools.Visibility\" Value=\"Collapsed\"", copilot, StringComparison.Ordinal);
         Assert.Contains("Target=\"ConnectionPill.Visibility\" Value=\"Collapsed\"", copilot, StringComparison.Ordinal);
@@ -130,8 +130,8 @@ public sealed class UiPageContractTests
     public void CleanerWorkspace_UsesContentWidthDrivenMediumLayoutAndCompactSectionPicker()
     {
         string root = FindProjectRoot();
-        string xaml = File.ReadAllText(Path.Combine(root, "CleanerAssistantPage.xaml"));
-        string code = File.ReadAllText(Path.Combine(root, "CleanerAssistantPage.xaml.cs"));
+        string xaml = File.ReadAllText(Path.Combine(root, "Views", "CleanerAssistantPage.xaml"));
+        string code = File.ReadAllText(Path.Combine(root, "Views", "CleanerAssistantPage.xaml.cs"));
 
         Assert.Contains("MediumLayout", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"CompactSectionPicker\"", xaml, StringComparison.Ordinal);
@@ -166,7 +166,7 @@ public sealed class UiPageContractTests
     {
         string root = FindProjectRoot();
         string copilot = File.ReadAllText(Path.Combine(root, "Views", "AICopilotPage.xaml"));
-        string home = File.ReadAllText(Path.Combine(root, "HomePage.xaml"));
+        string home = File.ReadAllText(Path.Combine(root, "Views", "HomePage.xaml"));
 
         Assert.DoesNotContain("MaxWidth=\"760\"", copilot, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"MessageBubble\"", copilot, StringComparison.Ordinal);

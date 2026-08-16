@@ -387,65 +387,65 @@ namespace BlueSapphire
             services.AddSingleton<BlueSapphire.Interfaces.IAIToolCapabilityProvider>(sp => sp.GetRequiredService<MediaManagerTool>());
             services.AddSingleton<BlueSapphire.Interfaces.IAIToolCapabilityProvider>(sp => sp.GetRequiredService<CleanerAssistantTool>());
             // ✅ 新增：注册我们的重命名业务服务 (使用 Singleton 单例即可，因为它是无状态的工具类)
-            services.AddSingleton<BlueSapphire.Services.MediaRenameService>();
+            services.AddSingleton<BlueSapphire.Services.Media.MediaRenameService>();
 
             // ✅ 新增：注册去重扫描业务服务
-            services.AddSingleton<BlueSapphire.Services.MediaDeduplicationService>();
+            services.AddSingleton<BlueSapphire.Services.Media.MediaDeduplicationService>();
 
             // 注册 AI 服务
-            services.AddSingleton<BlueSapphire.Services.DeepSeekAIService>();
-            services.AddSingleton<BlueSapphire.Services.AIToolCapabilityCatalog>();
-            services.AddSingleton<BlueSapphire.Services.AIToolsRegistry>();
-            services.AddSingleton<BlueSapphire.Services.AIClassifierService>();
-            services.AddSingleton<BlueSapphire.Services.AIChatHistoryService>();
-            services.AddSingleton<BlueSapphire.Services.AITaskCenterService>();
-            services.AddSingleton<BlueSapphire.Services.AISharedContextService>();
-            services.AddSingleton<BlueSapphire.Services.AIPrivacyService>();
-            services.AddSingleton<BlueSapphire.Services.AIOfflineIntentService>();
-            services.AddSingleton<BlueSapphire.Services.AIMediaToolService>();
-            services.AddSingleton<BlueSapphire.Services.MediaAIToolActionProvider>();
+            services.AddSingleton<BlueSapphire.Services.AI.DeepSeekAIService>();
+            services.AddSingleton<BlueSapphire.Services.AI.AIToolCapabilityCatalog>();
+            services.AddSingleton<BlueSapphire.Services.AI.AIToolsRegistry>();
+            services.AddSingleton<BlueSapphire.Services.AI.AIClassifierService>();
+            services.AddSingleton<BlueSapphire.Services.AI.AIChatHistoryService>();
+            services.AddSingleton<BlueSapphire.Services.AI.AITaskCenterService>();
+            services.AddSingleton<BlueSapphire.Services.AI.AISharedContextService>();
+            services.AddSingleton<BlueSapphire.Services.AI.AIPrivacyService>();
+            services.AddSingleton<BlueSapphire.Services.AI.AIOfflineIntentService>();
+            services.AddSingleton<BlueSapphire.Services.AI.AIMediaToolService>();
+            services.AddSingleton<BlueSapphire.Services.Media.MediaAIToolActionProvider>();
             services.AddSingleton<BlueSapphire.Interfaces.IAIToolActionProvider>(sp =>
-                sp.GetRequiredService<BlueSapphire.Services.MediaAIToolActionProvider>());
-            services.AddSingleton<BlueSapphire.Services.AIDiagnosticsService>();
-            services.AddSingleton<BlueSapphire.Services.AICleanerRuleDraftService>();
-            services.AddSingleton<BlueSapphire.Services.AIInsightService>();
-            services.AddSingleton<BlueSapphire.Services.AIOperationPolicyService>();
+                sp.GetRequiredService<BlueSapphire.Services.Media.MediaAIToolActionProvider>());
+            services.AddSingleton<BlueSapphire.Services.AI.AIDiagnosticsService>();
+            services.AddSingleton<BlueSapphire.Services.AI.AICleanerRuleDraftService>();
+            services.AddSingleton<BlueSapphire.Services.AI.AIInsightService>();
+            services.AddSingleton<BlueSapphire.Services.AI.AIOperationPolicyService>();
 
             // 注册我们的本地文件系统服务 (回收站功能)
             services.AddSingleton<BlueSapphire.Services.NativeFileService>();
-            services.AddSingleton<BlueSapphire.Services.ImageProcessingService>();
-            services.AddSingleton<BlueSapphire.Services.ImageMetadataService>();
-            services.AddSingleton<BlueSapphire.Services.MediaTagService>();
+            services.AddSingleton<BlueSapphire.Services.Media.ImageProcessingService>();
+            services.AddSingleton<BlueSapphire.Services.Media.ImageMetadataService>();
+            services.AddSingleton<BlueSapphire.Services.Media.MediaTagService>();
             services.AddSingleton<BlueSapphire.Services.DevLogDataService>();
-            services.AddSingleton<BlueSapphire.Services.McpServerManager>();
-            services.AddSingleton<BlueSapphire.Services.WebSkillManager>();
-            services.AddSingleton<BlueSapphire.Services.AgentSkillManager>();
-            services.AddSingleton<BlueSapphire.Services.CleanerRuleService>();
-            services.AddSingleton<BlueSapphire.Services.CleanerAIToolActionProvider>();
+            services.AddSingleton<BlueSapphire.Services.Mcp.McpServerManager>();
+            services.AddSingleton<BlueSapphire.Services.Skills.WebSkillManager>();
+            services.AddSingleton<BlueSapphire.Services.Skills.AgentSkillManager>();
+            services.AddSingleton<BlueSapphire.Services.Cleaner.CleanerRuleService>();
+            services.AddSingleton<BlueSapphire.Services.Cleaner.CleanerAIToolActionProvider>();
             services.AddSingleton<BlueSapphire.Interfaces.IAIToolActionProvider>(sp =>
-                sp.GetRequiredService<BlueSapphire.Services.CleanerAIToolActionProvider>());
-            services.AddSingleton<BlueSapphire.Services.CleanerStateStore>();
-            services.AddSingleton<BlueSapphire.Services.CleanerOperationCoordinator>();
-            services.AddSingleton<BlueSapphire.Services.CleanerRiskEvaluator>();
-            services.AddSingleton<BlueSapphire.Services.CleanerLockService>();
-            services.AddSingleton<BlueSapphire.Services.CleanerOrphanResidueService>();
-            services.AddSingleton<BlueSapphire.Services.CleanerPrivilegeService>();
-            services.AddSingleton<BlueSapphire.Services.CleanerLaunchActionService>();
-            services.AddSingleton<BlueSapphire.Services.CleanerDriveService>();
-            services.AddSingleton<BlueSapphire.Services.CleanerBoundaryGuard>();
-            services.AddSingleton<BlueSapphire.Services.CleanerAuditService>();
-            services.AddSingleton<BlueSapphire.Services.CleanerProfileService>();
-            services.AddSingleton<BlueSapphire.Services.CleanerAutomationScheduleService>();
-            services.AddSingleton<BlueSapphire.Services.CleanerAutomationService>();
-            services.AddSingleton<BlueSapphire.Services.CleanerTelemetryService>();
-            services.AddSingleton<BlueSapphire.Services.CleanerRecommendationService>();
-            services.AddSingleton<BlueSapphire.Services.CleanerSpaceAnalysisService>();
-            services.AddSingleton<BlueSapphire.Services.CleanerScanService>();
-            services.AddSingleton<BlueSapphire.Services.CleanerDeepScanService>();
-            services.AddSingleton<BlueSapphire.Services.CleanerExecutionService>();
-            services.AddSingleton<BlueSapphire.Services.CleanerSystemCleanupService>();
-            services.AddSingleton<BlueSapphire.Services.CleanerApplicationDiscoveryService>();
-            services.AddSingleton<BlueSapphire.Services.AIMemoryService>();
+                sp.GetRequiredService<BlueSapphire.Services.Cleaner.CleanerAIToolActionProvider>());
+            services.AddSingleton<BlueSapphire.Services.Cleaner.CleanerStateStore>();
+            services.AddSingleton<BlueSapphire.Services.Cleaner.CleanerOperationCoordinator>();
+            services.AddSingleton<BlueSapphire.Services.Cleaner.CleanerRiskEvaluator>();
+            services.AddSingleton<BlueSapphire.Services.Cleaner.CleanerLockService>();
+            services.AddSingleton<BlueSapphire.Services.Cleaner.CleanerOrphanResidueService>();
+            services.AddSingleton<BlueSapphire.Services.Cleaner.CleanerPrivilegeService>();
+            services.AddSingleton<BlueSapphire.Services.Cleaner.CleanerLaunchActionService>();
+            services.AddSingleton<BlueSapphire.Services.Cleaner.CleanerDriveService>();
+            services.AddSingleton<BlueSapphire.Services.Cleaner.CleanerBoundaryGuard>();
+            services.AddSingleton<BlueSapphire.Services.Cleaner.CleanerAuditService>();
+            services.AddSingleton<BlueSapphire.Services.Cleaner.CleanerProfileService>();
+            services.AddSingleton<BlueSapphire.Services.Cleaner.CleanerAutomationScheduleService>();
+            services.AddSingleton<BlueSapphire.Services.Cleaner.CleanerAutomationService>();
+            services.AddSingleton<BlueSapphire.Services.Cleaner.CleanerTelemetryService>();
+            services.AddSingleton<BlueSapphire.Services.Cleaner.CleanerRecommendationService>();
+            services.AddSingleton<BlueSapphire.Services.Cleaner.CleanerSpaceAnalysisService>();
+            services.AddSingleton<BlueSapphire.Services.Cleaner.CleanerScanService>();
+            services.AddSingleton<BlueSapphire.Services.Cleaner.CleanerDeepScanService>();
+            services.AddSingleton<BlueSapphire.Services.Cleaner.CleanerExecutionService>();
+            services.AddSingleton<BlueSapphire.Services.Cleaner.CleanerSystemCleanupService>();
+            services.AddSingleton<BlueSapphire.Services.Cleaner.CleanerApplicationDiscoveryService>();
+            services.AddSingleton<BlueSapphire.Services.AI.AIMemoryService>();
 
             // 注册 ViewModel
             services.AddTransient<MediaManagerViewModel>();

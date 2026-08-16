@@ -6,8 +6,8 @@ public sealed class UiDialogContractTests
 {
     private static readonly string[] DialogFiles =
     [
-        "DuplicateResultDialog.xaml",
-        "RenamePreviewDialog.xaml",
+        Path.Combine("Views", "DuplicateResultDialog.xaml"),
+        Path.Combine("Views", "RenamePreviewDialog.xaml"),
         Path.Combine("Views", "Dialogs", "AdvancedImageEditorDialog.xaml"),
         Path.Combine("Views", "Dialogs", "EnhanceImageDialog.xaml"),
         Path.Combine("Views", "Dialogs", "FormatConvertDialog.xaml"),
@@ -62,7 +62,7 @@ public sealed class UiDialogContractTests
     public void DestructiveAndLongDialogs_ExplainScopeOrPreservation()
     {
         string root = FindProjectRoot();
-        string duplicate = File.ReadAllText(Path.Combine(root, "DuplicateResultDialog.xaml"));
+        string duplicate = File.ReadAllText(Path.Combine(root, "Views", "DuplicateResultDialog.xaml"));
         string editor = File.ReadAllText(Path.Combine(root, "Views", "Dialogs", "AdvancedImageEditorDialog.xaml"));
         string converter = File.ReadAllText(Path.Combine(root, "Views", "Dialogs", "FormatConvertDialog.xaml"));
 
@@ -79,7 +79,7 @@ public sealed class UiDialogContractTests
         Dictionary<string, string[]> forbidden = new(StringComparer.Ordinal)
         {
             [Path.Combine("Views", "Dialogs", "AdvancedImageEditorDialog.xaml")] = ["MinWidth=\"780\"", "Width=\"360\"", "<x:Double x:Key=\"ContentDialogMaxWidth\">1200</x:Double>"],
-            ["DuplicateResultDialog.xaml"] = ["Width=\"620\"", "MaxHeight=\"430\""],
+            [Path.Combine("Views", "DuplicateResultDialog.xaml")] = ["Width=\"620\"", "MaxHeight=\"430\""],
             [Path.Combine("Views", "Dialogs", "EnhanceImageDialog.xaml")] = ["Width=\"440\"", "MaxHeight=\"560\"", "Height=\"190\""],
             [Path.Combine("Views", "DevLogInputDialog.xaml")] = ["Width=\"600\"", "MaxHeight=\"580\""]
         };

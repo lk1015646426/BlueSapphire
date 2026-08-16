@@ -1,6 +1,7 @@
-﻿using System;
+using System;
 using Microsoft.UI.Xaml.Controls; // 用于 Symbol
 using BlueSapphire.Interfaces;      // 用于 ITool
+using BlueSapphire.Views;
 using BlueSapphire.Tools;           // 命名空间建议
 using BlueSapphire.Models;
 using System.Collections.Generic;

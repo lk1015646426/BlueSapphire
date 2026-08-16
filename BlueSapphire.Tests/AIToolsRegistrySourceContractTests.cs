@@ -6,7 +6,7 @@ public sealed class AIToolsRegistrySourceContractTests
     public void ExecuteToolCallAsync_PropagatesCancellationBeforeGeneralFailureHandling()
     {
         string projectRoot = FindProjectRoot();
-        string source = File.ReadAllText(Path.Combine(projectRoot, "Services", "AIToolsRegistry.cs"));
+        string source = File.ReadAllText(Path.Combine(projectRoot, "Services", "AI", "AIToolsRegistry.cs"));
         int methodStart = source.IndexOf("public async Task<string> ExecuteToolCallAsync", StringComparison.Ordinal);
         int methodEnd = source.IndexOf("private void RegisterBuiltInActionHandlers", methodStart, StringComparison.Ordinal);
 

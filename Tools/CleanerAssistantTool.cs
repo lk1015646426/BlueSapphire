@@ -1,4 +1,5 @@
 using BlueSapphire.Interfaces;
+using BlueSapphire.Views;
 using Microsoft.UI.Xaml.Controls;
 using System;
 using System.Collections.Generic;
