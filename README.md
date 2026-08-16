@@ -179,7 +179,7 @@ dotnet build BlueSapphire.slnx
 dotnet test BlueSapphire.Tests\BlueSapphire.Tests.csproj
 ```
 
-当前测试基线：`241` 项自动化测试。
+当前测试基线：`251` 项自动化测试。
 
 ### Release 构建
 
@@ -249,7 +249,7 @@ BlueSapphire/
 
 ## 质量状态
 
-- Debug 自动化测试：241 项通过
+- Debug 自动化测试：251 项通过
 - Release 构建：通过
 - 编译警告：0
 - 清理、恢复、任务幂等、共享上下文、隐私脱敏和媒体规则均有测试覆盖
