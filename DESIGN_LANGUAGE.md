@@ -1,6 +1,6 @@
-# BlueSapphire 旧版设计语言（历史归档）
+# BlueSapphire 当前设计语言
 
-> 本文件描述的是重构前的深蓝/青色视觉系统，已不再作为当前 UI 设计依据。当前规范请阅读 [UI_REDESIGN_SPEC.md](UI_REDESIGN_SPEC.md)，变更过程请阅读 [UI_REDESIGN_CHANGELOG.md](UI_REDESIGN_CHANGELOG.md)。
+> 当前程序的主题实现以 Themes/SharedTheme.xaml 和 App.xaml.cs 为准。本文件下方的旧版深蓝/青色内容仅作历史参考，不应直接复制到新页面。
 
 <!--
 
